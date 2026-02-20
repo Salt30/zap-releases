@@ -21,12 +21,25 @@ jobs:
           CERTIFICATE_BASE64: ${{ secrets.CERTIFICATE_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
         run: |
+          # Decode certificate
           echo "$CERTIFICATE_BASE64" | base64 --decode > certificate.p12
+
+          # Create and configure keychain
           security create-keychain -p actions build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p actions build.keychain
-          security import certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+          security set-keychain-settings -t 3600 -u build.keychain
+
+          # Import certificate
+          security import certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k actions build.keychain
+
+          # Verify the identity is available
+          echo "Available signing identities:"
+          security find-identity -v -p codesigning build.keychain
+
+          # Clean up
+          rm certificate.p12
 
       - name: Inject API key
         run: |
@@ -35,6 +48,8 @@ jobs:
       - name: Build and Sign
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.CERTIFICATE_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
         run: npx electron-builder --mac dmg zip --publish never
 
       - name: Verify code signature
@@ -45,6 +60,9 @@ jobs:
           echo ""
           echo "Spctl assessment:"
           spctl --assess --type execute --verbose "$APP" || true
+          echo ""
+          echo "Signing info:"
+          codesign -dv --verbose=4 "$APP" 2>&1 | head -20
 
       - name: Notarize
         env:
