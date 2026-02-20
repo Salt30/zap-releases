@@ -52,17 +52,24 @@ const STORE_DEFAULTS = {
   trialDays: 7
 };
 
-let store;
-try {
-  store = new Store({ name: 'zap-config', defaults: STORE_DEFAULTS });
-  // Test that the store is readable
-  store.get('apiKey');
-} catch (_) {
-  // Config file is corrupted — delete it and start fresh
-  const fs = require('fs');
-  const configPath = path.join(app.getPath('userData'), 'zap-config.json');
-  try { fs.unlinkSync(configPath); } catch (_) {}
-  store = new Store({ name: 'zap-config', defaults: STORE_DEFAULTS });
+let store = null;
+
+function initStore() {
+  if (store) return store;
+  try {
+    store = new Store({ name: 'zap-config', defaults: STORE_DEFAULTS });
+    // Test that the store is readable
+    store.get('apiKey');
+  } catch (_) {
+    // Config file is corrupted — delete it and start fresh
+    const fs = require('fs');
+    try {
+      const configPath = path.join(app.getPath('userData'), 'zap-config.json');
+      fs.unlinkSync(configPath);
+    } catch (_) {}
+    store = new Store({ name: 'zap-config', defaults: STORE_DEFAULTS });
+  }
+  return store;
 }
 
 /* ─────────────────── Window References ─────────────────── */
@@ -75,6 +82,7 @@ let overlayUp   = false;
 /* ─────────────────── Overlay Window ─────────────────── */
 
 function makeOverlay() {
+  if (!store) initStore();
   const display = screen.getPrimaryDisplay();
 
   overlayWin = new BrowserWindow({
@@ -542,6 +550,9 @@ ipcMain.on('welcome-done', () => {
 /* ─────────────────── App Lifecycle ─────────────────── */
 
 app.whenReady().then(() => {
+  // Initialize store AFTER app is ready so getPath('userData') works
+  initStore();
+
   if (process.platform === 'darwin') {
     const perm = systemPreferences.getMediaAccessStatus('screen');
     if (perm !== 'granted') console.log('Grant Screen Recording in System Settings > Privacy & Security > Screen Recording');
