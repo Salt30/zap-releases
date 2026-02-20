@@ -89,6 +89,11 @@
   #drip-type-panel .dt-footer .dt-start:hover{background:var(--accent-hover)}
   #drip-type-panel .dt-footer .dt-start:disabled{opacity:.4;cursor:not-allowed}
 
+  #dt-pencil-btn{padding:9px 16px;border:1px solid var(--glass-border);border-radius:8px;background:rgba(255,255,255,0.06);color:var(--text-muted);font-family:inherit;font-size:12px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:6px}
+  #dt-pencil-btn:hover{background:rgba(255,255,255,0.12);color:var(--text);border-color:rgba(255,255,255,0.25)}
+  #dt-pencil-btn:disabled{opacity:.4;cursor:not-allowed}
+  #dt-pencil-btn .pencil-icon{font-size:14px}
+
   #settings-btn{position:fixed;top:12px;right:14px;z-index:100;width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:var(--glass);backdrop-filter:blur(40px) saturate(180%);-webkit-backdrop-filter:blur(40px) saturate(180%);border:1px solid var(--glass-border);border-radius:10px;color:var(--text-dim);font-size:14px;cursor:pointer;transition:all .15s;box-shadow:0 2px 12px rgba(0,0,0,0.2),inset 0 1px 0 var(--glass-glow)}
   #settings-btn:hover{color:var(--text);background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.25)}
 
@@ -102,6 +107,7 @@
 <div id="capture-layer"></div>
 <div id="selection"><div id="selection-label"></div></div>
 <div id="mode-indicator">Answer</div>
+<button id="open-app-btn" title="Open Zap App" style="position:fixed;top:12px;right:52px;z-index:100;width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:var(--glass);backdrop-filter:blur(40px) saturate(180%);-webkit-backdrop-filter:blur(40px) saturate(180%);border:1px solid var(--glass-border);border-radius:10px;color:var(--text-dim);font-size:14px;cursor:pointer;transition:all .15s;box-shadow:0 2px 12px rgba(0,0,0,0.2),inset 0 1px 0 var(--glass-glow)">&#9889;</button>
 <button id="settings-btn" title="Settings">&#9881;</button>
 <div id="instructions">Drag to select &middot; <kbd>Tab</kbd> type question &middot; <kbd>Esc</kbd> close</div>
 <div id="text-input-bar"><input type="text" id="text-input" placeholder="Type your question..." autocomplete="off" /></div>
@@ -127,7 +133,8 @@
     <textarea id="dt-textarea" placeholder="Paste or type your text here..."></textarea>
   </div>
   <div class="dt-footer">
-    <span class="dt-hint">Overlay will hide &amp; typing starts in 2s</span>
+    <button id="dt-pencil-btn" title="Auto-draft: reads your screen and generates a response"><span class="pencil-icon">&#9998;</span> Auto Draft</button>
+    <span class="dt-hint">Overlay will hide &amp; typing starts</span>
     <button class="dt-start" id="dt-start-btn">Start Typing</button>
   </div>
 </div>
@@ -142,7 +149,7 @@
   var resPanel=$('response-panel'), resBody=$('response-body'), resModeText=$('response-mode-text');
   var copyBtn=$('copy-btn'), closeResBtn=$('close-response-btn');
   var inputBar=$('text-input-bar'), inputEl=$('text-input');
-  var dtPanel=$('drip-type-panel'), dtArea=$('dt-textarea'), dtStart=$('dt-start-btn'), dtClose=$('dt-close-btn');
+  var dtPanel=$('drip-type-panel'), dtArea=$('dt-textarea'), dtStart=$('dt-start-btn'), dtClose=$('dt-close-btn'), dtPencil=$('dt-pencil-btn');
 
   window.zap.onScreenCaptured(function(u){capture=u});
 
@@ -182,13 +189,45 @@
     var txt=dtArea.value;
     if(!txt.trim())return;
     dtStart.disabled=true;
-    dtStart.textContent='Starting in 2s...';
+    dtStart.textContent='Starting...';
     await new Promise(function(r){setTimeout(r,500)});
     hideDT();
     await window.zap.dripType(txt);
     dtStart.disabled=false;
     dtStart.textContent='Start Typing';
   });
+
+  // Auto Draft — reads screen, sends to AI, populates textarea
+  dtPencil.addEventListener('click',async function(){
+    dtPencil.disabled=true;
+    dtPencil.innerHTML='<span class="pencil-icon">&#8987;</span> Reading...';
+    try{
+      var img=null, ocr=null;
+      // Use existing screen capture
+      if(capture){
+        // OCR the full screen capture
+        if(typeof Tesseract!=='undefined'){
+          try{var r=await Tesseract.recognize(capture,'eng',{logger:function(){}});ocr=r.data.text?.trim()}catch(_){}
+        }
+      }
+      var res=await window.zap.aiRequest({mode:'answer',text:ocr||'Look at the screen and write a detailed, natural response to whatever question or prompt is visible. Write as if you are a student answering.',imageDataUrl:capture,region:null,language:settings.language});
+      if(res.error){
+        dtPencil.innerHTML='<span class="pencil-icon">&#9998;</span> Auto Draft';
+        dtPencil.disabled=false;
+        dtArea.value='Error: '+res.error;
+        return;
+      }
+      dtArea.value=res.result||'';
+    }catch(err){
+      dtArea.value='Error: '+err.message;
+    }
+    dtPencil.innerHTML='<span class="pencil-icon">&#9998;</span> Auto Draft';
+    dtPencil.disabled=false;
+    dtArea.focus();
+  });
+
+  // Open App button
+  $('open-app-btn').addEventListener('click',function(e){e.stopPropagation();window.zap.openApp()});
 
   layer.addEventListener('mousedown',function(e){
     if(e.button!==0||textMode)return;

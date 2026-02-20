@@ -124,7 +124,8 @@ function makeOverlay() {
   overlayWin.setIgnoreMouseEvents(false);
   overlayWin.hide();
 
-  try { if (store.get('phantomMode')) overlayWin.setContentProtection(true); } catch (_) {}
+  // Always enable content protection — fully undetectable
+  try { overlayWin.setContentProtection(true); } catch (_) {}
 
   overlayWin.on('closed', () => { overlayWin = null; });
 }
@@ -147,6 +148,7 @@ function makeSettings() {
   });
 
   settingsWin.loadFile(path.join(__dirname, 'settings.html'));
+  try { settingsWin.setContentProtection(true); } catch (_) {}
   settingsWin.on('closed', () => { settingsWin = null; });
 }
 
@@ -219,12 +221,7 @@ function makeTray() {
     { type: 'separator' },
     { label: 'Settings', click: makeSettings },
     { type: 'separator' },
-    { label: 'Phantom Mode', type: 'checkbox', checked: store.get('phantomMode'),
-      click: (m) => {
-        store.set('phantomMode', m.checked);
-        try { if (overlayWin) overlayWin.setContentProtection(m.checked); } catch (_) {}
-      }
-    },
+    { label: 'Phantom Mode (Always On)', type: 'checkbox', checked: true, enabled: false },
     { type: 'separator' },
     { label: 'Quit Zap', click: () => app.quit() }
   ]);
@@ -243,7 +240,9 @@ function bindKeys() {
     [store.get('hotkeyAnswer'),    () => showWithMode('answer')],
     [store.get('hotkeyTranslate'), () => showWithMode('translate')],
     [store.get('hotkeyRewrite'),   () => showWithMode('rewrite')],
-    [store.get('hotkeyDripType'),  () => showWithMode('driptype')]
+    [store.get('hotkeyDripType'),  () => showWithMode('driptype')],
+    // Cancel drip type with Escape when drip type is running
+    ['Escape', () => { if (dripTypeRunning) { dripTypeCancelled = true; } }]
   ];
   for (const [key, fn] of map) {
     if (!key) continue;
@@ -252,6 +251,9 @@ function bindKeys() {
 }
 
 /* ─────────────────── Drip Type Engine ─────────────────── */
+
+let dripTypeCancelled = false;
+let dripTypeRunning = false;
 
 const NEARBY = {
   a:'sqwz', b:'vngh', c:'xvdf', d:'sfcxer', e:'wrsd', f:'dgcvrt',
@@ -278,13 +280,22 @@ function humanMs(base) {
 
 function escAS(c) { return c === '"' ? '\\"' : c === '\\' ? '\\\\' : c; }
 
+ipcMain.on('cancel-drip-type', () => { dripTypeCancelled = true; });
+
 ipcMain.handle('drip-type', async (_ev, text) => {
   if (!text) return;
   if (overlayWin) { overlayWin.hide(); overlayUp = false; }
 
+  dripTypeCancelled = false;
+  dripTypeRunning = true;
+
   // Configurable delay before typing starts (default 10 seconds)
   const delaySec = store.get('dripDelay') || 10;
-  await new Promise(r => setTimeout(r, delaySec * 1000));
+  // Check cancel during delay (check every 500ms)
+  for (let waited = 0; waited < delaySec * 1000; waited += 500) {
+    if (dripTypeCancelled) { dripTypeRunning = false; return { cancelled: true }; }
+    await new Promise(r => setTimeout(r, 500));
+  }
 
   // Convert WPM to ms per character (avg word = 5 chars)
   const wpm = store.get('dripWPM') || 45;
@@ -341,11 +352,13 @@ ipcMain.handle('drip-type', async (_ev, text) => {
 
     const CHUNK = 200;
     for (let c = 0; c < cmds.length; c += CHUNK) {
+      if (dripTypeCancelled) { dripTypeRunning = false; return { cancelled: true }; }
       const script = `tell application "System Events"\n${cmds.slice(c, c + CHUNK).join('\n')}\nend tell`;
       await new Promise(resolve => {
         exec(`osascript -e '${script.replace(/'/g, "'\\''")}'`, { timeout: 120000 }, () => resolve());
       });
     }
+    dripTypeRunning = false;
   } else {
     clipboard.writeText(text);
     return { fallback: true, message: 'Text copied to clipboard. Paste with Ctrl+V.' };
@@ -360,6 +373,11 @@ ipcMain.on('hide-overlay', () => {
 
 ipcMain.on('open-settings', () => makeSettings());
 
+ipcMain.on('open-app', () => {
+  // Show the settings window as the "main app"
+  makeSettings();
+});
+
 ipcMain.handle('get-settings', () => store.store);
 
 ipcMain.on('save-settings', (_ev, s) => {
@@ -368,7 +386,8 @@ ipcMain.on('save-settings', (_ev, s) => {
   if (s.startAtLogin !== undefined) {
     try { app.setLoginItemSettings({ openAtLogin: s.startAtLogin }); } catch (_) {}
   }
-  try { if (overlayWin) overlayWin.setContentProtection(store.get('phantomMode')); } catch (_) {}
+  // Content protection always on
+  try { if (overlayWin) overlayWin.setContentProtection(true); } catch (_) {}
   if (overlayWin)  overlayWin.webContents.send('load-settings', store.store);
   if (settingsWin) settingsWin.webContents.send('settings-saved');
 });
@@ -471,6 +490,7 @@ function showActivate() {
   });
 
   activateWin.loadFile(path.join(__dirname, 'activate.html'));
+  try { activateWin.setContentProtection(true); } catch (_) {}
   activateWin.once('ready-to-show', () => { activateWin.show(); activateWin.focus(); });
   activateWin.on('closed', () => { activateWin = null; });
 }
@@ -549,6 +569,7 @@ function showWelcome() {
   });
 
   welcomeWin.loadFile(path.join(__dirname, 'welcome.html'));
+  try { welcomeWin.setContentProtection(true); } catch (_) {}
   welcomeWin.once('ready-to-show', () => { welcomeWin.show(); welcomeWin.focus(); });
   welcomeWin.on('closed', () => { welcomeWin = null; });
 }
@@ -560,6 +581,31 @@ ipcMain.on('welcome-done', () => {
     store.set('trialStarted', Date.now());
   }
   if (welcomeWin) { welcomeWin.close(); welcomeWin = null; }
+});
+
+/* ─────────────────── Auto Update ─────────────────── */
+
+ipcMain.handle('check-for-updates', async () => {
+  try {
+    const currentVersion = require('../package.json').version;
+    const res = await fetch('https://api.github.com/repos/Salt30/Zap/releases/latest');
+    if (!res.ok) return { upToDate: true, current: currentVersion };
+    const data = await res.json();
+    const latest = (data.tag_name || '').replace(/^v/, '');
+    if (!latest || latest === currentVersion) return { upToDate: true, current: currentVersion };
+
+    // Find DMG download URL
+    const dmgAsset = (data.assets || []).find(a => a.name.endsWith('.dmg'));
+    return {
+      upToDate: false,
+      current: currentVersion,
+      latest: latest,
+      downloadUrl: dmgAsset ? dmgAsset.browser_download_url : data.html_url,
+      releaseUrl: data.html_url
+    };
+  } catch (_) {
+    return { upToDate: true, error: 'Could not check for updates' };
+  }
 });
 
 /* ─────────────────── App Lifecycle ─────────────────── */
