@@ -38,7 +38,11 @@ const STORE_DEFAULTS = {
   autoEngine:    true,
   maxTokens:     1024,
   dripSpeed:     40,
+  dripWPM:       45,
+  dripDelay:     10,
   typoRate:      0.06,
+  dripPauseChance: 0.03,
+  dripBurstChance: 0.08,
   invisibleOverlay: true,
   onboardingDone: false
 };
@@ -252,10 +256,17 @@ function escAS(c) { return c === '"' ? '\\"' : c === '\\' ? '\\\\' : c; }
 ipcMain.handle('drip-type', async (_ev, text) => {
   if (!text) return;
   if (overlayWin) { overlayWin.hide(); overlayUp = false; }
-  await new Promise(r => setTimeout(r, 400));
 
-  const speed = store.get('dripSpeed') || 40;
+  // Configurable delay before typing starts (default 10 seconds)
+  const delaySec = store.get('dripDelay') || 10;
+  await new Promise(r => setTimeout(r, delaySec * 1000));
+
+  // Convert WPM to ms per character (avg word = 5 chars)
+  const wpm = store.get('dripWPM') || 45;
+  const speed = Math.round(60000 / (wpm * 5));
   const rate  = store.get('typoRate')  || 0.06;
+  const pauseChance = store.get('dripPauseChance') || 0.03;
+  const burstChance = store.get('dripBurstChance') || 0.08;
 
   if (process.platform === 'darwin') {
     const cmds = [];
@@ -263,21 +274,41 @@ ipcMain.handle('drip-type', async (_ev, text) => {
       const ch = text[i];
       const ms = humanMs(speed) / 1000;
 
+      // Human-like thinking pause (random mid-sentence pause)
+      if (Math.random() < pauseChance && i > 0) {
+        cmds.push(`delay ${(1.0 + Math.random() * 2.5).toFixed(4)}`);
+      }
+
+      // Burst typing (briefly speed up like typing a familiar word)
+      let charSpeed = speed;
+      if (Math.random() < burstChance) charSpeed = speed * 0.5;
+
+      const ms = humanMs(charSpeed) / 1000;
+
       if (/[a-zA-Z]/.test(ch) && Math.random() < rate) {
+        // Type wrong character, pause (realize mistake), backspace, type correct
         const wrong = typoChar(ch);
         cmds.push(`keystroke "${escAS(wrong)}"`);
-        cmds.push(`delay ${(humanMs(speed * 0.7) / 1000).toFixed(4)}`);
-        cmds.push(`delay ${((80 + Math.random() * 250) / 1000).toFixed(4)}`);
+        cmds.push(`delay ${(humanMs(charSpeed * 0.7) / 1000).toFixed(4)}`);
+        cmds.push(`delay ${((150 + Math.random() * 400) / 1000).toFixed(4)}`);
         cmds.push('key code 51');
-        cmds.push(`delay ${(humanMs(speed * 0.4) / 1000).toFixed(4)}`);
+        cmds.push(`delay ${(humanMs(charSpeed * 0.4) / 1000).toFixed(4)}`);
         cmds.push(`keystroke "${escAS(ch)}"`);
         cmds.push(`delay ${ms.toFixed(4)}`);
       } else if (ch === '\n') {
         cmds.push('key code 36');
-        cmds.push(`delay ${(ms + 0.05).toFixed(4)}`);
+        cmds.push(`delay ${(ms + 0.3 + Math.random() * 0.5).toFixed(4)}`);
       } else if (ch === '\t') {
         cmds.push('key code 48');
         cmds.push(`delay ${ms.toFixed(4)}`);
+      } else if ('.!?'.includes(ch)) {
+        // End of sentence — longer pause
+        cmds.push(`keystroke "${escAS(ch)}"`);
+        cmds.push(`delay ${(ms + 0.4 + Math.random() * 0.8).toFixed(4)}`);
+      } else if (ch === ',') {
+        // Comma — slight pause
+        cmds.push(`keystroke "${escAS(ch)}"`);
+        cmds.push(`delay ${(ms + 0.1 + Math.random() * 0.3).toFixed(4)}`);
       } else {
         cmds.push(`keystroke "${escAS(ch)}"`);
         cmds.push(`delay ${ms.toFixed(4)}`);
