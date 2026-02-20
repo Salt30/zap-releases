@@ -19,6 +19,8 @@ const Store = require('electron-store');
 
 // This gets replaced by sed during CI build — do NOT change the placeholder string
 const BUILT_IN_API_KEY = 'YOUR_PERPLEXITY_API_KEY';
+// Constructed so sed doesn't replace it — used to detect if key was injected
+const API_PLACEHOLDER = 'YOUR_PERPLEXITY' + '_API_KEY';
 
 const STORE_DEFAULTS = {
   apiKey:        BUILT_IN_API_KEY,
@@ -75,7 +77,7 @@ function initStore() {
 
   // If stored API key is the placeholder, update it with the built-in key
   const savedKey = store.get('apiKey');
-  if ((!savedKey || savedKey === 'YOUR_PERPLEXITY_API_KEY') && BUILT_IN_API_KEY !== 'YOUR_PERPLEXITY_API_KEY') {
+  if ((!savedKey || savedKey === API_PLACEHOLDER) && BUILT_IN_API_KEY !== API_PLACEHOLDER) {
     store.set('apiKey', BUILT_IN_API_KEY);
   }
 
@@ -376,13 +378,13 @@ ipcMain.on('save-settings', (_ev, s) => {
 ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, language }) => {
   // Use stored key if valid, otherwise fall back to built-in key
   let apiKey = store.get('apiKey');
-  if (!apiKey || apiKey === 'YOUR_PERPLEXITY_API_KEY') apiKey = BUILT_IN_API_KEY;
+  if (!apiKey || apiKey === API_PLACEHOLDER) apiKey = BUILT_IN_API_KEY;
 
   const endpoint = store.get('apiEndpoint');
   const model    = store.get('model');
   const tokens   = store.get('maxTokens');
 
-  if (!apiKey || apiKey === 'YOUR_PERPLEXITY_API_KEY') return { error: 'API key not configured. Please reinstall Zap or contact support.' };
+  if (!apiKey || apiKey === API_PLACEHOLDER) return { error: 'API key not configured. Please reinstall Zap or contact support.' };
 
   // License check
   if (!isLicensed()) {
