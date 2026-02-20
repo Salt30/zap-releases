@@ -44,7 +44,12 @@ const STORE_DEFAULTS = {
   dripPauseChance: 0.03,
   dripBurstChance: 0.08,
   invisibleOverlay: true,
-  onboardingDone: false
+  onboardingDone: false,
+  licenseKey: '',
+  licenseValid: false,
+  licenseEmail: '',
+  trialStarted: 0,
+  trialDays: 7
 };
 
 let store;
@@ -272,7 +277,6 @@ ipcMain.handle('drip-type', async (_ev, text) => {
     const cmds = [];
     for (let i = 0; i < text.length; i++) {
       const ch = text[i];
-      const ms = humanMs(speed) / 1000;
 
       // Human-like thinking pause (random mid-sentence pause)
       if (Math.random() < pauseChance && i > 0) {
@@ -359,6 +363,12 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
 
   if (!apiKey || apiKey === 'YOUR_PERPLEXITY_API_KEY') return { error: 'API key not configured. Please reinstall Zap or contact support.' };
 
+  // License check
+  if (!isLicensed()) {
+    showActivate();
+    return { error: 'Your trial has expired. Please activate Zap with a license key to continue.' };
+  }
+
   const prompts = {
     answer:    "You are a helpful AI assistant. Answer the user's question based on the content provided. Be concise and direct.",
     translate: `You are a professional translator. Translate ALL the provided text into ${language || store.get('language')}. Only provide the translation, no explanations.`,
@@ -393,6 +403,107 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
   }
 });
 
+/* ─────────────────── License / Activation ─────────────────── */
+
+let activateWin = null;
+
+function isLicensed() {
+  // Check if license key is valid
+  if (store.get('licenseValid') && store.get('licenseKey')) return true;
+
+  // Check if trial is still active
+  const trialStart = store.get('trialStarted');
+  if (trialStart > 0) {
+    const trialDays = store.get('trialDays') || 7;
+    const elapsed = (Date.now() - trialStart) / (1000 * 60 * 60 * 24);
+    if (elapsed < trialDays) return true;
+  }
+
+  return false;
+}
+
+function trialDaysLeft() {
+  const trialStart = store.get('trialStarted');
+  if (!trialStart) return 0;
+  const trialDays = store.get('trialDays') || 7;
+  const elapsed = (Date.now() - trialStart) / (1000 * 60 * 60 * 24);
+  return Math.max(0, Math.ceil(trialDays - elapsed));
+}
+
+function showActivate() {
+  if (activateWin) { activateWin.focus(); return; }
+
+  activateWin = new BrowserWindow({
+    width: 480, height: 560,
+    resizable: false, minimizable: false, maximizable: false,
+    title: 'Activate Zap',
+    backgroundColor: '#0a0a12',
+    titleBarStyle: 'hiddenInset',
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+
+  activateWin.loadFile(path.join(__dirname, 'activate.html'));
+  activateWin.once('ready-to-show', () => { activateWin.show(); activateWin.focus(); });
+  activateWin.on('closed', () => { activateWin = null; });
+}
+
+ipcMain.on('start-trial', () => {
+  if (!store.get('trialStarted')) {
+    store.set('trialStarted', Date.now());
+  }
+  if (activateWin) { activateWin.close(); activateWin = null; }
+});
+
+ipcMain.handle('validate-license', async (_ev, key) => {
+  if (!key || key.trim().length < 5) return { valid: false, error: 'Please enter a valid license key.' };
+
+  try {
+    // LemonSqueezy license validation API
+    const res = await fetch('https://api.lemonsqueezy.com/v1/licenses/validate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ license_key: key.trim(), instance_name: require('os').hostname() })
+    });
+
+    const data = await res.json();
+
+    if (data.valid || data.license_key?.status === 'active') {
+      store.set('licenseKey', key.trim());
+      store.set('licenseValid', true);
+      store.set('licenseEmail', data.meta?.customer_email || '');
+      if (activateWin) { activateWin.close(); activateWin = null; }
+      return { valid: true, email: data.meta?.customer_email };
+    } else {
+      return { valid: false, error: data.error || 'Invalid or expired license key.' };
+    }
+  } catch (err) {
+    // If offline, accept key optimistically if it looks valid
+    if (key.trim().length >= 16) {
+      store.set('licenseKey', key.trim());
+      store.set('licenseValid', true);
+      if (activateWin) { activateWin.close(); activateWin = null; }
+      return { valid: true, offline: true };
+    }
+    return { valid: false, error: 'Could not verify license. Check your internet connection.' };
+  }
+});
+
+ipcMain.handle('get-license-status', () => {
+  return {
+    licensed: isLicensed(),
+    hasKey: !!store.get('licenseKey'),
+    licenseValid: store.get('licenseValid'),
+    trialActive: store.get('trialStarted') > 0 && trialDaysLeft() > 0,
+    trialDaysLeft: trialDaysLeft(),
+    email: store.get('licenseEmail') || ''
+  };
+});
+
 /* ─────────────────── Welcome / First Launch ─────────────────── */
 
 let welcomeWin = null;
@@ -421,6 +532,10 @@ function showWelcome() {
 
 ipcMain.on('welcome-done', () => {
   store.set('onboardingDone', true);
+  // Auto-start trial when completing welcome tour
+  if (!store.get('trialStarted')) {
+    store.set('trialStarted', Date.now());
+  }
   if (welcomeWin) { welcomeWin.close(); welcomeWin = null; }
 });
 
@@ -436,9 +551,11 @@ app.whenReady().then(() => {
   makeTray();
   bindKeys();
 
-  // Show welcome tour on first launch
+  // Show welcome tour on first launch, then activation
   if (!store.get('onboardingDone')) {
     showWelcome();
+  } else if (!isLicensed()) {
+    showActivate();
   }
 
   app.on('activate', () => { if (!overlayWin) makeOverlay(); });

@@ -13,7 +13,10 @@ contextBridge.exposeInMainWorld('zap', {
   onSetMode:        (cb) => ipcRenderer.on('set-mode',         (_, m) => cb(m)),
   onSettingsSaved:  (cb) => ipcRenderer.on('settings-saved',   ()     => cb()),
 
-  welcomeDone: () => ipcRenderer.send('welcome-done'),
+  welcomeDone:     () => ipcRenderer.send('welcome-done'),
+  startTrial:      () => ipcRenderer.send('start-trial'),
+  validateLicense: (key) => ipcRenderer.invoke('validate-license', key),
+  getLicenseStatus: () => ipcRenderer.invoke('get-license-status'),
 
   copyToClipboard: (text) => {
     const { clipboard } = require('electron');
