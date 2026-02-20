@@ -37,6 +37,15 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx electron-builder --mac dmg zip --publish never
 
+      - name: Verify code signature
+        run: |
+          APP=$(find dist -name "*.app" -maxdepth 3 | head -1)
+          echo "Verifying: $APP"
+          codesign --verify --deep --strict --verbose=2 "$APP"
+          echo ""
+          echo "Spctl assessment:"
+          spctl --assess --type execute --verbose "$APP" || true
+
       - name: Notarize
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
@@ -44,16 +53,46 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
           DMG=$(ls dist/*.dmg | head -1)
-          xcrun notarytool submit "$DMG" --apple-id "$APPLE_ID" --password "$APPLE_APP_SPECIFIC_PASSWORD" --team-id "$APPLE_TEAM_ID" --wait
+          echo "Submitting: $DMG"
+
+          # Submit and capture output
+          RESULT=$(xcrun notarytool submit "$DMG" \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" \
+            --wait 2>&1) || true
+
+          echo "$RESULT"
+
+          # Extract submission ID
+          SUB_ID=$(echo "$RESULT" | grep "id:" | head -1 | awk '{print $2}')
+          echo "Submission ID: $SUB_ID"
+
+          # Check if it was invalid
+          if echo "$RESULT" | grep -q "Invalid"; then
+            echo ""
+            echo "=== NOTARIZATION LOG ==="
+            xcrun notarytool log "$SUB_ID" \
+              --apple-id "$APPLE_ID" \
+              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+              --team-id "$APPLE_TEAM_ID" || true
+            echo "========================"
+            exit 1
+          fi
+
+          # Staple if successful
           xcrun stapler staple "$DMG"
+          echo "Notarization and stapling complete!"
 
       - name: Upload DMG
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Zap-DMG
           path: dist/*.dmg
 
       - name: Upload ZIP
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Zap-ZIP
