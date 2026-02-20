@@ -17,8 +17,11 @@ const Store = require('electron-store');
 
 /* ─────────────────── Persistent Settings ─────────────────── */
 
+// This gets replaced by sed during CI build — do NOT change the placeholder string
+const BUILT_IN_API_KEY = 'YOUR_PERPLEXITY_API_KEY';
+
 const STORE_DEFAULTS = {
-  apiKey:        'YOUR_PERPLEXITY_API_KEY',
+  apiKey:        BUILT_IN_API_KEY,
   apiEndpoint:   'https://api.perplexity.ai/chat/completions',
   model:         'sonar-pro',
   overlayOpacity: 0.0,
@@ -69,6 +72,13 @@ function initStore() {
     } catch (_) {}
     store = new Store({ name: 'zap-config', defaults: STORE_DEFAULTS });
   }
+
+  // If stored API key is the placeholder, update it with the built-in key
+  const savedKey = store.get('apiKey');
+  if ((!savedKey || savedKey === 'YOUR_PERPLEXITY_API_KEY') && BUILT_IN_API_KEY !== 'YOUR_PERPLEXITY_API_KEY') {
+    store.set('apiKey', BUILT_IN_API_KEY);
+  }
+
   return store;
 }
 
@@ -364,7 +374,10 @@ ipcMain.on('save-settings', (_ev, s) => {
 /* ─────────────────── AI Request ─────────────────── */
 
 ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, language }) => {
-  const apiKey   = store.get('apiKey');
+  // Use stored key if valid, otherwise fall back to built-in key
+  let apiKey = store.get('apiKey');
+  if (!apiKey || apiKey === 'YOUR_PERPLEXITY_API_KEY') apiKey = BUILT_IN_API_KEY;
+
   const endpoint = store.get('apiEndpoint');
   const model    = store.get('model');
   const tokens   = store.get('maxTokens');

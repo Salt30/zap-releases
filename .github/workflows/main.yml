@@ -43,7 +43,7 @@ jobs:
 
       - name: Inject API key
         run: |
-          sed -i '' "s/YOUR_PERPLEXITY_API_KEY/${{ secrets.PERPLEXITY_API_KEY }}/" src/main.js
+          sed -i '' "s/YOUR_PERPLEXITY_API_KEY/${{ secrets.PERPLEXITY_API_KEY }}/g" src/main.js
 
       - name: Build and Sign
         env:
