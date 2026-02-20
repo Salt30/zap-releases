@@ -1,0 +1,83 @@
+{
+  "name": "zap",
+  "version": "1.0.0",
+  "description": "Zap — AI Screen Overlay",
+  "main": "src/main.js",
+  "author": "Zap",
+  "license": "MIT",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder --mac",
+    "dist": "electron-builder --mac dmg zip"
+  },
+  "build": {
+    "appId": "com.zap.app",
+    "productName": "Zap",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "assets/**/*",
+      "!**/node_modules/**/.git",
+      "!**/node_modules/**/test",
+      "!**/node_modules/**/tests"
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.png",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": [
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "arm64"
+          ]
+        }
+      ],
+      "darkModeSupport": true,
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "NSScreenCaptureDescription": "Zap needs screen recording access to capture and analyze content on your screen.",
+        "NSAppleEventsUsageDescription": "Zap needs accessibility access for the Drip Type feature to type text into other applications."
+      }
+    },
+    "dmg": {
+      "icon": "assets/icon.png",
+      "iconSize": 128,
+      "contents": [
+        {
+          "x": 130,
+          "y": 220
+        },
+        {
+          "x": 410,
+          "y": 220,
+          "type": "link",
+          "path": "/Applications"
+        }
+      ],
+      "window": {
+        "width": 540,
+        "height": 380
+      }
+    }
+  },
+  "dependencies": {
+    "electron-store": "^8.1.0"
+  },
+  "devDependencies": {
+    "@electron/notarize": "^2.5.0",
+    "@electron/osx-sign": "^2.3.0",
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8"
+  }
+}

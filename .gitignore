@@ -1,0 +1,6 @@
+node_modules/
+dist/
+build/output/
+.DS_Store
+*.dmg
+.env
