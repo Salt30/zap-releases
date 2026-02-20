@@ -17,33 +17,43 @@ const Store = require('electron-store');
 
 /* ─────────────────── Persistent Settings ─────────────────── */
 
-const store = new Store({
-  name: 'zap-config',
-  defaults: {
-    apiKey:        'YOUR_PERPLEXITY_API_KEY',
-    apiEndpoint:   'https://api.perplexity.ai/chat/completions',
-    model:         'sonar-pro',
-    overlayOpacity: 0.0,
-    accentColor:   '#facc15',
-    fontSize:      14,
-    fontFamily:    'system-ui, -apple-system, sans-serif',
-    borderRadius:  12,
-    hotkey:          'Alt+3',
-    hotkeyAnswer:    'Alt+1',
-    hotkeyTranslate: 'Alt+2',
-    hotkeyRewrite:   'Alt+4',
-    hotkeyDripType:  'Alt+5',
-    language:      'Spanish',
-    theme:         'dark',
-    lastMode:      'answer',
-    phantomMode:   false,
-    autoEngine:    true,
-    maxTokens:     1024,
-    dripSpeed:     40,
-    typoRate:      0.06,
-    invisibleOverlay: true
-  }
-});
+const STORE_DEFAULTS = {
+  apiKey:        'YOUR_PERPLEXITY_API_KEY',
+  apiEndpoint:   'https://api.perplexity.ai/chat/completions',
+  model:         'sonar-pro',
+  overlayOpacity: 0.0,
+  accentColor:   '#facc15',
+  fontSize:      14,
+  fontFamily:    'system-ui, -apple-system, sans-serif',
+  borderRadius:  12,
+  hotkey:          'Alt+3',
+  hotkeyAnswer:    'Alt+1',
+  hotkeyTranslate: 'Alt+2',
+  hotkeyRewrite:   'Alt+4',
+  hotkeyDripType:  'Alt+5',
+  language:      'Spanish',
+  theme:         'dark',
+  lastMode:      'answer',
+  phantomMode:   false,
+  autoEngine:    true,
+  maxTokens:     1024,
+  dripSpeed:     40,
+  typoRate:      0.06,
+  invisibleOverlay: true
+};
+
+let store;
+try {
+  store = new Store({ name: 'zap-config', defaults: STORE_DEFAULTS });
+  // Test that the store is readable
+  store.get('apiKey');
+} catch (_) {
+  // Config file is corrupted — delete it and start fresh
+  const fs = require('fs');
+  const configPath = path.join(app.getPath('userData'), 'zap-config.json');
+  try { fs.unlinkSync(configPath); } catch (_) {}
+  store = new Store({ name: 'zap-config', defaults: STORE_DEFAULTS });
+}
 
 /* ─────────────────── Window References ─────────────────── */
 
