@@ -39,7 +39,8 @@ const STORE_DEFAULTS = {
   maxTokens:     1024,
   dripSpeed:     40,
   typoRate:      0.06,
-  invisibleOverlay: true
+  invisibleOverlay: true,
+  onboardingDone: false
 };
 
 let store;
@@ -325,7 +326,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
   const model    = store.get('model');
   const tokens   = store.get('maxTokens');
 
-  if (!apiKey) return { error: 'No API key configured. Open Settings to add your API key.' };
+  if (!apiKey || apiKey === 'YOUR_PERPLEXITY_API_KEY') return { error: 'API key not configured. Please reinstall Zap or contact support.' };
 
   const prompts = {
     answer:    "You are a helpful AI assistant. Answer the user's question based on the content provided. Be concise and direct.",
@@ -361,6 +362,37 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
   }
 });
 
+/* ─────────────────── Welcome / First Launch ─────────────────── */
+
+let welcomeWin = null;
+
+function showWelcome() {
+  if (welcomeWin) { welcomeWin.focus(); return; }
+
+  welcomeWin = new BrowserWindow({
+    width: 680, height: 520,
+    resizable: false, minimizable: false, maximizable: false,
+    title: 'Welcome to Zap',
+    backgroundColor: '#0a0a12',
+    titleBarStyle: 'hiddenInset',
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+
+  welcomeWin.loadFile(path.join(__dirname, 'welcome.html'));
+  welcomeWin.once('ready-to-show', () => { welcomeWin.show(); welcomeWin.focus(); });
+  welcomeWin.on('closed', () => { welcomeWin = null; });
+}
+
+ipcMain.on('welcome-done', () => {
+  store.set('onboardingDone', true);
+  if (welcomeWin) { welcomeWin.close(); welcomeWin = null; }
+});
+
 /* ─────────────────── App Lifecycle ─────────────────── */
 
 app.whenReady().then(() => {
@@ -372,6 +404,11 @@ app.whenReady().then(() => {
   makeOverlay();
   makeTray();
   bindKeys();
+
+  // Show welcome tour on first launch
+  if (!store.get('onboardingDone')) {
+    showWelcome();
+  }
 
   app.on('activate', () => { if (!overlayWin) makeOverlay(); });
 });

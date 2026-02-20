@@ -13,6 +13,8 @@ contextBridge.exposeInMainWorld('zap', {
   onSetMode:        (cb) => ipcRenderer.on('set-mode',         (_, m) => cb(m)),
   onSettingsSaved:  (cb) => ipcRenderer.on('settings-saved',   ()     => cb()),
 
+  welcomeDone: () => ipcRenderer.send('welcome-done'),
+
   copyToClipboard: (text) => {
     const { clipboard } = require('electron');
     clipboard.writeText(text);

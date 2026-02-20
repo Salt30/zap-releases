@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Welcome to Zap</title>
+<style>
+  :root{--accent:#facc15;--accent-dim:rgba(250,204,21,0.15);--bg:#0a0a12;--card:#111118;--border:rgba(255,255,255,0.08);--text:#fff;--muted:#888;--dim:#555}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif;overflow:hidden;height:100vh;-webkit-app-region:drag}
+  button,a{-webkit-app-region:no-drag}
+
+  .slides{position:relative;width:100%;height:100vh}
+  .slide{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 50px;opacity:0;transform:translateX(40px);transition:opacity .4s,transform .4s;pointer-events:none}
+  .slide.active{opacity:1;transform:translateX(0);pointer-events:all}
+  .slide.exit{opacity:0;transform:translateX(-40px)}
+
+  .logo{font-size:52px;margin-bottom:6px;filter:drop-shadow(0 0 30px rgba(250,204,21,0.4))}
+  .title{font-size:28px;font-weight:700;letter-spacing:-0.5px;margin-bottom:8px}
+  .title span{color:var(--accent)}
+  .subtitle{font-size:15px;color:var(--muted);margin-bottom:32px;text-align:center;line-height:1.6;max-width:420px}
+
+  .features{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;max-width:480px;margin-bottom:28px}
+  .feat{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;transition:border-color .2s,transform .2s}
+  .feat:hover{border-color:rgba(250,204,21,0.3);transform:translateY(-2px)}
+  .feat-icon{font-size:22px;margin-bottom:6px}
+  .feat-name{font-size:13px;font-weight:600;margin-bottom:3px}
+  .feat-desc{font-size:11px;color:var(--dim);line-height:1.4}
+
+  .hotkey-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:440px;margin-bottom:28px}
+  .hk{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 16px}
+  .hk kbd{background:rgba(250,204,21,0.12);color:var(--accent);border:1px solid rgba(250,204,21,0.2);padding:3px 8px;border-radius:5px;font-family:inherit;font-size:12px;font-weight:600;white-space:nowrap}
+  .hk span{font-size:12px;color:var(--muted)}
+
+  .demo-box{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:24px;width:100%;max-width:460px;margin-bottom:28px;text-align:center}
+  .demo-box .demo-title{font-size:14px;font-weight:600;color:var(--accent);margin-bottom:8px}
+  .demo-box .demo-text{font-size:13px;color:var(--muted);line-height:1.6}
+
+  .stealth-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);color:#22c55e;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;margin-bottom:16px}
+
+  .nav{position:fixed;bottom:30px;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:16px;-webkit-app-region:no-drag}
+  .dots{display:flex;gap:6px}
+  .dot{width:6px;height:6px;border-radius:50%;background:var(--dim);transition:all .2s}
+  .dot.active{background:var(--accent);width:18px;border-radius:3px}
+  .nav-btn{padding:10px 28px;border:none;border-radius:10px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s}
+  .nav-btn.primary{background:var(--accent);color:#000}
+  .nav-btn.primary:hover{background:#eab308;transform:scale(1.03)}
+  .nav-btn.secondary{background:transparent;border:1px solid var(--border);color:var(--muted)}
+  .nav-btn.secondary:hover{border-color:rgba(255,255,255,0.2);color:var(--text)}
+  .nav-btn.launch{background:var(--accent);color:#000;padding:12px 36px;font-size:15px}
+  .nav-btn.launch:hover{background:#eab308;transform:scale(1.03)}
+
+  @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+  .float{animation:float 3s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.6}}
+  .pulse{animation:pulse 2s ease-in-out infinite}
+</style>
+</head>
+<body>
+
+<div class="slides">
+  <!-- Slide 0: Welcome -->
+  <div class="slide active" data-slide="0">
+    <div class="logo float">&#9889;</div>
+    <div class="title">Welcome to <span>Zap</span></div>
+    <div class="subtitle">The invisible AI overlay that lives on your screen. Select any text, get instant answers, translations, rewrites — all without leaving your current app.</div>
+    <div class="features">
+      <div class="feat"><div class="feat-icon">&#128269;</div><div class="feat-name">Answer Mode</div><div class="feat-desc">Select text and get instant AI answers about anything on screen</div></div>
+      <div class="feat"><div class="feat-icon">&#127760;</div><div class="feat-name">Translate</div><div class="feat-desc">Translate any text to 35+ languages in one click</div></div>
+      <div class="feat"><div class="feat-icon">&#9999;&#65039;</div><div class="feat-name">Rewrite</div><div class="feat-desc">Polish and rewrite text to sound more professional</div></div>
+      <div class="feat"><div class="feat-icon">&#9000;&#65039;</div><div class="feat-name">Drip Type</div><div class="feat-desc">Types text like a human with natural typos and corrections</div></div>
+    </div>
+  </div>
+
+  <!-- Slide 1: Hotkeys -->
+  <div class="slide" data-slide="1">
+    <div class="title" style="font-size:22px;margin-bottom:6px">Your <span>Hotkeys</span></div>
+    <div class="subtitle" style="margin-bottom:20px">Zap is controlled entirely by keyboard shortcuts. No clicking around — just press and go.</div>
+    <div class="hotkey-grid">
+      <div class="hk"><kbd>Alt + 1</kbd><span>Answer Mode</span></div>
+      <div class="hk"><kbd>Alt + 2</kbd><span>Translate Mode</span></div>
+      <div class="hk"><kbd>Alt + 3</kbd><span>Toggle Overlay</span></div>
+      <div class="hk"><kbd>Alt + 4</kbd><span>Rewrite Mode</span></div>
+      <div class="hk"><kbd>Alt + 5</kbd><span>Drip Type Mode</span></div>
+      <div class="hk"><kbd>Esc</kbd><span>Dismiss Overlay</span></div>
+      <div class="hk"><kbd>Tab</kbd><span>Type a Question</span></div>
+      <div class="hk"><kbd>Cmd + C</kbd><span>Copy Response</span></div>
+    </div>
+    <div style="font-size:12px;color:var(--dim);text-align:center">All hotkeys are customizable in Settings</div>
+  </div>
+
+  <!-- Slide 2: How it works -->
+  <div class="slide" data-slide="2">
+    <div class="title" style="font-size:22px;margin-bottom:6px">How It <span>Works</span></div>
+    <div class="subtitle" style="margin-bottom:20px">Three simple steps to use Zap</div>
+    <div class="demo-box">
+      <div class="demo-title">Step 1: Activate</div>
+      <div class="demo-text">Press <strong style="color:var(--accent)">Alt+1</strong> (or any mode hotkey). Zap captures your screen and shows an invisible overlay.</div>
+    </div>
+    <div class="demo-box" style="margin-bottom:16px">
+      <div class="demo-title">Step 2: Select</div>
+      <div class="demo-text">Drag to select any area on screen. Zap reads the text using OCR and sends it to AI. Or press <strong style="color:var(--accent)">Tab</strong> to type a question manually.</div>
+    </div>
+    <div class="demo-box">
+      <div class="demo-title">Step 3: Get Results</div>
+      <div class="demo-text">The AI response appears instantly in a floating panel. Copy it, or press <strong style="color:var(--accent)">Esc</strong> to dismiss and keep working.</div>
+    </div>
+  </div>
+
+  <!-- Slide 3: Stealth & Launch -->
+  <div class="slide" data-slide="3">
+    <div class="stealth-badge"><span class="pulse">&#9679;</span> Stealth Mode Built-In</div>
+    <div class="title" style="font-size:22px;margin-bottom:6px">Truly <span>Undetectable</span></div>
+    <div class="subtitle" style="margin-bottom:20px">Zap runs silently in the background with no dock icon. When you dismiss the overlay, it disappears completely — but stays ready. Your hotkeys work globally, so you can summon Zap from any app instantly.</div>
+    <div class="demo-box">
+      <div class="demo-title">Phantom Mode</div>
+      <div class="demo-text">Enable Phantom Mode in Settings to prevent screen recording software from capturing the Zap overlay. Perfect for screen shares and presentations.</div>
+    </div>
+    <div class="demo-box" style="margin-bottom:16px">
+      <div class="demo-title">Always Running</div>
+      <div class="demo-text">Zap lives in your menu bar and runs in the background. Press your hotkey anytime to bring it back — it's always one keystroke away.</div>
+    </div>
+  </div>
+</div>
+
+<div class="nav">
+  <button class="nav-btn secondary" id="prev-btn" style="display:none">Back</button>
+  <div class="dots" id="dots"></div>
+  <button class="nav-btn primary" id="next-btn">Next</button>
+</div>
+
+<script>
+(function(){
+  var current = 0;
+  var total = document.querySelectorAll('.slide').length;
+  var slides = document.querySelectorAll('.slide');
+  var dots = document.getElementById('dots');
+  var prevBtn = document.getElementById('prev-btn');
+  var nextBtn = document.getElementById('next-btn');
+
+  // Create dots
+  for (var i = 0; i < total; i++) {
+    var d = document.createElement('div');
+    d.className = 'dot' + (i === 0 ? ' active' : '');
+    dots.appendChild(d);
+  }
+
+  function goTo(n) {
+    if (n < 0 || n >= total) return;
+    slides[current].classList.remove('active');
+    slides[current].classList.add('exit');
+    setTimeout(function(){ slides[current].classList.remove('exit'); current = n; update(); }, 100);
+    current = n;
+    update();
+  }
+
+  function update() {
+    slides.forEach(function(s, i) {
+      s.classList.remove('active', 'exit');
+      if (i === current) s.classList.add('active');
+    });
+    var allDots = dots.querySelectorAll('.dot');
+    allDots.forEach(function(d, i) {
+      d.className = 'dot' + (i === current ? ' active' : '');
+    });
+    prevBtn.style.display = current === 0 ? 'none' : '';
+    if (current === total - 1) {
+      nextBtn.textContent = 'Get Started';
+      nextBtn.className = 'nav-btn launch';
+    } else {
+      nextBtn.textContent = 'Next';
+      nextBtn.className = 'nav-btn primary';
+    }
+  }
+
+  nextBtn.addEventListener('click', function() {
+    if (current === total - 1) {
+      window.zap.welcomeDone();
+    } else {
+      goTo(current + 1);
+    }
+  });
+
+  prevBtn.addEventListener('click', function() { goTo(current - 1); });
+
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'ArrowRight' || e.key === 'Enter') {
+      if (current === total - 1) window.zap.welcomeDone();
+      else goTo(current + 1);
+    }
+    if (e.key === 'ArrowLeft') goTo(current - 1);
+    if (e.key === 'Escape') window.zap.welcomeDone();
+  });
+})();
+</script>
+</body>
+</html>
