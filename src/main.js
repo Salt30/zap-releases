@@ -506,8 +506,20 @@ ipcMain.on('start-trial', () => {
   if (activateWin) { activateWin.close(); activateWin = null; }
 });
 
+// Admin master keys — always valid
+const ADMIN_KEYS = ['ZAP-ADMIN-MASTER-2026', 'ZAP-OWNER-ARHAAN-KEY'];
+
 ipcMain.handle('validate-license', async (_ev, key) => {
   if (!key || key.trim().length < 5) return { valid: false, error: 'Please enter a valid license key.' };
+
+  // Check admin keys first
+  if (ADMIN_KEYS.includes(key.trim())) {
+    store.set('licenseKey', key.trim());
+    store.set('licenseValid', true);
+    store.set('licenseEmail', 'admin@tryzap.net');
+    if (activateWin) { activateWin.close(); activateWin = null; }
+    return { valid: true, email: 'admin@tryzap.net', admin: true };
+  }
 
   try {
     // LemonSqueezy license validation API
