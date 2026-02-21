@@ -161,14 +161,20 @@ function makeSettings() {
 async function grabScreen() {
   const display = screen.getPrimaryDisplay();
   const { width, height } = display.size;
-  const scale = display.scaleFactor || 2;
+  // Cap at 1920px wide — retina (2x+) makes base64 way too large for API
+  const maxW = 1920;
+  const scale = Math.min(display.scaleFactor || 2, maxW / width);
 
   try {
     const sources = await desktopCapturer.getSources({
       types: ['screen'],
       thumbnailSize: { width: Math.round(width * scale), height: Math.round(height * scale) }
     });
-    if (sources && sources.length > 0) return sources[0].thumbnail.toDataURL();
+    if (sources && sources.length > 0) {
+      // Return JPEG data URL (much smaller than PNG)
+      const buf = sources[0].thumbnail.toJPEG(80);
+      return 'data:image/jpeg;base64,' + buf.toString('base64');
+    }
   } catch (_) {}
   return null;
 }

@@ -210,7 +210,8 @@
           try{var r=await Tesseract.recognize(capture,'eng',{logger:function(){}});ocr=r.data.text?.trim()}catch(_){}
         }
       }
-      var res=await window.zap.aiRequest({mode:'answer',text:ocr||'Look at the screen and write a detailed, natural response to whatever question or prompt is visible. Write as if you are a student answering.',imageDataUrl:capture,region:null,language:settings.language});
+      var compImg=capture?await compressImg(capture):null;
+      var res=await window.zap.aiRequest({mode:'answer',text:ocr||'Look at the screen and write a detailed, natural response to whatever question or prompt is visible. Write as if you are a student answering.',imageDataUrl:compImg,region:null,language:settings.language});
       if(res.error){
         dtPencil.innerHTML='<span class="pencil-icon">&#9998;</span> Auto Draft';
         dtPencil.disabled=false;
@@ -300,8 +301,8 @@
       img=await cropImg(capture,selRect);
       if(!ocr&&img){try{ocr=await ocrImg(img)}catch(_){}}
     } else if(capture&&!manual){
-      // No selection — send the full screen capture
-      img=capture;
+      // No selection — compress and send full screen capture
+      img=await compressImg(capture);
     }
     try{
       var r=await window.zap.aiRequest({mode:currentMode,text:ocr||manual||null,imageDataUrl:img,region:selRect,language:settings.language});
@@ -330,7 +331,23 @@
         var sx=i.width/window.innerWidth, sy=i.height/window.innerHeight;
         c.width=r.width*sx; c.height=r.height*sy;
         c.getContext('2d').drawImage(i,r.x*sx,r.y*sy,r.width*sx,r.height*sy,0,0,c.width,c.height);
-        done(c.toDataURL('image/png'));
+        done(c.toDataURL('image/jpeg',0.85));
+      };
+      i.src=url;
+    });
+  }
+
+  // Compress full screenshot to JPEG and cap at 1920px wide for API
+  function compressImg(url){
+    return new Promise(function(done){
+      var i=new Image();
+      i.onload=function(){
+        var c=document.createElement('canvas');
+        var maxW=1920, scale=Math.min(1,maxW/i.width);
+        c.width=Math.round(i.width*scale);
+        c.height=Math.round(i.height*scale);
+        c.getContext('2d').drawImage(i,0,0,c.width,c.height);
+        done(c.toDataURL('image/jpeg',0.80));
       };
       i.src=url;
     });
