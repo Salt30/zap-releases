@@ -1,6 +1,6 @@
 {
   "name": "zap",
-  "version": "1.8.0",
+  "version": "1.9.0",
   "description": "Zap \u2014 AI Screen Overlay",
   "main": "src/main.js",
   "author": "Zap",
@@ -49,6 +49,26 @@
         "NSScreenCaptureDescription": "Zap needs screen recording access to capture and analyze content on your screen.",
         "NSAppleEventsUsageDescription": "Zap needs accessibility access for the Drip Type feature to type text into other applications."
       }
+    },
+    "win": {
+      "icon": "assets/icon.png",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        },
+        {
+          "target": "zip",
+          "arch": ["x64"]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": true,
+      "allowToChangeInstallationDirectory": false,
+      "installerIcon": "assets/icon.png",
+      "uninstallerIcon": "assets/icon.png",
+      "deleteAppDataOnUninstall": false
     },
     "dmg": {
       "icon": "assets/icon.png",

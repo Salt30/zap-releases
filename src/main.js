@@ -475,18 +475,8 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
 let activateWin = null;
 
 function isLicensed() {
-  // Check if license key is valid
-  if (store.get('licenseValid') && store.get('licenseKey')) return true;
-
-  // Check if trial is still active
-  const trialStart = store.get('trialStarted');
-  if (trialStart > 0) {
-    const trialDays = store.get('trialDays') || 7;
-    const elapsed = (Date.now() - trialStart) / (1000 * 60 * 60 * 24);
-    if (elapsed < trialDays) return true;
-  }
-
-  return false;
+  // Only a valid license key grants access — no trials
+  return !!(store.get('licenseValid') && store.get('licenseKey'));
 }
 
 function trialDaysLeft() {
@@ -738,10 +728,6 @@ function showWelcome() {
 
 ipcMain.on('welcome-done', () => {
   store.set('onboardingDone', true);
-  // Auto-start trial when completing welcome tour
-  if (!store.get('trialStarted')) {
-    store.set('trialStarted', Date.now());
-  }
   if (welcomeWin) { welcomeWin.close(); welcomeWin = null; }
 });
 

@@ -127,3 +127,49 @@ jobs:
         with:
           name: Zap-ZIP
           path: dist/*.zip
+
+  build-win:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Inject API key
+        run: |
+          (Get-Content src/main.js) -replace 'YOUR_PERPLEXITY_API_KEY', '${{ secrets.PERPLEXITY_API_KEY }}' | Set-Content src/main.js
+        shell: pwsh
+
+      - name: Verify API key was injected
+        run: |
+          $content = Get-Content src/main.js -Raw
+          if ($content -match 'YOUR_PERPLEXITY_API_KEY') {
+            Write-Error "ERROR: Placeholder still present"
+            exit 1
+          }
+          Write-Output "API key injection verified."
+        shell: pwsh
+
+      - name: Build Windows
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --win nsis zip --publish never
+
+      - name: Upload Windows Installer
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zap-Windows-Setup
+          path: dist/*.exe
+
+      - name: Upload Windows ZIP
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zap-Windows-ZIP
+          path: dist/*.zip
