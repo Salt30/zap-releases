@@ -417,11 +417,11 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
 
   if (!apiKey || apiKey === API_PLACEHOLDER) return { error: 'API key not configured. Please reinstall Zap or contact support.' };
 
-  // License check
-  if (!isLicensed()) {
-    showActivate();
-    return { error: 'Your trial has expired. Please activate Zap with a license key to continue.' };
-  }
+  // License check — disabled for now (free until LemonSqueezy is set up)
+  // if (!isLicensed()) {
+  //   showActivate();
+  //   return { error: 'Your trial has expired. Please activate Zap with a license key to continue.' };
+  // }
 
   const prompts = {
     answer:    "You are a helpful AI assistant. Answer the user's question based on the content provided. Be concise and direct.",
@@ -653,12 +653,11 @@ ipcMain.on('auth-done', () => {
   store.set('authDone', true);
   if (authWin) { authWin.close(); authWin = null; }
 
-  // After auth, show welcome tour if not done, otherwise check license
+  // After auth, show welcome tour if not done
   if (!store.get('onboardingDone')) {
     showWelcome();
-  } else if (!isLicensed()) {
-    showActivate();
   }
+  // License check disabled — free for now
 });
 
 /* ─────────────────── Welcome / First Launch ─────────────────── */
@@ -737,14 +736,14 @@ app.whenReady().then(() => {
   makeTray();
   bindKeys();
 
-  // Flow: Auth → Welcome Tour → License/Trial
+  // Flow: Auth → Welcome Tour (license check disabled — free for now)
   if (!store.get('authDone')) {
     showAuth();
   } else if (!store.get('onboardingDone')) {
     showWelcome();
-  } else if (!isLicensed()) {
-    showActivate();
   }
+  // License/activation disabled until LemonSqueezy is configured
+  // else if (!isLicensed()) { showActivate(); }
 
   app.on('activate', () => { if (!overlayWin) makeOverlay(); });
 });
