@@ -177,6 +177,8 @@ async function grabScreen() {
 /* ─────────────────── Show / Toggle Overlay ─────────────────── */
 
 function showWithMode(mode) {
+  // Block overlay if not licensed
+  if (!isLicensed()) { showActivate(); return; }
   if (!overlayWin) makeOverlay();
 
   if (overlayUp) {
@@ -204,6 +206,8 @@ function showWithMode(mode) {
 }
 
 function toggle() {
+  // Block overlay if not licensed
+  if (!isLicensed()) { showActivate(); return; }
   if (!overlayWin) makeOverlay();
   if (overlayUp) { overlayWin.hide(); overlayUp = false; }
   else showWithMode(store.get('lastMode') || 'answer');
@@ -496,8 +500,11 @@ function trialDaysLeft() {
 function showActivate() {
   if (activateWin) { activateWin.focus(); return; }
 
+  // Show dock so the activate window can be focused on macOS
+  if (process.platform === 'darwin') app.dock?.show();
+
   activateWin = new BrowserWindow({
-    width: 480, height: 560,
+    width: 480, height: 520,
     resizable: false, minimizable: false, maximizable: false,
     title: 'Activate Zap',
     backgroundColor: '#0a0a12',
@@ -513,18 +520,36 @@ function showActivate() {
   activateWin.loadFile(path.join(__dirname, 'activate.html'));
   try { activateWin.setContentProtection(true); } catch (_) {}
   activateWin.once('ready-to-show', () => { activateWin.show(); activateWin.focus(); });
-  activateWin.on('closed', () => { activateWin = null; });
+  activateWin.on('closed', () => {
+    activateWin = null;
+    // If they closed without activating, quit the app
+    if (!isLicensed()) {
+      app.quit();
+    } else {
+      // Hide dock again
+      if (process.platform === 'darwin') app.dock?.hide();
+    }
+  });
 }
 
 ipcMain.on('start-trial', () => {
-  if (!store.get('trialStarted')) {
-    store.set('trialStarted', Date.now());
-  }
-  if (activateWin) { activateWin.close(); activateWin = null; }
+  // Trial disabled — license key required for access
+  // Do nothing — user must enter a license key
 });
 
 // Admin master keys — always valid
 const ADMIN_KEYS = ['ZAP-ADMIN-MASTER-2026', 'ZAP-OWNER-ARHAAN-KEY'];
+
+function proceedAfterLicense() {
+  // Close activate window (the closed handler will check isLicensed and hide dock)
+  if (activateWin) { activateWin.close(); activateWin = null; }
+  // Show welcome tour if not done, otherwise just hide dock
+  if (!store.get('onboardingDone')) {
+    showWelcome();
+  } else {
+    if (process.platform === 'darwin') app.dock?.hide();
+  }
+}
 
 ipcMain.handle('validate-license', async (_ev, key) => {
   if (!key || key.trim().length < 5) return { valid: false, error: 'Please enter a valid license key.' };
@@ -534,7 +559,7 @@ ipcMain.handle('validate-license', async (_ev, key) => {
     store.set('licenseKey', key.trim());
     store.set('licenseValid', true);
     store.set('licenseEmail', 'admin@tryzap.net');
-    if (activateWin) { activateWin.close(); activateWin = null; }
+    proceedAfterLicense();
     return { valid: true, email: 'admin@tryzap.net', admin: true };
   }
 
@@ -552,7 +577,7 @@ ipcMain.handle('validate-license', async (_ev, key) => {
       store.set('licenseKey', key.trim());
       store.set('licenseValid', true);
       store.set('licenseEmail', data.meta?.customer_email || '');
-      if (activateWin) { activateWin.close(); activateWin = null; }
+      proceedAfterLicense();
       return { valid: true, email: data.meta?.customer_email };
     } else {
       return { valid: false, error: data.error || 'Invalid or expired license key.' };
@@ -562,7 +587,7 @@ ipcMain.handle('validate-license', async (_ev, key) => {
     if (key.trim().length >= 16) {
       store.set('licenseKey', key.trim());
       store.set('licenseValid', true);
-      if (activateWin) { activateWin.close(); activateWin = null; }
+      proceedAfterLicense();
       return { valid: true, offline: true };
     }
     return { valid: false, error: 'Could not verify license. Check your internet connection.' };
@@ -669,11 +694,12 @@ ipcMain.on('auth-done', () => {
   store.set('authDone', true);
   if (authWin) { authWin.close(); authWin = null; }
 
-  // After auth, show welcome tour if not done
-  if (!store.get('onboardingDone')) {
+  // After auth, require license key
+  if (!isLicensed()) {
+    showActivate();
+  } else if (!store.get('onboardingDone')) {
     showWelcome();
   }
-  // License check disabled — free for now
 });
 
 /* ─────────────────── Welcome / First Launch ─────────────────── */
@@ -782,17 +808,16 @@ app.whenReady().then(() => {
   makeTray();
   bindKeys();
 
-  // Flow: Auth → Welcome Tour (license check disabled — free for now)
+  // Flow: Auth → License → Welcome Tour → App
   if (!store.get('authDone')) {
-    showAuth();  // showAuth will show dock, hide it again when window closes
+    showAuth();
+  } else if (!isLicensed()) {
+    showActivate();
   } else if (!store.get('onboardingDone')) {
-    showWelcome();  // showWelcome will show dock, hide it again when window closes
+    showWelcome();
   } else {
-    // No auth/welcome needed — hide dock for tray-only mode
     if (process.platform === 'darwin') app.dock?.hide();
   }
-  // License/activation disabled until LemonSqueezy is configured
-  // else if (!isLicensed()) { showActivate(); }
 
   app.on('activate', () => { if (!overlayWin) makeOverlay(); });
 });

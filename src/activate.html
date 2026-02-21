@@ -13,10 +13,6 @@
   .title{font-size:24px;font-weight:700;letter-spacing:-0.3px;margin-bottom:4px}
   .title span{color:var(--accent)}
 
-  .trial-badge{display:inline-flex;align-items:center;gap:6px;padding:5px 14px;border-radius:20px;font-size:12px;font-weight:600;margin:12px 0 24px}
-  .trial-badge.active{background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);color:var(--green)}
-  .trial-badge.expired{background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.2);color:var(--red)}
-
   .section{width:100%;max-width:360px}
   .section-title{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:10px}
 
@@ -27,9 +23,6 @@
   .activate-btn{width:100%;padding:13px;border:none;border-radius:12px;background:var(--accent);color:#000;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:all .15s;margin-top:12px}
   .activate-btn:hover{background:#eab308;transform:scale(1.02)}
   .activate-btn:disabled{opacity:0.4;cursor:not-allowed;transform:none}
-
-  .trial-btn{width:100%;padding:13px;border:1px solid var(--border);border-radius:12px;background:transparent;color:var(--muted);font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;transition:all .15s;margin-top:8px}
-  .trial-btn:hover{border-color:rgba(255,255,255,0.2);color:var(--text);background:rgba(255,255,255,0.03)}
 
   .divider{display:flex;align-items:center;gap:12px;margin:20px 0;width:100%;max-width:360px}
   .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
@@ -50,10 +43,7 @@
 <div class="logo">&#9889;</div>
 <div class="title">Activate <span>Zap</span></div>
 
-<div class="trial-badge active" id="trial-badge">
-  <span id="trial-dot" style="font-size:8px">&#9679;</span>
-  <span id="trial-text">Loading...</span>
-</div>
+<div style="font-size:13px;color:var(--muted);margin:12px 0 24px;text-align:center">Enter your license key to get started</div>
 
 <div class="section">
   <div class="section-title">License Key</div>
@@ -62,57 +52,31 @@
   <div class="status" id="status"></div>
 </div>
 
-<div class="divider"><span>or</span></div>
-
-<button class="trial-btn" id="trial-btn">Start 7-Day Free Trial</button>
-
 <a class="buy-link" id="buy-link" href="#">Get a license at tryzap.net &rarr;</a>
 
-<div class="skip-text" id="skip-text"></div>
+<div class="skip-text" id="skip-text">A valid license key is required to use Zap.</div>
 
 <script>
 (function(){
   var keyInput = document.getElementById('license-key');
   var activateBtn = document.getElementById('activate-btn');
-  var trialBtn = document.getElementById('trial-btn');
   var statusEl = document.getElementById('status');
-  var trialBadge = document.getElementById('trial-badge');
-  var trialText = document.getElementById('trial-text');
-  var skipText = document.getElementById('skip-text');
   var buyLink = document.getElementById('buy-link');
 
-  // Load current license status
+  // Check if already licensed
   window.zap.getLicenseStatus().then(function(s) {
     if (s.licenseValid && s.hasKey) {
-      trialBadge.className = 'trial-badge active';
-      trialText.textContent = 'Licensed — ' + (s.email || 'Active');
-      trialBtn.style.display = 'none';
       keyInput.value = '••••••••••••••••';
       keyInput.disabled = true;
       activateBtn.textContent = 'Already Activated';
       activateBtn.disabled = true;
-      skipText.textContent = 'You can close this window.';
-    } else if (s.trialActive) {
-      trialBadge.className = 'trial-badge active';
-      trialText.textContent = s.trialDaysLeft + ' day' + (s.trialDaysLeft !== 1 ? 's' : '') + ' left in trial';
-      trialBtn.textContent = 'Continue Trial (' + s.trialDaysLeft + ' days left)';
-      skipText.textContent = 'Enter a license key anytime to unlock permanently.';
-    } else if (s.trialDaysLeft === 0 && !s.hasKey) {
-      trialBadge.className = 'trial-badge expired';
-      trialText.textContent = 'Trial expired';
-      trialBtn.style.display = 'none';
-      skipText.textContent = 'Purchase a license to continue using Zap.';
-    } else {
-      trialBadge.className = 'trial-badge active';
-      trialText.textContent = 'Not yet activated';
-      skipText.textContent = '';
+      document.getElementById('skip-text').textContent = 'You can close this window.';
     }
   });
 
   // Open purchase URL
   buyLink.addEventListener('click', function(e) {
     e.preventDefault();
-    // This will be your LemonSqueezy checkout URL
     require('electron').shell.openExternal('https://tryzap.net');
   });
 
@@ -128,23 +92,15 @@
     var result = await window.zap.validateLicense(key);
 
     if (result.valid) {
-      statusEl.textContent = 'License activated!' + (result.offline ? ' (verified offline)' : '');
+      statusEl.textContent = 'License activated!';
       statusEl.className = 'status success';
       activateBtn.textContent = 'Activated!';
-      trialBadge.className = 'trial-badge active';
-      trialText.textContent = 'Licensed';
-      setTimeout(function() { window.close(); }, 1500);
     } else {
       statusEl.textContent = result.error || 'Invalid license key.';
       statusEl.className = 'status error';
       activateBtn.disabled = false;
       activateBtn.textContent = 'Activate License';
     }
-  });
-
-  // Start trial
-  trialBtn.addEventListener('click', function() {
-    window.zap.startTrial();
   });
 
   // Enter to submit
