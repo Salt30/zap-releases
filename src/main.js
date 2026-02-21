@@ -49,6 +49,10 @@ const STORE_DEFAULTS = {
   dripPauseChance: 0.03,
   dripBurstChance: 0.08,
   invisibleOverlay: true,
+  authDone: false,
+  authName: '',
+  authEmail: '',
+  authPasswordHash: '',
   onboardingDone: false,
   licenseKey: '',
   licenseValid: false,
@@ -547,6 +551,96 @@ ipcMain.handle('get-license-status', () => {
   };
 });
 
+/* ─────────────────── Auth / Sign Up / Sign In ─────────────────── */
+
+let authWin = null;
+
+function simpleHash(str) {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const ch = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + ch;
+    hash |= 0;
+  }
+  return hash.toString(36);
+}
+
+function showAuth() {
+  if (authWin) { authWin.focus(); return; }
+
+  authWin = new BrowserWindow({
+    width: 440, height: 580,
+    resizable: false, minimizable: false, maximizable: false,
+    title: 'Zap — Sign In',
+    backgroundColor: '#0a0a12',
+    titleBarStyle: 'hiddenInset',
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration: false
+    }
+  });
+
+  authWin.loadFile(path.join(__dirname, 'auth.html'));
+  try { authWin.setContentProtection(true); } catch (_) {}
+  authWin.once('ready-to-show', () => { authWin.show(); authWin.focus(); });
+  authWin.on('closed', () => { authWin = null; });
+}
+
+ipcMain.handle('auth-signup', async (_ev, { name, email, password }) => {
+  if (!name || !email || !password) return { success: false, error: 'All fields are required.' };
+  if (password.length < 6) return { success: false, error: 'Password must be at least 6 characters.' };
+
+  // Check if account already exists with different email
+  const existingEmail = store.get('authEmail');
+  if (existingEmail && existingEmail !== email) {
+    return { success: false, error: 'An account already exists. Please sign in instead.' };
+  }
+
+  // Store account locally
+  store.set('authName', name);
+  store.set('authEmail', email);
+  store.set('authPasswordHash', simpleHash(password));
+  store.set('authDone', true);
+
+  return { success: true };
+});
+
+ipcMain.handle('auth-signin', async (_ev, { email, password }) => {
+  if (!email || !password) return { success: false, error: 'Email and password are required.' };
+
+  const storedEmail = store.get('authEmail');
+  const storedHash = store.get('authPasswordHash');
+
+  if (!storedEmail) {
+    return { success: false, error: 'No account found. Please sign up first.' };
+  }
+
+  if (email !== storedEmail) {
+    return { success: false, error: 'Invalid email or password.' };
+  }
+
+  if (simpleHash(password) !== storedHash) {
+    return { success: false, error: 'Invalid email or password.' };
+  }
+
+  store.set('authDone', true);
+  return { success: true };
+});
+
+ipcMain.on('auth-done', () => {
+  store.set('authDone', true);
+  if (authWin) { authWin.close(); authWin = null; }
+
+  // After auth, show welcome tour if not done, otherwise check license
+  if (!store.get('onboardingDone')) {
+    showWelcome();
+  } else if (!isLicensed()) {
+    showActivate();
+  }
+});
+
 /* ─────────────────── Welcome / First Launch ─────────────────── */
 
 let welcomeWin = null;
@@ -623,8 +717,10 @@ app.whenReady().then(() => {
   makeTray();
   bindKeys();
 
-  // Show welcome tour on first launch, then activation
-  if (!store.get('onboardingDone')) {
+  // Flow: Auth → Welcome Tour → License/Trial
+  if (!store.get('authDone')) {
+    showAuth();
+  } else if (!store.get('onboardingDone')) {
     showWelcome();
   } else if (!isLicensed()) {
     showActivate();

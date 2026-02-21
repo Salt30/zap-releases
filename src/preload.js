@@ -16,6 +16,10 @@ contextBridge.exposeInMainWorld('zap', {
   onSetMode:        (cb) => ipcRenderer.on('set-mode',         (_, m) => cb(m)),
   onSettingsSaved:  (cb) => ipcRenderer.on('settings-saved',   ()     => cb()),
 
+  authSignup:      (data) => ipcRenderer.invoke('auth-signup', data),
+  authSignin:      (data) => ipcRenderer.invoke('auth-signin', data),
+  authDone:        ()     => ipcRenderer.send('auth-done'),
+
   welcomeDone:     () => ipcRenderer.send('welcome-done'),
   startTrial:      () => ipcRenderer.send('start-trial'),
   validateLicense: (key) => ipcRenderer.invoke('validate-license', key),
