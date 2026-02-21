@@ -12,7 +12,9 @@ const {
   clipboard
 } = require('electron');
 const path = require('path');
-const { exec } = require('child_process');
+const { exec, execSync } = require('child_process');
+const fs = require('fs');
+const os = require('os');
 const Store = require('electron-store');
 
 /* ─────────────────── Persistent Settings ─────────────────── */
@@ -159,24 +161,96 @@ function makeSettings() {
 /* ─────────────────── Screen Capture ─────────────────── */
 
 async function grabScreen() {
-  const display = screen.getPrimaryDisplay();
-  const { width, height } = display.size;
-  // Cap at 1920px wide — retina (2x+) makes base64 way too large for API
-  const maxW = 1920;
-  const scale = Math.min(display.scaleFactor || 2, maxW / width);
+  // Method 1: Try macOS screencapture command (most reliable, triggers permission dialog)
+  if (process.platform === 'darwin') {
+    try {
+      const tmpFile = path.join(os.tmpdir(), `zap-cap-${Date.now()}.png`);
+      execSync(`screencapture -x "${tmpFile}"`, { timeout: 5000, stdio: 'ignore' });
+      if (fs.existsSync(tmpFile)) {
+        const rawData = fs.readFileSync(tmpFile);
+        fs.unlinkSync(tmpFile);
+        if (rawData.length > 5000) {  // Valid capture (not blank)
+          // Resize to max 1920px wide and compress as JPEG for smaller IPC transfer
+          const ni = nativeImage.createFromBuffer(rawData);
+          const size = ni.getSize();
+          if (size.width > 0 && size.height > 0) {
+            const maxW = 1920;
+            const resized = size.width > maxW ? ni.resize({ width: maxW, quality: 'good' }) : ni;
+            const jpegBuf = resized.toJPEG(80);
+            if (jpegBuf.length > 1000) {
+              return 'data:image/jpeg;base64,' + jpegBuf.toString('base64');
+            }
+          }
+        }
+      }
+    } catch (_) {}
+  }
 
+  // Method 2: Fallback to desktopCapturer
   try {
+    const display = screen.getPrimaryDisplay();
+    const { width, height } = display.size;
     const sources = await desktopCapturer.getSources({
       types: ['screen'],
-      thumbnailSize: { width: Math.round(width * scale), height: Math.round(height * scale) }
+      thumbnailSize: { width, height }
     });
     if (sources && sources.length > 0) {
-      // Return JPEG data URL (much smaller than PNG)
-      const buf = sources[0].thumbnail.toJPEG(80);
-      return 'data:image/jpeg;base64,' + buf.toString('base64');
+      const thumb = sources[0].thumbnail;
+      const size = thumb.getSize();
+      if (size.width > 0 && size.height > 0) {
+        const maxW = 1920;
+        const resized = size.width > maxW ? thumb.resize({ width: maxW, quality: 'good' }) : thumb;
+        const buf = resized.toJPEG(80);
+        if (buf && buf.length > 1000) {
+          return 'data:image/jpeg;base64,' + buf.toString('base64');
+        }
+      }
     }
   } catch (_) {}
+
   return null;
+}
+
+/* ─────────────────── macOS Native OCR (Vision framework) ─── */
+
+function nativeOCR(imageDataUrl) {
+  if (process.platform !== 'darwin') return null;
+  try {
+    // Save image to temp file
+    const tmpImg = path.join(os.tmpdir(), `zap-ocr-${Date.now()}.jpg`);
+    const tmpSwift = path.join(os.tmpdir(), 'zap-ocr.swift');
+    const base64Data = imageDataUrl.replace(/^data:image\/\w+;base64,/, '');
+    fs.writeFileSync(tmpImg, Buffer.from(base64Data, 'base64'));
+
+    // Write Swift script to file (avoids shell quoting issues)
+    fs.writeFileSync(tmpSwift, [
+      'import Vision',
+      'import AppKit',
+      `let url = URL(fileURLWithPath: "${tmpImg}")`,
+      'guard let data = try? Data(contentsOf: url),',
+      '      let nsImage = NSImage(data: data),',
+      '      let tiffData = nsImage.tiffRepresentation,',
+      '      let bitmap = NSBitmapImageRep(data: tiffData),',
+      '      let cgImage = bitmap.cgImage else { exit(1) }',
+      'let request = VNRecognizeTextRequest()',
+      'request.recognitionLevel = .accurate',
+      'try! VNImageRequestHandler(cgImage: cgImage).perform([request])',
+      'for observation in (request.results ?? []) {',
+      '    if let text = observation.topCandidates(1).first?.string { print(text) }',
+      '}'
+    ].join('\n'));
+
+    const result = execSync(`swift "${tmpSwift}"`, {
+      timeout: 15000,
+      encoding: 'utf8',
+      stdio: ['pipe', 'pipe', 'pipe']
+    });
+    try { fs.unlinkSync(tmpImg); } catch (_) {}
+    try { fs.unlinkSync(tmpSwift); } catch (_) {}
+    return result.trim() || null;
+  } catch (_) {
+    return null;
+  }
 }
 
 /* ─────────────────── Show / Toggle Overlay ─────────────────── */
@@ -423,11 +497,18 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
 
   if (!apiKey || apiKey === API_PLACEHOLDER) return { error: 'API key not configured. Please reinstall Zap or contact support.' };
 
-  // License check — disabled for now (free until LemonSqueezy is set up)
-  // if (!isLicensed()) {
-  //   showActivate();
-  //   return { error: 'Your trial has expired. Please activate Zap with a license key to continue.' };
-  // }
+  // If no text provided but we have an image, try macOS native OCR first
+  if (!text && imageDataUrl) {
+    try {
+      const ocrText = nativeOCR(imageDataUrl);
+      if (ocrText && ocrText.length > 2) text = ocrText;
+    } catch (_) {}
+  }
+
+  // If we still have nothing (no text, no image), show helpful error
+  if (!text && !imageDataUrl) {
+    return { error: 'Screen capture failed. Go to System Settings → Privacy & Security → Screen Recording and make sure Zap is enabled, then restart Zap.' };
+  }
 
   const prompts = {
     answer:    "You are a helpful AI assistant. Answer the user's question based on the content provided. Be concise and direct.",
@@ -439,7 +520,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
 
   const msgs = [{ role: 'system', content: prompts[mode] || prompts.answer }];
 
-  // Build user message — always include image if available (Perplexity sonar-pro supports vision)
+  // Build user message — include image if available (Perplexity sonar-pro supports vision)
   const parts = [];
   if (text) {
     parts.push({ type: 'text', text: text });
@@ -760,7 +841,20 @@ app.whenReady().then(() => {
 
   if (process.platform === 'darwin') {
     const perm = systemPreferences.getMediaAccessStatus('screen');
-    if (perm !== 'granted') console.log('Grant Screen Recording in System Settings > Privacy & Security > Screen Recording');
+    if (perm !== 'granted') {
+      const { dialog } = require('electron');
+      dialog.showMessageBox({
+        type: 'warning',
+        title: 'Screen Recording Permission Required',
+        message: 'Zap needs Screen Recording permission to read your screen.',
+        detail: 'Go to System Settings → Privacy & Security → Screen Recording and enable Zap. Then restart Zap.',
+        buttons: ['Open System Settings', 'Later']
+      }).then(({ response }) => {
+        if (response === 0) {
+          exec('open "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"');
+        }
+      });
+    }
   }
 
   makeOverlay();
