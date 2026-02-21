@@ -51,7 +51,7 @@
       }
     },
     "win": {
-      "icon": "assets/icon.png",
+      "icon": "assets/icon.ico",
       "target": [
         {
           "target": "nsis",
@@ -66,8 +66,6 @@
     "nsis": {
       "oneClick": true,
       "allowToChangeInstallationDirectory": false,
-      "installerIcon": "assets/icon.png",
-      "uninstallerIcon": "assets/icon.png",
       "deleteAppDataOnUninstall": false
     },
     "dmg": {

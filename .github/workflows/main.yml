@@ -140,6 +140,12 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Convert icon to ICO for Windows
+        run: |
+          npm install --save-dev png-to-ico
+          node -e "require('png-to-ico')('assets/icon.png').then(b => require('fs').writeFileSync('assets/icon.ico', b))"
+        shell: pwsh
+
       - name: Inject API key
         run: |
           (Get-Content src/main.js) -replace 'YOUR_PERPLEXITY_API_KEY', '${{ secrets.PERPLEXITY_API_KEY }}' | Set-Content src/main.js
