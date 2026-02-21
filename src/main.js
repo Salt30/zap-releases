@@ -245,8 +245,9 @@ function bindKeys() {
     [store.get('hotkeyTranslate'), () => showWithMode('translate')],
     [store.get('hotkeyRewrite'),   () => showWithMode('rewrite')],
     [store.get('hotkeyDripType'),  () => showWithMode('driptype')],
-    // Cancel drip type with Escape when drip type is running
-    ['Escape', () => { if (dripTypeRunning) { dripTypeCancelled = true; } }]
+    // Alt+8 = open overlay menu, Alt+9 = open app (settings)
+    ['Alt+8', toggle],
+    ['Alt+9', makeSettings]
   ];
   for (const [key, fn] of map) {
     if (!key) continue;
@@ -285,6 +286,7 @@ function humanMs(base) {
 function escAS(c) { return c === '"' ? '\\"' : c === '\\' ? '\\\\' : c; }
 
 ipcMain.on('cancel-drip-type', () => { dripTypeCancelled = true; });
+
 
 ipcMain.handle('drip-type', async (_ev, text) => {
   if (!text) return;
@@ -373,6 +375,8 @@ ipcMain.handle('drip-type', async (_ev, text) => {
 
 ipcMain.on('hide-overlay', () => {
   if (overlayWin) { overlayWin.hide(); overlayUp = false; }
+  // Also cancel drip type if running
+  if (dripTypeRunning) dripTypeCancelled = true;
 });
 
 ipcMain.on('open-settings', () => makeSettings());
@@ -399,9 +403,13 @@ ipcMain.on('save-settings', (_ev, s) => {
 /* ─────────────────── AI Request ─────────────────── */
 
 ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, language }) => {
-  // Use stored key if valid, otherwise fall back to built-in key
-  let apiKey = store.get('apiKey');
-  if (!apiKey || apiKey === API_PLACEHOLDER) apiKey = BUILT_IN_API_KEY;
+  // Always prefer the built-in key (injected at build time) over stored key
+  let apiKey = BUILT_IN_API_KEY;
+  // Only use stored key if built-in is still placeholder AND stored key looks real
+  if (apiKey === API_PLACEHOLDER) {
+    const stored = store.get('apiKey');
+    if (stored && stored !== API_PLACEHOLDER && stored.length > 10) apiKey = stored;
+  }
 
   const endpoint = store.get('apiEndpoint');
   const model    = store.get('model');
