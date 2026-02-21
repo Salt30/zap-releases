@@ -36,6 +36,7 @@ const STORE_DEFAULTS = {
   hotkeyRewrite:   'Alt+4',
   hotkeyDripType:  'Alt+5',
   hotkeyStopDrip:  'Alt+0',
+  hotkeyApp:       'Alt+M',
   language:      'Spanish',
   theme:         'dark',
   lastMode:      'answer',
@@ -246,6 +247,7 @@ function bindKeys() {
     [store.get('hotkeyRewrite'),   () => showWithMode('rewrite')],
     [store.get('hotkeyDripType'),  () => showWithMode('driptype')],
     [store.get('hotkeyStopDrip'),  () => { dripTypeCancelled = true; }],
+    [store.get('hotkeyApp'),       makeSettings],
     // Alt+8 = open overlay menu, Alt+9 = open app (settings)
     ['Alt+8', toggle],
     ['Alt+9', makeSettings]
@@ -715,6 +717,30 @@ ipcMain.on('welcome-done', () => {
     store.set('trialStarted', Date.now());
   }
   if (welcomeWin) { welcomeWin.close(); welcomeWin = null; }
+});
+
+/* ─────────────────── Replay Tour ─────────────────── */
+
+ipcMain.on('replay-tour', () => {
+  showWelcome();
+});
+
+/* ─────────────────── Changelog ─────────────────── */
+
+ipcMain.handle('get-changelog', async () => {
+  try {
+    const res = await fetch('https://api.github.com/repos/Salt30/Zap/releases?per_page=10');
+    if (!res.ok) return [];
+    const releases = await res.json();
+    return releases.map(r => ({
+      version: (r.tag_name || '').replace(/^v/, ''),
+      name: r.name || r.tag_name,
+      date: r.published_at ? new Date(r.published_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '',
+      body: r.body || ''
+    }));
+  } catch (_) {
+    return [];
+  }
 });
 
 /* ─────────────────── Auto Update ─────────────────── */

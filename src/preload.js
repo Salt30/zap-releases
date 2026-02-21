@@ -21,6 +21,8 @@ contextBridge.exposeInMainWorld('zap', {
   authDone:        ()     => ipcRenderer.send('auth-done'),
 
   welcomeDone:     () => ipcRenderer.send('welcome-done'),
+  replayTour:      () => ipcRenderer.send('replay-tour'),
+  getChangelog:    () => ipcRenderer.invoke('get-changelog'),
   startTrial:      () => ipcRenderer.send('start-trial'),
   validateLicense: (key) => ipcRenderer.invoke('validate-license', key),
   getLicenseStatus: () => ipcRenderer.invoke('get-license-status'),

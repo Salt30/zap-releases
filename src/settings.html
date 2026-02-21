@@ -88,15 +88,77 @@
 </div>
 
 <div class="tabs">
-  <button class="tab active" data-tab="general">General</button>
+  <button class="tab active" data-tab="home">Home</button>
+  <button class="tab" data-tab="general">General</button>
   <button class="tab" data-tab="appearance">Appearance</button>
   <button class="tab" data-tab="hotkeys">Hotkeys</button>
+  <button class="tab" data-tab="whatsnew">What's New</button>
   <button class="tab" data-tab="updates">Updates</button>
 </div>
 
 <div class="content">
 
-  <div class="tab-panel active" id="tab-general">
+  <div class="tab-panel active" id="tab-home">
+    <div class="card" style="text-align:center;padding:30px 22px 24px">
+      <div style="font-size:44px;margin-bottom:8px;filter:drop-shadow(0 0 20px rgba(74,111,165,0.4))">&#9889;</div>
+      <div style="font-size:22px;font-weight:700;margin-bottom:4px">Welcome to <span style="color:var(--accent-glow)">Zap</span></div>
+      <div style="font-size:13px;color:var(--text-dim);margin-bottom:20px">The invisible AI overlay that lives on your screen</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;text-align:left">
+        <div style="background:rgba(74,111,165,0.06);border:1px solid rgba(74,111,165,0.1);border-radius:10px;padding:14px">
+          <div style="font-size:18px;margin-bottom:4px">&#128269;</div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:2px">Answer</div>
+          <div style="font-size:11px;color:var(--text-dim);line-height:1.4">Select text, get instant AI answers</div>
+        </div>
+        <div style="background:rgba(74,111,165,0.06);border:1px solid rgba(74,111,165,0.1);border-radius:10px;padding:14px">
+          <div style="font-size:18px;margin-bottom:4px">&#127760;</div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:2px">Translate</div>
+          <div style="font-size:11px;color:var(--text-dim);line-height:1.4">Translate any text to 35+ languages</div>
+        </div>
+        <div style="background:rgba(74,111,165,0.06);border:1px solid rgba(74,111,165,0.1);border-radius:10px;padding:14px">
+          <div style="font-size:18px;margin-bottom:4px">&#9999;&#65039;</div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:2px">Rewrite</div>
+          <div style="font-size:11px;color:var(--text-dim);line-height:1.4">Polish text to sound professional</div>
+        </div>
+        <div style="background:rgba(74,111,165,0.06);border:1px solid rgba(74,111,165,0.1);border-radius:10px;padding:14px">
+          <div style="font-size:18px;margin-bottom:4px">&#9000;&#65039;</div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:2px">Drip Type</div>
+          <div style="font-size:11px;color:var(--text-dim);line-height:1.4">Types like a real human with typos</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">Quick Start</div>
+      <div style="display:flex;flex-direction:column;gap:12px">
+        <div style="display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid rgba(74,111,165,0.06)">
+          <div style="width:28px;height:28px;background:rgba(74,111,165,0.12);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--accent-glow);flex-shrink:0">1</div>
+          <div><div style="font-size:13px;font-weight:500">Press <kbd style="background:rgba(74,111,165,0.12);color:var(--accent-glow);padding:2px 8px;border-radius:5px;font-size:12px;font-weight:600;border:1px solid rgba(74,111,165,0.2)">Alt+1</kbd> to activate</div><div style="font-size:11px;color:var(--text-dim);margin-top:2px">Opens the overlay on your screen</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;padding:10px 0;border-bottom:1px solid rgba(74,111,165,0.06)">
+          <div style="width:28px;height:28px;background:rgba(74,111,165,0.12);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--accent-glow);flex-shrink:0">2</div>
+          <div><div style="font-size:13px;font-weight:500">Drag to select any area</div><div style="font-size:11px;color:var(--text-dim);margin-top:2px">Or press Tab to type a question</div></div>
+        </div>
+        <div style="display:flex;align-items:center;gap:14px;padding:10px 0">
+          <div style="width:28px;height:28px;background:rgba(74,111,165,0.12);border-radius:8px;display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--accent-glow);flex-shrink:0">3</div>
+          <div><div style="font-size:13px;font-weight:500">Get instant AI results</div><div style="font-size:11px;color:var(--text-dim);margin-top:2px">Copy with Cmd+C or press Esc to dismiss</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card" style="padding:16px 22px">
+      <div class="card-title">Actions</div>
+      <div style="display:flex;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-secondary" id="replay-tour-btn" style="flex:1;min-width:120px">&#127891; Replay Tour</button>
+        <button class="btn btn-secondary" id="home-settings-btn" style="flex:1;min-width:120px">&#9881;&#65039; Settings</button>
+      </div>
+    </div>
+
+    <div style="text-align:center;padding:8px 0">
+      <div style="display:inline-flex;align-items:center;gap:6px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.15);color:#22c55e;padding:5px 14px;border-radius:20px;font-size:11px;font-weight:600">&#9679; Phantom Mode — Undetectable by screen capture</div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-general">
     <div class="card">
       <div class="card-title">Features</div>
       <div class="toggle-row">
@@ -233,6 +295,18 @@
         <div class="hotkey-label"><span class="mode-dot" style="background:#f87171"></span>Drip Type</div>
         <div class="hotkey-input-wrap"><input type="text" id="hk-hotkeyDripType" readonly value="Alt+5" data-setting="hotkeyDripType" /></div>
       </div>
+      <div class="hotkey-field">
+        <div class="hotkey-label"><span class="mode-dot" style="background:#ef4444"></span>Stop Drip Type</div>
+        <div class="hotkey-input-wrap"><input type="text" id="hk-hotkeyStopDrip" readonly value="Alt+0" data-setting="hotkeyStopDrip" /></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-title">App</div>
+      <div class="hotkey-field">
+        <div class="hotkey-label"><span class="mode-dot" style="background:var(--accent-glow)"></span>Open Zap App</div>
+        <div class="hotkey-input-wrap"><input type="text" id="hk-hotkeyApp" readonly value="Alt+M" data-setting="hotkeyApp" /></div>
+      </div>
     </div>
 
     <div class="card">
@@ -250,6 +324,13 @@
         <div class="hotkey-input-wrap"><input type="text" readonly value="Cmd+C" style="opacity:.5;cursor:default" /></div>
       </div>
     </div>
+  </div>
+
+  <div class="tab-panel" id="tab-whatsnew">
+    <div class="card" id="changelog-loading" style="text-align:center;padding:30px">
+      <div style="font-size:13px;color:var(--text-dim)">Loading changelog...</div>
+    </div>
+    <div id="changelog-list"></div>
   </div>
 
   <div class="tab-panel" id="tab-updates">
@@ -288,7 +369,7 @@
       var el=document.getElementById('setting-'+f);
       if(el&&s[f]!==undefined)el.value=s[f];
     });
-    ['hotkey','hotkeyAnswer','hotkeyTranslate','hotkeyRewrite','hotkeyDripType'].forEach(function(f){
+    ['hotkey','hotkeyAnswer','hotkeyTranslate','hotkeyRewrite','hotkeyDripType','hotkeyStopDrip','hotkeyApp'].forEach(function(f){
       var el=document.getElementById('hk-'+f);
       if(el&&s[f])el.value=s[f];
     });
@@ -370,14 +451,16 @@
       hotkeyAnswer:document.getElementById('hk-hotkeyAnswer').value||'Alt+1',
       hotkeyTranslate:document.getElementById('hk-hotkeyTranslate').value||'Alt+2',
       hotkeyRewrite:document.getElementById('hk-hotkeyRewrite').value||'Alt+4',
-      hotkeyDripType:document.getElementById('hk-hotkeyDripType').value||'Alt+5'
+      hotkeyDripType:document.getElementById('hk-hotkeyDripType').value||'Alt+5',
+      hotkeyStopDrip:document.getElementById('hk-hotkeyStopDrip').value||'Alt+0',
+      hotkeyApp:document.getElementById('hk-hotkeyApp').value||'Alt+M'
     };
   }
 
   document.getElementById('save-btn').addEventListener('click',function(){window.zap.saveSettings(gather());showSaved()});
 
   document.getElementById('reset-btn').addEventListener('click',function(){
-    window.zap.saveSettings({accentColor:'#facc15',fontSize:14,fontFamily:'system-ui, -apple-system, sans-serif',borderRadius:12,hotkey:'Alt+3',hotkeyAnswer:'Alt+1',hotkeyTranslate:'Alt+2',hotkeyRewrite:'Alt+4',hotkeyDripType:'Alt+5',language:'Spanish',phantomMode:false,invisibleOverlay:true,autoEngine:true,dripSpeed:40,dripWPM:45,dripDelay:10,typoRate:0.06,dripPauseChance:0.03,dripBurstChance:0.08,overlayOpacity:0});
+    window.zap.saveSettings({accentColor:'#facc15',fontSize:14,fontFamily:'system-ui, -apple-system, sans-serif',borderRadius:12,hotkey:'Alt+3',hotkeyAnswer:'Alt+1',hotkeyTranslate:'Alt+2',hotkeyRewrite:'Alt+4',hotkeyDripType:'Alt+5',hotkeyStopDrip:'Alt+0',hotkeyApp:'Alt+M',language:'Spanish',phantomMode:false,invisibleOverlay:true,autoEngine:true,dripSpeed:40,dripWPM:45,dripDelay:10,typoRate:0.06,dripPauseChance:0.03,dripBurstChance:0.08,overlayOpacity:0});
     loadSettings();showSaved();
   });
 
@@ -426,6 +509,55 @@
       document.getElementById('current-version').textContent='v'+v;
     }catch(_){}
   })();
+
+  // Home tab buttons
+  var replayBtn=document.getElementById('replay-tour-btn');
+  if(replayBtn)replayBtn.addEventListener('click',function(){ window.zap.replayTour(); });
+  var homeSettingsBtn=document.getElementById('home-settings-btn');
+  if(homeSettingsBtn)homeSettingsBtn.addEventListener('click',function(){
+    tabs.forEach(function(x){x.classList.remove('active')});
+    panels.forEach(function(x){x.classList.remove('active')});
+    document.querySelector('[data-tab="general"]').classList.add('active');
+    document.getElementById('tab-general').classList.add('active');
+  });
+
+  // Changelog loading
+  var changelogLoaded=false;
+  function loadChangelog(){
+    if(changelogLoaded)return;
+    changelogLoaded=true;
+    window.zap.getChangelog().then(function(releases){
+      var loading=document.getElementById('changelog-loading');
+      var list=document.getElementById('changelog-list');
+      if(loading)loading.style.display='none';
+      if(!releases||releases.length===0){
+        list.innerHTML='<div class="card" style="text-align:center;padding:20px"><div style="font-size:13px;color:var(--text-dim)">No releases found</div></div>';
+        return;
+      }
+      var html='';
+      releases.forEach(function(r){
+        var bodyHtml=r.body.replace(/^## /gm,'<strong style="color:var(--accent-glow)">').replace(/\n(?=<strong)/g,'</strong>\n').replace(/^- \*\*(.*?)\*\*/gm,'<span style="color:var(--text)">$1</span>').replace(/^- /gm,'<span style="color:var(--text-dim);margin-left:4px">&#8226; </span>').replace(/\n/g,'<br>');
+        html+='<div class="card" style="padding:18px 22px">';
+        html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">';
+        html+='<div style="font-size:16px;font-weight:700;color:var(--text)">v'+r.version+'</div>';
+        html+='<div style="font-size:11px;color:var(--text-dim);background:rgba(74,111,165,0.08);padding:3px 10px;border-radius:6px">'+r.date+'</div>';
+        html+='</div>';
+        html+='<div style="font-size:12px;color:var(--text-muted);line-height:1.7">'+bodyHtml+'</div>';
+        html+='</div>';
+      });
+      list.innerHTML=html;
+    }).catch(function(){
+      var loading=document.getElementById('changelog-loading');
+      if(loading)loading.innerHTML='<div style="font-size:13px;color:var(--text-dim)">Could not load changelog</div>';
+    });
+  }
+
+  // Load changelog when What's New tab is clicked
+  tabs.forEach(function(t){
+    t.addEventListener('click',function(){
+      if(t.dataset.tab==='whatsnew')loadChangelog();
+    });
+  });
 
   loadSettings();
 })();
