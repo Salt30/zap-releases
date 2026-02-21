@@ -140,10 +140,10 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Convert icon to ICO for Windows
+      - name: Generate Windows icon
         run: |
-          npm install --save-dev png-to-ico
-          node -e "require('png-to-ico')('assets/icon.png').then(b => require('fs').writeFileSync('assets/icon.ico', b))"
+          pip install Pillow
+          python -c "from PIL import Image; img=Image.open('assets/icon.png'); img.save('assets/icon.ico', format='ICO', sizes=[(256,256),(128,128),(64,64),(48,48),(32,32),(16,16)])"
         shell: pwsh
 
       - name: Inject API key
