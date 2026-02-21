@@ -35,6 +35,7 @@ const STORE_DEFAULTS = {
   hotkeyTranslate: 'Alt+2',
   hotkeyRewrite:   'Alt+4',
   hotkeyDripType:  'Alt+5',
+  hotkeyStopDrip:  'Alt+0',
   language:      'Spanish',
   theme:         'dark',
   lastMode:      'answer',
@@ -244,6 +245,7 @@ function bindKeys() {
     [store.get('hotkeyTranslate'), () => showWithMode('translate')],
     [store.get('hotkeyRewrite'),   () => showWithMode('rewrite')],
     [store.get('hotkeyDripType'),  () => showWithMode('driptype')],
+    [store.get('hotkeyStopDrip'),  () => { dripTypeCancelled = true; }],
     // Alt+8 = open overlay menu, Alt+9 = open app (settings)
     ['Alt+8', toggle],
     ['Alt+9', makeSettings]
