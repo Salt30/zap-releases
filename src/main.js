@@ -8,13 +8,10 @@ const {
   screen,
   desktopCapturer,
   nativeImage,
-  systemPreferences,
   clipboard
 } = require('electron');
 const path = require('path');
-const { exec, execSync } = require('child_process');
-const fs = require('fs');
-const os = require('os');
+const { exec } = require('child_process');
 const Store = require('electron-store');
 
 /* ─────────────────── Persistent Settings ─────────────────── */
@@ -161,50 +158,17 @@ function makeSettings() {
 /* ─────────────────── Screen Capture ─────────────────── */
 
 async function grabScreen() {
-  // Primary: desktopCapturer — simple, no subprocess, direct Electron API
+  // Simple desktopCapturer — the original approach that worked
+  const display = screen.getPrimaryDisplay();
+  const { width, height } = display.size;
+  const scale = display.scaleFactor || 2;
   try {
-    const display = screen.getPrimaryDisplay();
-    const { width, height } = display.size;
-    // Capture at 1x resolution (not retina) to keep image size manageable
     const sources = await desktopCapturer.getSources({
       types: ['screen'],
-      thumbnailSize: { width: Math.round(width), height: Math.round(height) }
+      thumbnailSize: { width: Math.round(width * scale), height: Math.round(height * scale) }
     });
-    if (sources && sources.length > 0) {
-      const thumb = sources[0].thumbnail;
-      if (!thumb.isEmpty()) {
-        // toDataURL returns PNG which is reliable but large — that's OK,
-        // the overlay compresses before sending to API
-        const dataUrl = thumb.toDataURL();
-        console.log('[Zap] Screen captured via desktopCapturer:', Math.round(dataUrl.length / 1024), 'KB');
-        return dataUrl;
-      }
-    }
-    console.log('[Zap] desktopCapturer: empty thumbnail or no sources');
-  } catch (err) {
-    console.error('[Zap] desktopCapturer error:', err.message);
-  }
-
-  // Fallback: macOS screencapture command
-  if (process.platform === 'darwin') {
-    try {
-      const tmpFile = path.join(os.tmpdir(), `zap-cap-${Date.now()}.png`);
-      execSync(`screencapture -x "${tmpFile}"`, { timeout: 5000, stdio: 'ignore' });
-      if (fs.existsSync(tmpFile)) {
-        const rawData = fs.readFileSync(tmpFile);
-        try { fs.unlinkSync(tmpFile); } catch (_) {}
-        if (rawData.length > 100) {
-          console.log('[Zap] Screen captured via screencapture:', rawData.length, 'bytes');
-          return 'data:image/png;base64,' + rawData.toString('base64');
-        }
-      }
-      console.log('[Zap] screencapture produced empty file');
-    } catch (err) {
-      console.error('[Zap] screencapture error:', err.message);
-    }
-  }
-
-  console.error('[Zap] All screen capture methods failed');
+    if (sources && sources.length > 0) return sources[0].thumbnail.toDataURL();
+  } catch (_) {}
   return null;
 }
 
@@ -785,30 +749,6 @@ ipcMain.handle('check-for-updates', async () => {
 app.whenReady().then(() => {
   // Initialize store AFTER app is ready so getPath('userData') works
   initStore();
-
-  // Test screen capture on startup — verify permission actually works
-  if (process.platform === 'darwin') {
-    setTimeout(async () => {
-      const testCapture = await grabScreen();
-      if (!testCapture) {
-        console.log('[Zap] Screen capture test FAILED — prompting for permission');
-        const { dialog } = require('electron');
-        dialog.showMessageBox({
-          type: 'warning',
-          title: 'Screen Recording Permission Needed',
-          message: 'Zap cannot capture your screen.',
-          detail: 'To fix this:\n1. Open System Settings → Privacy & Security → Screen Recording\n2. Toggle Zap OFF then ON (or add it if missing)\n3. Quit and reopen Zap\n\nNote: You must restart Zap after changing this setting.',
-          buttons: ['Open System Settings', 'OK']
-        }).then(({ response }) => {
-          if (response === 0) {
-            exec('open "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"');
-          }
-        });
-      } else {
-        console.log('[Zap] Screen capture test OK');
-      }
-    }, 2000);  // Wait 2s for app to fully initialize
-  }
 
   makeOverlay();
   makeTray();
