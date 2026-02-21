@@ -28,5 +28,7 @@ contextBridge.exposeInMainWorld('zap', {
   copyToClipboard: (text) => {
     const { clipboard } = require('electron');
     clipboard.writeText(text);
-  }
+  },
+
+  getAppVersion: () => ipcRenderer.invoke('get-app-version')
 });

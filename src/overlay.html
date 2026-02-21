@@ -299,6 +299,9 @@
     if(capture&&selRect){
       img=await cropImg(capture,selRect);
       if(!ocr&&img){try{ocr=await ocrImg(img)}catch(_){}}
+    } else if(capture&&!manual){
+      // No selection — send the full screen capture
+      img=capture;
     }
     try{
       var r=await window.zap.aiRequest({mode:currentMode,text:ocr||manual||null,imageDataUrl:img,region:selRect,language:settings.language});

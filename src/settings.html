@@ -84,7 +84,7 @@
 <div class="header">
   <div class="logo">&#9889;</div>
   <h1>Zap</h1>
-  <span class="version">v1.3.0</span>
+  <span class="version">v...</span>
 </div>
 
 <div class="tabs">
@@ -254,7 +254,7 @@
 
   <div class="tab-panel" id="tab-updates">
     <div class="card update-card">
-      <div class="update-version" id="current-version">v1.3.0</div>
+      <div class="update-version" id="current-version">v...</div>
       <div class="update-label">Current Version</div>
       <button class="btn-update" id="check-update-btn">Check for Updates</button>
       <div class="update-status" id="update-status"></div>
@@ -417,6 +417,15 @@
       updateBtn.disabled=false;
     });
   }
+
+  // Load version dynamically
+  (async function(){
+    try{
+      var v=await window.zap.getAppVersion();
+      document.querySelector('.version').textContent='v'+v;
+      document.getElementById('current-version').textContent='v'+v;
+    }catch(_){}
+  })();
 
   loadSettings();
 })();

@@ -433,13 +433,20 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
 
   const msgs = [{ role: 'system', content: prompts[mode] || prompts.answer }];
 
-  if (endpoint.includes('perplexity.ai')) {
-    msgs.push({ role: 'user', content: text || '[No text extracted]' });
+  // Build user message — always include image if available (Perplexity sonar-pro supports vision)
+  const parts = [];
+  if (text) {
+    parts.push({ type: 'text', text: text });
   } else {
-    const parts = [];
-    if (text) parts.push({ type: 'text', text: 'Here is the selected text: ' + text });
-    else      parts.push({ type: 'text', text: 'Analyze the selected screen region shown in the image.' });
-    if (imageDataUrl) parts.push({ type: 'image_url', image_url: { url: imageDataUrl, detail: 'high' } });
+    parts.push({ type: 'text', text: 'Analyze the selected screen region shown in the image. Read any visible text and respond accordingly.' });
+  }
+  if (imageDataUrl) {
+    parts.push({ type: 'image_url', image_url: { url: imageDataUrl } });
+  }
+  // If we only have text (no image), send as simple string for compatibility
+  if (parts.length === 1 && parts[0].type === 'text') {
+    msgs.push({ role: 'user', content: parts[0].text });
+  } else {
     msgs.push({ role: 'user', content: parts });
   }
 
@@ -588,6 +595,9 @@ function simpleHash(str) {
 function showAuth() {
   if (authWin) { authWin.focus(); return; }
 
+  // Show dock temporarily so auth window can be focused on macOS
+  if (process.platform === 'darwin') app.dock?.show();
+
   authWin = new BrowserWindow({
     width: 440, height: 580,
     resizable: false, minimizable: false, maximizable: false,
@@ -605,7 +615,11 @@ function showAuth() {
   authWin.loadFile(path.join(__dirname, 'auth.html'));
   try { authWin.setContentProtection(true); } catch (_) {}
   authWin.once('ready-to-show', () => { authWin.show(); authWin.focus(); });
-  authWin.on('closed', () => { authWin = null; });
+  authWin.on('closed', () => {
+    authWin = null;
+    // Hide dock again after auth window closes
+    if (process.platform === 'darwin') app.dock?.hide();
+  });
 }
 
 ipcMain.handle('auth-signup', async (_ev, { name, email, password }) => {
@@ -667,6 +681,9 @@ let welcomeWin = null;
 function showWelcome() {
   if (welcomeWin) { welcomeWin.focus(); return; }
 
+  // Show dock temporarily so welcome window can be focused on macOS
+  if (process.platform === 'darwin') app.dock?.show();
+
   welcomeWin = new BrowserWindow({
     width: 680, height: 520,
     resizable: false, minimizable: false, maximizable: false,
@@ -684,7 +701,11 @@ function showWelcome() {
   welcomeWin.loadFile(path.join(__dirname, 'welcome.html'));
   try { welcomeWin.setContentProtection(true); } catch (_) {}
   welcomeWin.once('ready-to-show', () => { welcomeWin.show(); welcomeWin.focus(); });
-  welcomeWin.on('closed', () => { welcomeWin = null; });
+  welcomeWin.on('closed', () => {
+    welcomeWin = null;
+    // Hide dock again after welcome window closes
+    if (process.platform === 'darwin') app.dock?.hide();
+  });
 }
 
 ipcMain.on('welcome-done', () => {
@@ -697,6 +718,10 @@ ipcMain.on('welcome-done', () => {
 });
 
 /* ─────────────────── Auto Update ─────────────────── */
+
+ipcMain.handle('get-app-version', () => {
+  return require('../package.json').version;
+});
 
 ipcMain.handle('check-for-updates', async () => {
   try {
@@ -738,9 +763,12 @@ app.whenReady().then(() => {
 
   // Flow: Auth → Welcome Tour (license check disabled — free for now)
   if (!store.get('authDone')) {
-    showAuth();
+    showAuth();  // showAuth will show dock, hide it again when window closes
   } else if (!store.get('onboardingDone')) {
-    showWelcome();
+    showWelcome();  // showWelcome will show dock, hide it again when window closes
+  } else {
+    // No auth/welcome needed — hide dock for tray-only mode
+    if (process.platform === 'darwin') app.dock?.hide();
   }
   // License/activation disabled until LemonSqueezy is configured
   // else if (!isLicensed()) { showActivate(); }
@@ -754,4 +782,4 @@ app.on('will-quit', () => globalShortcut.unregisterAll());
 process.on('unhandledRejection',  r => console.warn('Unhandled rejection:', r?.message || r));
 process.on('uncaughtException', err => console.error('Uncaught exception:', err.message));
 
-if (process.platform === 'darwin') app.dock?.hide();
+// Dock hide moved into whenReady — see showAuth/showWelcome for temporary show/hide
