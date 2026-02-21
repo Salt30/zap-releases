@@ -161,96 +161,51 @@ function makeSettings() {
 /* ─────────────────── Screen Capture ─────────────────── */
 
 async function grabScreen() {
-  // Method 1: Try macOS screencapture command (most reliable, triggers permission dialog)
+  // Primary: desktopCapturer — simple, no subprocess, direct Electron API
+  try {
+    const display = screen.getPrimaryDisplay();
+    const { width, height } = display.size;
+    // Capture at 1x resolution (not retina) to keep image size manageable
+    const sources = await desktopCapturer.getSources({
+      types: ['screen'],
+      thumbnailSize: { width: Math.round(width), height: Math.round(height) }
+    });
+    if (sources && sources.length > 0) {
+      const thumb = sources[0].thumbnail;
+      if (!thumb.isEmpty()) {
+        // toDataURL returns PNG which is reliable but large — that's OK,
+        // the overlay compresses before sending to API
+        const dataUrl = thumb.toDataURL();
+        console.log('[Zap] Screen captured via desktopCapturer:', Math.round(dataUrl.length / 1024), 'KB');
+        return dataUrl;
+      }
+    }
+    console.log('[Zap] desktopCapturer: empty thumbnail or no sources');
+  } catch (err) {
+    console.error('[Zap] desktopCapturer error:', err.message);
+  }
+
+  // Fallback: macOS screencapture command
   if (process.platform === 'darwin') {
     try {
       const tmpFile = path.join(os.tmpdir(), `zap-cap-${Date.now()}.png`);
       execSync(`screencapture -x "${tmpFile}"`, { timeout: 5000, stdio: 'ignore' });
       if (fs.existsSync(tmpFile)) {
         const rawData = fs.readFileSync(tmpFile);
-        fs.unlinkSync(tmpFile);
-        if (rawData.length > 5000) {  // Valid capture (not blank)
-          // Resize to max 1920px wide and compress as JPEG for smaller IPC transfer
-          const ni = nativeImage.createFromBuffer(rawData);
-          const size = ni.getSize();
-          if (size.width > 0 && size.height > 0) {
-            const maxW = 1920;
-            const resized = size.width > maxW ? ni.resize({ width: maxW, quality: 'good' }) : ni;
-            const jpegBuf = resized.toJPEG(80);
-            if (jpegBuf.length > 1000) {
-              return 'data:image/jpeg;base64,' + jpegBuf.toString('base64');
-            }
-          }
+        try { fs.unlinkSync(tmpFile); } catch (_) {}
+        if (rawData.length > 100) {
+          console.log('[Zap] Screen captured via screencapture:', rawData.length, 'bytes');
+          return 'data:image/png;base64,' + rawData.toString('base64');
         }
       }
-    } catch (_) {}
-  }
-
-  // Method 2: Fallback to desktopCapturer
-  try {
-    const display = screen.getPrimaryDisplay();
-    const { width, height } = display.size;
-    const sources = await desktopCapturer.getSources({
-      types: ['screen'],
-      thumbnailSize: { width, height }
-    });
-    if (sources && sources.length > 0) {
-      const thumb = sources[0].thumbnail;
-      const size = thumb.getSize();
-      if (size.width > 0 && size.height > 0) {
-        const maxW = 1920;
-        const resized = size.width > maxW ? thumb.resize({ width: maxW, quality: 'good' }) : thumb;
-        const buf = resized.toJPEG(80);
-        if (buf && buf.length > 1000) {
-          return 'data:image/jpeg;base64,' + buf.toString('base64');
-        }
-      }
+      console.log('[Zap] screencapture produced empty file');
+    } catch (err) {
+      console.error('[Zap] screencapture error:', err.message);
     }
-  } catch (_) {}
-
-  return null;
-}
-
-/* ─────────────────── macOS Native OCR (Vision framework) ─── */
-
-function nativeOCR(imageDataUrl) {
-  if (process.platform !== 'darwin') return null;
-  try {
-    // Save image to temp file
-    const tmpImg = path.join(os.tmpdir(), `zap-ocr-${Date.now()}.jpg`);
-    const tmpSwift = path.join(os.tmpdir(), 'zap-ocr.swift');
-    const base64Data = imageDataUrl.replace(/^data:image\/\w+;base64,/, '');
-    fs.writeFileSync(tmpImg, Buffer.from(base64Data, 'base64'));
-
-    // Write Swift script to file (avoids shell quoting issues)
-    fs.writeFileSync(tmpSwift, [
-      'import Vision',
-      'import AppKit',
-      `let url = URL(fileURLWithPath: "${tmpImg}")`,
-      'guard let data = try? Data(contentsOf: url),',
-      '      let nsImage = NSImage(data: data),',
-      '      let tiffData = nsImage.tiffRepresentation,',
-      '      let bitmap = NSBitmapImageRep(data: tiffData),',
-      '      let cgImage = bitmap.cgImage else { exit(1) }',
-      'let request = VNRecognizeTextRequest()',
-      'request.recognitionLevel = .accurate',
-      'try! VNImageRequestHandler(cgImage: cgImage).perform([request])',
-      'for observation in (request.results ?? []) {',
-      '    if let text = observation.topCandidates(1).first?.string { print(text) }',
-      '}'
-    ].join('\n'));
-
-    const result = execSync(`swift "${tmpSwift}"`, {
-      timeout: 15000,
-      encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'pipe']
-    });
-    try { fs.unlinkSync(tmpImg); } catch (_) {}
-    try { fs.unlinkSync(tmpSwift); } catch (_) {}
-    return result.trim() || null;
-  } catch (_) {
-    return null;
   }
+
+  console.error('[Zap] All screen capture methods failed');
+  return null;
 }
 
 /* ─────────────────── Show / Toggle Overlay ─────────────────── */
@@ -497,17 +452,9 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
 
   if (!apiKey || apiKey === API_PLACEHOLDER) return { error: 'API key not configured. Please reinstall Zap or contact support.' };
 
-  // If no text provided but we have an image, try macOS native OCR first
-  if (!text && imageDataUrl) {
-    try {
-      const ocrText = nativeOCR(imageDataUrl);
-      if (ocrText && ocrText.length > 2) text = ocrText;
-    } catch (_) {}
-  }
-
-  // If we still have nothing (no text, no image), show helpful error
+  // If we have nothing (no text, no image), show helpful error
   if (!text && !imageDataUrl) {
-    return { error: 'Screen capture failed. Go to System Settings → Privacy & Security → Screen Recording and make sure Zap is enabled, then restart Zap.' };
+    return { error: 'Screen capture failed. Please try:\n1. Open System Settings → Privacy & Security → Screen Recording\n2. Toggle Zap OFF then ON again\n3. Quit Zap completely (right-click tray → Quit) and reopen it' };
   }
 
   const prompts = {
@@ -839,22 +786,28 @@ app.whenReady().then(() => {
   // Initialize store AFTER app is ready so getPath('userData') works
   initStore();
 
+  // Test screen capture on startup — verify permission actually works
   if (process.platform === 'darwin') {
-    const perm = systemPreferences.getMediaAccessStatus('screen');
-    if (perm !== 'granted') {
-      const { dialog } = require('electron');
-      dialog.showMessageBox({
-        type: 'warning',
-        title: 'Screen Recording Permission Required',
-        message: 'Zap needs Screen Recording permission to read your screen.',
-        detail: 'Go to System Settings → Privacy & Security → Screen Recording and enable Zap. Then restart Zap.',
-        buttons: ['Open System Settings', 'Later']
-      }).then(({ response }) => {
-        if (response === 0) {
-          exec('open "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"');
-        }
-      });
-    }
+    setTimeout(async () => {
+      const testCapture = await grabScreen();
+      if (!testCapture) {
+        console.log('[Zap] Screen capture test FAILED — prompting for permission');
+        const { dialog } = require('electron');
+        dialog.showMessageBox({
+          type: 'warning',
+          title: 'Screen Recording Permission Needed',
+          message: 'Zap cannot capture your screen.',
+          detail: 'To fix this:\n1. Open System Settings → Privacy & Security → Screen Recording\n2. Toggle Zap OFF then ON (or add it if missing)\n3. Quit and reopen Zap\n\nNote: You must restart Zap after changing this setting.',
+          buttons: ['Open System Settings', 'OK']
+        }).then(({ response }) => {
+          if (response === 0) {
+            exec('open "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"');
+          }
+        });
+      } else {
+        console.log('[Zap] Screen capture test OK');
+      }
+    }, 2000);  // Wait 2s for app to fully initialize
   }
 
   makeOverlay();
