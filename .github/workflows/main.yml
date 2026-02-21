@@ -45,6 +45,18 @@ jobs:
         run: |
           sed -i '' "s/YOUR_PERPLEXITY_API_KEY/${{ secrets.PERPLEXITY_API_KEY }}/g" src/main.js
 
+      - name: Verify API key was injected
+        run: |
+          if grep -q "const BUILT_IN_API_KEY = '';" src/main.js; then
+            echo "ERROR: API key is empty after injection! Check PERPLEXITY_API_KEY secret."
+            exit 1
+          fi
+          if grep -q "YOUR_PERPLEXITY_API_KEY" src/main.js; then
+            echo "ERROR: Placeholder still present — PERPLEXITY_API_KEY secret may be missing."
+            exit 1
+          fi
+          echo "API key injection verified successfully."
+
       - name: Build and Sign
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
