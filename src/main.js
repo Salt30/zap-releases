@@ -136,11 +136,23 @@ let overlayUp   = false;
 
 /* ─────────────────── Overlay Window ─────────────────── */
 
+/** Re-apply window level + workspace visibility (must be called before every show) */
+function applyOverlayLevel() {
+  if (!overlayWin) return;
+  try { overlayWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (_) {}
+  try { overlayWin.setAlwaysOnTop(true, 'screen-saver', 1); } catch (_) { overlayWin.setAlwaysOnTop(true); }
+  if (process.platform === 'darwin') {
+    try { overlayWin.setWindowButtonVisibility(false); } catch (_) {}
+  }
+  // Ensure content protection stays on
+  try { overlayWin.setContentProtection(true); } catch (_) {}
+}
+
 function makeOverlay() {
   if (!store) initStore();
   const display = screen.getPrimaryDisplay();
 
-  overlayWin = new BrowserWindow({
+  const winOpts = {
     x: 0, y: 0,
     width:  display.size.width,
     height: display.size.height,
@@ -157,17 +169,14 @@ function makeOverlay() {
       contextIsolation: true,
       nodeIntegration:  false
     }
-  });
+  };
+  // Panel type on macOS lets windows float above fullscreen spaces
+  if (process.platform === 'darwin') winOpts.type = 'panel';
+  overlayWin = new BrowserWindow(winOpts);
 
   overlayWin.loadFile(path.join(__dirname, 'overlay.html'));
 
-  try { overlayWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (_) {}
-  try { overlayWin.setAlwaysOnTop(true, 'screen-saver', 1); } catch (_) { overlayWin.setAlwaysOnTop(true); }
-
-  // Prevent the overlay from activating the app (critical for lockdown/fullscreen)
-  if (process.platform === 'darwin') {
-    try { overlayWin.setWindowButtonVisibility(false); } catch (_) {}
-  }
+  applyOverlayLevel();
 
   overlayWin.setIgnoreMouseEvents(false);
   overlayWin.hide();
@@ -231,6 +240,7 @@ function showWithMode(mode) {
 
   grabScreen().then(img => {
     if (!overlayWin) return;
+    applyOverlayLevel();               // re-assert level before every show
     overlayWin.webContents.send('set-mode', mode);
     overlayWin.webContents.send('screen-captured', img);
     overlayWin.webContents.send('load-settings', store.store);
@@ -238,6 +248,7 @@ function showWithMode(mode) {
     overlayUp = true;
   }).catch(() => {
     if (!overlayWin) return;
+    applyOverlayLevel();               // re-assert level before every show
     overlayWin.webContents.send('set-mode', mode);
     overlayWin.webContents.send('screen-captured', null);
     overlayWin.webContents.send('load-settings', store.store);
