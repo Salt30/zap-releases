@@ -95,7 +95,6 @@
   <button class="tab" data-tab="support">Support</button>
   <button class="tab" data-tab="whatsnew">What's New</button>
   <button class="tab" data-tab="updates">Updates</button>
-  <button class="tab" data-tab="admin" id="tab-admin-btn" style="display:none">Admin</button>
 </div>
 
 <div class="content">
@@ -350,54 +349,6 @@
     <div class="card">
       <div class="card-title">Your Tickets</div>
       <div id="user-tickets-list" style="font-size:13px;color:var(--text-dim)">Loading...</div>
-    </div>
-  </div>
-
-  <div class="tab-panel" id="tab-admin" style="display:none">
-    <div class="card" style="text-align:center;padding:20px 22px">
-      <div style="font-size:11px;font-weight:600;color:#ef4444;text-transform:uppercase;letter-spacing:1.5px;margin-bottom:6px">Admin Dashboard</div>
-      <div style="font-size:20px;font-weight:700;color:var(--text)" id="admin-user-name">Loading...</div>
-      <div style="font-size:12px;color:var(--text-dim)" id="admin-user-email"></div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Usage Overview</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px" id="admin-stats-grid">
-        <div style="background:rgba(74,111,165,0.06);border:1px solid rgba(74,111,165,0.1);border-radius:10px;padding:14px;text-align:center">
-          <div style="font-size:24px;font-weight:700;color:var(--accent-glow)" id="stat-sessions">0</div>
-          <div style="font-size:11px;color:var(--text-dim);margin-top:2px">Sessions</div>
-        </div>
-        <div style="background:rgba(74,111,165,0.06);border:1px solid rgba(74,111,165,0.1);border-radius:10px;padding:14px;text-align:center">
-          <div style="font-size:24px;font-weight:700;color:var(--accent-glow)" id="stat-requests">0</div>
-          <div style="font-size:11px;color:var(--text-dim);margin-top:2px">Total Requests</div>
-        </div>
-        <div style="background:rgba(74,111,165,0.06);border:1px solid rgba(74,111,165,0.1);border-radius:10px;padding:14px;text-align:center">
-          <div style="font-size:24px;font-weight:700;color:var(--accent-glow)" id="stat-avg">0</div>
-          <div style="font-size:11px;color:var(--text-dim);margin-top:2px">Avg/Day</div>
-        </div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Mode Usage Breakdown</div>
-      <div id="admin-modes-list" style="display:flex;flex-direction:column;gap:8px"></div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">App Info</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px" id="admin-info-grid">
-        <div style="color:var(--text-dim)">First Launch</div><div style="color:var(--text)" id="info-first-launch">—</div>
-        <div style="color:var(--text-dim)">Last Used</div><div style="color:var(--text)" id="info-last-used">—</div>
-        <div style="color:var(--text-dim)">Days Active</div><div style="color:var(--text)" id="info-days">—</div>
-        <div style="color:var(--text-dim)">Platform</div><div style="color:var(--text)" id="info-platform">—</div>
-        <div style="color:var(--text-dim)">Version</div><div style="color:var(--text)" id="info-version">—</div>
-        <div style="color:var(--text-dim)">License</div><div style="color:var(--text);word-break:break-all" id="info-license">—</div>
-      </div>
-    </div>
-
-    <div class="card">
-      <div class="card-title">Support Tickets</div>
-      <div id="admin-tickets-list" style="font-size:13px;color:var(--text-dim)">No tickets</div>
     </div>
   </div>
 
@@ -676,101 +627,12 @@
     });
   }
 
-  // Admin panel
-  async function initAdmin(){
-    try{
-      var admin=await window.zap.isAdmin();
-      if(!admin)return;
-      document.getElementById('tab-admin-btn').style.display='';
-      document.getElementById('tab-admin').style.display='';
-    }catch(_){}
-  }
-
-  var adminLoaded=false;
-  function loadAdminPanel(){
-    if(adminLoaded)return;
-    adminLoaded=true;
-    window.zap.getAdminStats().then(function(s){
-      if(s.error)return;
-      document.getElementById('admin-user-name').textContent=s.user.name;
-      document.getElementById('admin-user-email').textContent=s.user.email;
-      document.getElementById('stat-sessions').textContent=s.totalSessions;
-      document.getElementById('stat-requests').textContent=s.totalRequests;
-      document.getElementById('stat-avg').textContent=s.avgRequestsPerDay;
-      document.getElementById('info-first-launch').textContent=s.firstLaunch;
-      document.getElementById('info-last-used').textContent=s.lastUsed;
-      document.getElementById('info-days').textContent=s.daysSinceInstall+' days';
-      document.getElementById('info-platform').textContent=s.user.platform==='darwin'?'macOS':'Windows';
-      document.getElementById('info-version').textContent='v'+s.user.version+' (Electron '+s.user.electronVersion+')';
-      document.getElementById('info-license').textContent=s.user.licenseKey;
-
-      // Mode breakdown bar chart
-      var modes=s.modes;
-      var maxVal=Math.max(modes.answer,modes.translate,modes.rewrite,modes.dripType,modes.summarize,modes.explain,1);
-      var modeData=[
-        {name:'Answer',count:modes.answer,color:'#60a5fa'},
-        {name:'Translate',count:modes.translate,color:'#34d399'},
-        {name:'Rewrite',count:modes.rewrite,color:'#c084fc'},
-        {name:'Drip Type',count:modes.dripType,color:'#f87171'},
-        {name:'Summarize',count:modes.summarize,color:'#fbbf24'},
-        {name:'Explain',count:modes.explain,color:'#38bdf8'}
-      ];
-      var mhtml='';
-      modeData.forEach(function(m){
-        var pct=maxVal>0?Math.round((m.count/maxVal)*100):0;
-        mhtml+='<div style="display:flex;align-items:center;gap:12px">';
-        mhtml+='<div style="width:80px;font-size:12px;color:var(--text-muted);text-align:right">'+m.name+'</div>';
-        mhtml+='<div style="flex:1;height:24px;background:rgba(74,111,165,0.08);border-radius:6px;overflow:hidden;position:relative">';
-        mhtml+='<div style="height:100%;width:'+pct+'%;background:'+m.color+';border-radius:6px;transition:width .5s;min-width:'+(m.count>0?'2px':'0')+'"></div>';
-        mhtml+='</div>';
-        mhtml+='<div style="width:40px;font-size:13px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums">'+m.count+'</div>';
-        mhtml+='</div>';
-      });
-      document.getElementById('admin-modes-list').innerHTML=mhtml;
-
-      // Admin tickets view
-      var tickets=s.tickets||[];
-      var tel=document.getElementById('admin-tickets-list');
-      if(tickets.length===0){tel.textContent='No tickets';return}
-      var thtml='';
-      tickets.forEach(function(t){
-        var sc=t.status==='open'?'#f59e0b':t.status==='resolved'?'#6ec87a':'#ef4444';
-        thtml+='<div style="padding:14px 0;border-bottom:1px solid rgba(74,111,165,0.06)">';
-        thtml+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px">';
-        thtml+='<div style="font-size:14px;font-weight:600;color:var(--text)">'+t.subject+'</div>';
-        thtml+='<div style="display:flex;align-items:center;gap:6px">';
-        thtml+='<select class="admin-ticket-status" data-id="'+t.id+'" style="font-size:10px;padding:3px 8px;background:var(--bg-input);color:var(--text);border:1px solid var(--border);border-radius:4px;cursor:pointer;appearance:auto">';
-        thtml+='<option value="open"'+(t.status==='open'?' selected':'')+'>Open</option>';
-        thtml+='<option value="in-progress"'+(t.status==='in-progress'?' selected':'')+'>In Progress</option>';
-        thtml+='<option value="resolved"'+(t.status==='resolved'?' selected':'')+'>Resolved</option>';
-        thtml+='<option value="closed"'+(t.status==='closed'?' selected':'')+'>Closed</option>';
-        thtml+='</select></div></div>';
-        thtml+='<div style="font-size:12px;color:var(--text-muted);margin-bottom:6px;line-height:1.5">'+t.description+'</div>';
-        thtml+='<div style="display:flex;gap:16px;font-size:11px;color:var(--text-dim)">';
-        thtml+='<span>From: '+(t.userName||'Unknown')+(t.email?' &lt;'+t.email+'&gt;':'')+'</span>';
-        thtml+='<span>'+new Date(t.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',hour:'numeric',minute:'2-digit'})+'</span>';
-        thtml+='<span>'+t.platform+'</span>';
-        thtml+='</div></div>';
-      });
-      tel.innerHTML=thtml;
-
-      // Bind status change handlers
-      document.querySelectorAll('.admin-ticket-status').forEach(function(sel){
-        sel.addEventListener('change',function(){
-          window.zap.updateTicketStatus({ticketId:sel.dataset.id,status:sel.value});
-        });
-      });
-    });
-  }
-
   tabs.forEach(function(t){
     t.addEventListener('click',function(){
       if(t.dataset.tab==='support')loadUserTickets();
-      if(t.dataset.tab==='admin')loadAdminPanel();
     });
   });
 
-  initAdmin();
   loadSettings();
 })();
 </script>
