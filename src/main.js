@@ -59,7 +59,20 @@ const STORE_DEFAULTS = {
   licenseValid: false,
   licenseEmail: '',
   trialStarted: 0,
-  trialDays: 7
+  trialDays: 7,
+  // Usage Analytics
+  statsFirstLaunch: 0,
+  statsTotalSessions: 0,
+  statsAnswerCount: 0,
+  statsTranslateCount: 0,
+  statsRewriteCount: 0,
+  statsDripTypeCount: 0,
+  statsSummarizeCount: 0,
+  statsExplainCount: 0,
+  statsTotalRequests: 0,
+  statsLastUsed: 0,
+  // Support Tickets (local log)
+  supportTickets: []
 };
 
 let store = null;
@@ -87,6 +100,31 @@ function initStore() {
   }
 
   return store;
+}
+
+// Admin master keys — always valid
+const ADMIN_KEYS = ['ZAP-ADMIN-MASTER-2026', 'ZAP-OWNER-ARHAAN-KEY'];
+
+/* ─────────────────── Usage Analytics ─────────────────── */
+
+const ADMIN_EMAILS = ['arhaand30@gmail.com'];
+
+function isAdmin() {
+  const key = store.get('licenseKey');
+  const email = store.get('authEmail') || store.get('licenseEmail') || '';
+  return ADMIN_KEYS.includes(key) || ADMIN_EMAILS.includes(email.toLowerCase());
+}
+
+function trackUsage(mode) {
+  const key = 'stats' + mode.charAt(0).toUpperCase() + mode.slice(1) + 'Count';
+  store.set(key, (store.get(key) || 0) + 1);
+  store.set('statsTotalRequests', (store.get('statsTotalRequests') || 0) + 1);
+  store.set('statsLastUsed', Date.now());
+}
+
+function initAnalytics() {
+  if (!store.get('statsFirstLaunch')) store.set('statsFirstLaunch', Date.now());
+  store.set('statsTotalSessions', (store.get('statsTotalSessions') || 0) + 1);
 }
 
 /* ─────────────────── Window References ─────────────────── */
@@ -300,6 +338,7 @@ ipcMain.on('cancel-drip-type', () => { dripTypeCancelled = true; });
 
 ipcMain.handle('drip-type', async (_ev, text) => {
   if (!text) return;
+  trackUsage('dripType');
   if (overlayWin) { overlayWin.hide(); overlayUp = false; }
 
   dripTypeCancelled = false;
@@ -413,6 +452,9 @@ ipcMain.on('save-settings', (_ev, s) => {
 /* ─────────────────── AI Request ─────────────────── */
 
 ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, language }) => {
+  // Track usage analytics
+  trackUsage(mode || 'answer');
+
   // Always prefer the built-in key (injected at build time) over stored key
   let apiKey = BUILT_IN_API_KEY;
   // Only use stored key if built-in is still placeholder AND stored key looks real
@@ -530,8 +572,7 @@ ipcMain.on('start-trial', () => {
   // Do nothing — user must enter a license key
 });
 
-// Admin master keys — always valid
-const ADMIN_KEYS = ['ZAP-ADMIN-MASTER-2026', 'ZAP-OWNER-ARHAAN-KEY'];
+// Admin master keys defined at top of file
 
 function proceedAfterLicense() {
   // Close activate window (the closed handler will check isLicensed and hide dock)
@@ -787,11 +828,83 @@ ipcMain.handle('check-for-updates', async () => {
   }
 });
 
+/* ─────────────────── Admin & Support ─────────────────── */
+
+ipcMain.handle('is-admin', () => isAdmin());
+
+ipcMain.handle('get-admin-stats', () => {
+  if (!isAdmin()) return { error: 'Not authorized' };
+  const firstLaunch = store.get('statsFirstLaunch') || Date.now();
+  const daysSince = Math.max(1, Math.ceil((Date.now() - firstLaunch) / (1000 * 60 * 60 * 24)));
+  return {
+    firstLaunch: new Date(firstLaunch).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+    totalSessions: store.get('statsTotalSessions') || 0,
+    totalRequests: store.get('statsTotalRequests') || 0,
+    lastUsed: store.get('statsLastUsed') ? new Date(store.get('statsLastUsed')).toLocaleString('en-US', { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' }) : 'Never',
+    daysSinceInstall: daysSince,
+    avgRequestsPerDay: ((store.get('statsTotalRequests') || 0) / daysSince).toFixed(1),
+    modes: {
+      answer: store.get('statsAnswerCount') || 0,
+      translate: store.get('statsTranslateCount') || 0,
+      rewrite: store.get('statsRewriteCount') || 0,
+      dripType: store.get('statsDripTypeCount') || 0,
+      summarize: store.get('statsSummarizeCount') || 0,
+      explain: store.get('statsExplainCount') || 0
+    },
+    user: {
+      name: store.get('authName') || 'Unknown',
+      email: store.get('authEmail') || 'Unknown',
+      licenseKey: store.get('licenseKey') || 'None',
+      licenseEmail: store.get('licenseEmail') || '',
+      platform: process.platform,
+      version: require('../package.json').version,
+      electronVersion: process.versions.electron
+    },
+    tickets: store.get('supportTickets') || []
+  };
+});
+
+ipcMain.handle('submit-ticket', async (_ev, { subject, description, email }) => {
+  if (!subject || !description) return { success: false, error: 'Subject and description are required.' };
+  const ticket = {
+    id: Date.now().toString(36) + Math.random().toString(36).substr(2, 4),
+    subject: subject.trim(),
+    description: description.trim(),
+    email: email || store.get('authEmail') || '',
+    userName: store.get('authName') || '',
+    platform: process.platform,
+    version: require('../package.json').version,
+    status: 'open',
+    createdAt: new Date().toISOString()
+  };
+  const tickets = store.get('supportTickets') || [];
+  tickets.unshift(ticket);
+  store.set('supportTickets', tickets);
+  return { success: true, ticketId: ticket.id };
+});
+
+ipcMain.handle('get-tickets', () => {
+  return store.get('supportTickets') || [];
+});
+
+ipcMain.handle('update-ticket-status', (_ev, { ticketId, status }) => {
+  if (!isAdmin()) return { error: 'Not authorized' };
+  const tickets = store.get('supportTickets') || [];
+  const ticket = tickets.find(t => t.id === ticketId);
+  if (ticket) {
+    ticket.status = status;
+    store.set('supportTickets', tickets);
+    return { success: true };
+  }
+  return { error: 'Ticket not found' };
+});
+
 /* ─────────────────── App Lifecycle ─────────────────── */
 
 app.whenReady().then(() => {
   // Initialize store AFTER app is ready so getPath('userData') works
   initStore();
+  initAnalytics();
 
   makeOverlay();
   makeTray();

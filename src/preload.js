@@ -32,5 +32,12 @@ contextBridge.exposeInMainWorld('zap', {
     clipboard.writeText(text);
   },
 
-  getAppVersion: () => ipcRenderer.invoke('get-app-version')
+  getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+
+  // Admin & Support
+  isAdmin:          ()     => ipcRenderer.invoke('is-admin'),
+  getAdminStats:    ()     => ipcRenderer.invoke('get-admin-stats'),
+  submitTicket:     (data) => ipcRenderer.invoke('submit-ticket', data),
+  getTickets:       ()     => ipcRenderer.invoke('get-tickets'),
+  updateTicketStatus: (data) => ipcRenderer.invoke('update-ticket-status', data)
 });
