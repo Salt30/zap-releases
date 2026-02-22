@@ -124,7 +124,12 @@ function makeOverlay() {
   overlayWin.loadFile(path.join(__dirname, 'overlay.html'));
 
   try { overlayWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (_) {}
-  try { overlayWin.setAlwaysOnTop(true, 'floating', 1); } catch (_) { overlayWin.setAlwaysOnTop(true); }
+  try { overlayWin.setAlwaysOnTop(true, 'screen-saver', 1); } catch (_) { overlayWin.setAlwaysOnTop(true); }
+
+  // Prevent the overlay from activating the app (critical for lockdown/fullscreen)
+  if (process.platform === 'darwin') {
+    try { overlayWin.setWindowButtonVisibility(false); } catch (_) {}
+  }
 
   overlayWin.setIgnoreMouseEvents(false);
   overlayWin.hide();
@@ -191,16 +196,14 @@ function showWithMode(mode) {
     overlayWin.webContents.send('set-mode', mode);
     overlayWin.webContents.send('screen-captured', img);
     overlayWin.webContents.send('load-settings', store.store);
-    overlayWin.show();
-    overlayWin.focus();
+    overlayWin.showInactive();
     overlayUp = true;
   }).catch(() => {
     if (!overlayWin) return;
     overlayWin.webContents.send('set-mode', mode);
     overlayWin.webContents.send('screen-captured', null);
     overlayWin.webContents.send('load-settings', store.store);
-    overlayWin.show();
-    overlayWin.focus();
+    overlayWin.showInactive();
     overlayUp = true;
   });
 }
