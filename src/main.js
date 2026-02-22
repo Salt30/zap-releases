@@ -136,23 +136,23 @@ let overlayUp   = false;
 
 /* ─────────────────── Overlay Window ─────────────────── */
 
-/** Re-apply window level + workspace visibility (must be called before every show) */
+/** Re-apply window level + workspace visibility + content protection (before every show) */
 function applyOverlayLevel() {
   if (!overlayWin) return;
+  // Content protection — must be set before visibility changes
+  try { overlayWin.setContentProtection(true); } catch (_) {}
   try { overlayWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (_) {}
   try { overlayWin.setAlwaysOnTop(true, 'screen-saver', 1); } catch (_) { overlayWin.setAlwaysOnTop(true); }
   if (process.platform === 'darwin') {
     try { overlayWin.setWindowButtonVisibility(false); } catch (_) {}
   }
-  // Ensure content protection stays on
-  try { overlayWin.setContentProtection(true); } catch (_) {}
 }
 
 function makeOverlay() {
   if (!store) initStore();
   const display = screen.getPrimaryDisplay();
 
-  const winOpts = {
+  overlayWin = new BrowserWindow({
     x: 0, y: 0,
     width:  display.size.width,
     height: display.size.height,
@@ -169,20 +169,22 @@ function makeOverlay() {
       contextIsolation: true,
       nodeIntegration:  false
     }
-  };
-  // Panel type on macOS lets windows float above fullscreen spaces
-  if (process.platform === 'darwin') winOpts.type = 'panel';
-  overlayWin = new BrowserWindow(winOpts);
+  });
 
   overlayWin.loadFile(path.join(__dirname, 'overlay.html'));
+
+  // Content protection FIRST — before any level changes
+  // setContentProtection → NSWindow.sharingType = .none (hides from screen recording)
+  try { overlayWin.setContentProtection(true); } catch (_) {}
+  // excludeFromCapture is more aggressive — completely invisible to capture APIs (Electron 33+)
+  if (typeof overlayWin.setExcludedFromShownWindowsMenu === 'function') {
+    try { overlayWin.setExcludedFromShownWindowsMenu(true); } catch (_) {}
+  }
 
   applyOverlayLevel();
 
   overlayWin.setIgnoreMouseEvents(false);
   overlayWin.hide();
-
-  // Always enable content protection — fully undetectable
-  try { overlayWin.setContentProtection(true); } catch (_) {}
 
   overlayWin.on('closed', () => { overlayWin = null; });
 }
