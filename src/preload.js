@@ -26,6 +26,9 @@ contextBridge.exposeInMainWorld('zap', {
   startTrial:      () => ipcRenderer.send('start-trial'),
   validateLicense: (key) => ipcRenderer.invoke('validate-license', key),
   getLicenseStatus: () => ipcRenderer.invoke('get-license-status'),
+  createCheckoutSession: (email) => ipcRenderer.invoke('create-checkout-session', email),
+  openCheckoutWindow:    (url, sessionId) => ipcRenderer.invoke('open-checkout-window', url, sessionId),
+  validateStripeSubscription: (sid) => ipcRenderer.invoke('validate-stripe-subscription', sid),
 
   copyToClipboard: (text) => {
     const { clipboard } = require('electron');

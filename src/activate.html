@@ -16,20 +16,32 @@
   .section{width:100%;max-width:360px}
   .section-title{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:10px}
 
-  .key-input{width:100%;padding:14px 16px;background:var(--card);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:'SF Mono','Fira Code',monospace;font-size:14px;outline:none;transition:all .2s;letter-spacing:0.5px}
-  .key-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(250,204,21,0.1)}
-  .key-input::placeholder{color:var(--dim);font-family:system-ui,-apple-system,sans-serif;letter-spacing:0}
+  .email-input{width:100%;padding:14px 16px;background:var(--card);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:14px;outline:none;transition:all .2s}
+  .email-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(250,204,21,0.1)}
+  .email-input::placeholder{color:var(--dim)}
 
-  .activate-btn{width:100%;padding:13px;border:none;border-radius:12px;background:var(--accent);color:#000;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:all .15s;margin-top:12px}
-  .activate-btn:hover{background:#eab308;transform:scale(1.02)}
-  .activate-btn:disabled{opacity:0.4;cursor:not-allowed;transform:none}
+  .subscribe-btn{width:100%;padding:13px;border:none;border-radius:12px;background:var(--accent);color:#000;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:all .15s;margin-top:12px;display:flex;align-items:center;justify-content:center;gap:8px}
+  .subscribe-btn:hover{background:#eab308;transform:scale(1.02)}
+  .subscribe-btn:disabled{opacity:0.4;cursor:not-allowed;transform:none}
+
+  .stripe-badge{font-size:11px;color:var(--dim);margin-top:10px;text-align:center;display:flex;align-items:center;justify-content:center;gap:4px}
 
   .divider{display:flex;align-items:center;gap:12px;margin:20px 0;width:100%;max-width:360px}
   .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
   .divider span{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px}
 
-  .buy-link{font-size:13px;color:var(--accent);text-decoration:none;margin-top:16px;transition:opacity .15s}
-  .buy-link:hover{opacity:0.8;text-decoration:underline}
+  .admin-section{width:100%;max-width:360px}
+  .admin-toggle{font-size:11px;color:var(--dim);cursor:pointer;text-decoration:none;transition:color .15s}
+  .admin-toggle:hover{color:var(--muted)}
+  .admin-input-wrap{display:none;margin-top:10px}
+
+  .key-input{width:100%;padding:12px 14px;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'SF Mono','Fira Code',monospace;font-size:13px;outline:none;transition:all .2s;letter-spacing:0.5px}
+  .key-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(250,204,21,0.1)}
+  .key-input::placeholder{color:var(--dim);font-family:system-ui;letter-spacing:0}
+
+  .admin-btn{width:100%;padding:10px;border:1px solid var(--border);border-radius:10px;background:transparent;color:var(--text);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;margin-top:8px}
+  .admin-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .admin-btn:disabled{opacity:0.4;cursor:not-allowed}
 
   .status{font-size:12px;margin-top:10px;min-height:20px;text-align:center;transition:opacity .2s}
   .status.error{color:var(--red)}
@@ -43,70 +55,147 @@
 <div class="logo">&#9889;</div>
 <div class="title">Activate <span>Zap</span></div>
 
-<div style="font-size:13px;color:var(--muted);margin:12px 0 24px;text-align:center">Enter your license key to get started</div>
+<div style="font-size:13px;color:var(--muted);margin:12px 0 24px;text-align:center">Subscribe to start using Zap</div>
 
 <div class="section">
-  <div class="section-title">License Key</div>
-  <input type="text" class="key-input" id="license-key" placeholder="XXXX-XXXX-XXXX-XXXX" autocomplete="off" spellcheck="false" />
-  <button class="activate-btn" id="activate-btn">Activate License</button>
+  <div class="section-title">Monthly Subscription</div>
+  <input type="email" class="email-input" id="email-input" placeholder="Enter your email address" autocomplete="email" spellcheck="false" />
+  <button class="subscribe-btn" id="subscribe-btn">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
+    Subscribe with Stripe
+  </button>
+  <div class="stripe-badge">&#128274; Secure payment via Stripe</div>
   <div class="status" id="status"></div>
 </div>
 
-<a class="buy-link" id="buy-link" href="#">Get a license at tryzap.net &rarr;</a>
+<div class="divider"><span>or</span></div>
 
-<div class="skip-text" id="skip-text">A valid license key is required to use Zap.</div>
+<div class="admin-section">
+  <a class="admin-toggle" id="admin-toggle" href="#">Have an admin key? Click here</a>
+  <div class="admin-input-wrap" id="admin-wrap">
+    <input type="text" class="key-input" id="admin-key" placeholder="Enter admin key" autocomplete="off" spellcheck="false" />
+    <button class="admin-btn" id="admin-btn">Activate Key</button>
+  </div>
+</div>
+
+<div class="skip-text" id="skip-text">A subscription is required to use Zap.</div>
 
 <script>
 (function(){
-  var keyInput = document.getElementById('license-key');
-  var activateBtn = document.getElementById('activate-btn');
+  var emailInput = document.getElementById('email-input');
+  var subscribeBtn = document.getElementById('subscribe-btn');
   var statusEl = document.getElementById('status');
-  var buyLink = document.getElementById('buy-link');
+  var adminToggle = document.getElementById('admin-toggle');
+  var adminWrap = document.getElementById('admin-wrap');
+  var adminKey = document.getElementById('admin-key');
+  var adminBtn = document.getElementById('admin-btn');
 
   // Check if already licensed
   window.zap.getLicenseStatus().then(function(s) {
     if (s.licenseValid && s.hasKey) {
-      keyInput.value = '••••••••••••••••';
-      keyInput.disabled = true;
-      activateBtn.textContent = 'Already Activated';
-      activateBtn.disabled = true;
+      subscribeBtn.textContent = 'Already Subscribed';
+      subscribeBtn.disabled = true;
+      emailInput.disabled = true;
+      emailInput.value = s.email || '';
       document.getElementById('skip-text').textContent = 'You can close this window.';
     }
   });
 
-  // Open purchase URL
-  buyLink.addEventListener('click', function(e) {
+  // Toggle admin key section
+  adminToggle.addEventListener('click', function(e) {
     e.preventDefault();
-    require('electron').shell.openExternal('https://tryzap.net');
+    adminWrap.style.display = adminWrap.style.display === 'block' ? 'none' : 'block';
+    if (adminWrap.style.display === 'block') adminKey.focus();
   });
 
-  // Activate license
-  activateBtn.addEventListener('click', async function() {
-    var key = keyInput.value.trim();
-    if (!key) { statusEl.textContent = 'Please enter a license key.'; statusEl.className = 'status error'; return; }
+  // Admin key activation
+  adminBtn.addEventListener('click', async function() {
+    var key = adminKey.value.trim();
+    if (!key) { statusEl.textContent = 'Please enter a key.'; statusEl.className = 'status error'; return; }
 
-    activateBtn.disabled = true;
-    activateBtn.textContent = 'Validating...';
+    adminBtn.disabled = true;
+    adminBtn.textContent = 'Validating...';
     statusEl.textContent = '';
 
     var result = await window.zap.validateLicense(key);
 
     if (result.valid) {
-      statusEl.textContent = 'License activated!';
+      statusEl.textContent = 'Activated!';
       statusEl.className = 'status success';
-      activateBtn.textContent = 'Activated!';
+      adminBtn.textContent = 'Activated!';
     } else {
-      statusEl.textContent = result.error || 'Invalid license key.';
+      statusEl.textContent = result.error || 'Invalid key.';
       statusEl.className = 'status error';
-      activateBtn.disabled = false;
-      activateBtn.textContent = 'Activate License';
+      adminBtn.disabled = false;
+      adminBtn.textContent = 'Activate Key';
     }
   });
 
-  // Enter to submit
-  keyInput.addEventListener('keydown', function(e) {
-    if (e.key === 'Enter') activateBtn.click();
+  adminKey.addEventListener('keydown', function(e) { if (e.key === 'Enter') adminBtn.click(); });
+
+  // Stripe Subscribe flow
+  subscribeBtn.addEventListener('click', async function() {
+    var email = emailInput.value.trim();
+    if (!email || !email.includes('@')) {
+      statusEl.textContent = 'Please enter a valid email address.';
+      statusEl.className = 'status error';
+      emailInput.focus();
+      return;
+    }
+
+    subscribeBtn.disabled = true;
+    subscribeBtn.innerHTML = '<span>Opening checkout...</span>';
+    statusEl.textContent = '';
+
+    try {
+      // Create Stripe Checkout Session
+      var session = await window.zap.createCheckoutSession(email);
+
+      if (session.error) {
+        statusEl.textContent = session.error;
+        statusEl.className = 'status error';
+        subscribeBtn.disabled = false;
+        subscribeBtn.innerHTML = 'Subscribe with Stripe';
+        return;
+      }
+
+      // Open checkout in a popup BrowserWindow
+      await window.zap.openCheckoutWindow(session.url, session.sessionId);
+
+      subscribeBtn.innerHTML = '<span>Complete payment in the popup...</span>';
+      statusEl.textContent = 'Waiting for payment...';
+      statusEl.className = 'status';
+
+      // Poll license status every 2 seconds until activated or timeout
+      var attempts = 0;
+      var pollTimer = setInterval(async function() {
+        attempts++;
+        try {
+          var s = await window.zap.getLicenseStatus();
+          if (s.licenseValid) {
+            clearInterval(pollTimer);
+            statusEl.textContent = 'Subscription activated!';
+            statusEl.className = 'status success';
+            subscribeBtn.innerHTML = 'Activated!';
+          } else if (attempts > 150) { // 5 min timeout
+            clearInterval(pollTimer);
+            statusEl.textContent = 'Payment not detected. If you completed payment, restart Zap.';
+            statusEl.className = 'status error';
+            subscribeBtn.disabled = false;
+            subscribeBtn.innerHTML = 'Subscribe with Stripe';
+          }
+        } catch (_) {}
+      }, 2000);
+
+    } catch (err) {
+      statusEl.textContent = err.message || 'Failed to create checkout session.';
+      statusEl.className = 'status error';
+      subscribeBtn.disabled = false;
+      subscribeBtn.innerHTML = 'Subscribe with Stripe';
+    }
   });
+
+  emailInput.addEventListener('keydown', function(e) { if (e.key === 'Enter') subscribeBtn.click(); });
 })();
 </script>
 </body>

@@ -21,6 +21,11 @@ const BUILT_IN_API_KEY = 'YOUR_PERPLEXITY_API_KEY';
 // Constructed so sed doesn't replace it — used to detect if key was injected
 const API_PLACEHOLDER = 'YOUR_PERPLEXITY' + '_API_KEY';
 
+// Stripe configuration — injected at build time via sed
+const STRIPE_SECRET_KEY = 'YOUR_STRIPE_SECRET_KEY';
+const STRIPE_KEY_PLACEHOLDER = 'YOUR_STRIPE' + '_SECRET_KEY';
+const STRIPE_PRICE_ID = 'price_REPLACE_WITH_YOUR_PRICE_ID'; // Set your monthly subscription price ID
+
 const STORE_DEFAULTS = {
   apiKey:        BUILT_IN_API_KEY,
   apiEndpoint:   'https://api.perplexity.ai/chat/completions',
@@ -60,6 +65,10 @@ const STORE_DEFAULTS = {
   licenseKey: '',
   licenseValid: false,
   licenseEmail: '',
+  stripeCustomerId: '',
+  stripeSubscriptionId: '',
+  subscriptionStatus: 'inactive',
+  lastSubscriptionCheck: 0,
   trialStarted: 0,
   trialDays: 7,
   // Usage Analytics
@@ -103,6 +112,17 @@ function initStore() {
   }
 
   return store;
+}
+
+/* ─────────────────── Stripe Client ─────────────────── */
+
+let stripeClient = null;
+function getStripe() {
+  if (stripeClient) return stripeClient;
+  if (STRIPE_SECRET_KEY === STRIPE_KEY_PLACEHOLDER) return null;
+  const Stripe = require('stripe');
+  stripeClient = new Stripe(STRIPE_SECRET_KEY);
+  return stripeClient;
 }
 
 // Admin master keys — always valid
@@ -629,10 +649,10 @@ function proceedAfterLicense() {
   }
 }
 
+// Admin key validation (still works for admin access)
 ipcMain.handle('validate-license', async (_ev, key) => {
-  if (!key || key.trim().length < 5) return { valid: false, error: 'Please enter a valid license key.' };
+  if (!key || key.trim().length < 5) return { valid: false, error: 'Please enter a valid key.' };
 
-  // Check admin keys first
   if (ADMIN_KEYS.includes(key.trim())) {
     store.set('licenseKey', key.trim());
     store.set('licenseValid', true);
@@ -641,36 +661,152 @@ ipcMain.handle('validate-license', async (_ev, key) => {
     return { valid: true, email: 'admin@tryzap.net', admin: true };
   }
 
+  return { valid: false, error: 'Please use the Subscribe button to get access.' };
+});
+
+// Create Stripe Checkout Session for monthly subscription
+ipcMain.handle('create-checkout-session', async (_ev, email) => {
   try {
-    // LemonSqueezy license validation API
-    const res = await fetch('https://api.lemonsqueezy.com/v1/licenses/validate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ license_key: key.trim(), instance_name: require('os').hostname() })
+    const stripe = getStripe();
+    if (!stripe) return { error: 'Payment system not configured. Please reinstall Zap or contact support.' };
+
+    const session = await stripe.checkout.sessions.create({
+      mode: 'subscription',
+      payment_method_types: ['card'],
+      line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
+      customer_email: email || undefined,
+      success_url: 'https://tryzap.net/checkout/success?session_id={CHECKOUT_SESSION_ID}',
+      cancel_url: 'https://tryzap.net/checkout/cancel',
+      metadata: { app: 'zap', hostname: require('os').hostname() }
     });
 
-    const data = await res.json();
-
-    if (data.valid || data.license_key?.status === 'active') {
-      store.set('licenseKey', key.trim());
-      store.set('licenseValid', true);
-      store.set('licenseEmail', data.meta?.customer_email || '');
-      proceedAfterLicense();
-      return { valid: true, email: data.meta?.customer_email };
-    } else {
-      return { valid: false, error: data.error || 'Invalid or expired license key.' };
-    }
+    return { sessionId: session.id, url: session.url };
   } catch (err) {
-    // If offline, accept key optimistically if it looks valid
-    if (key.trim().length >= 16) {
-      store.set('licenseKey', key.trim());
-      store.set('licenseValid', true);
-      proceedAfterLicense();
-      return { valid: true, offline: true };
-    }
-    return { valid: false, error: 'Could not verify license. Check your internet connection.' };
+    console.error('Stripe session creation failed:', err.message);
+    return { error: err.message };
   }
 });
+
+// Open Stripe Checkout in a popup BrowserWindow
+let checkoutWin = null;
+ipcMain.handle('open-checkout-window', async (_ev, url, sessionId) => {
+  if (checkoutWin) { checkoutWin.focus(); return { opened: true }; }
+
+  // Show dock so checkout window can be focused
+  if (process.platform === 'darwin') app.dock?.show();
+
+  checkoutWin = new BrowserWindow({
+    width: 500, height: 700,
+    resizable: true, minimizable: false, maximizable: false,
+    title: 'Zap — Subscribe',
+    backgroundColor: '#0a0a12',
+    webPreferences: { nodeIntegration: false, contextIsolation: true }
+  });
+
+  checkoutWin.loadURL(url);
+  try { checkoutWin.setContentProtection(true); } catch (_) {}
+
+  // Monitor navigation — detect success redirect
+  checkoutWin.webContents.on('will-redirect', async (_e, redirectUrl) => {
+    if (redirectUrl.includes('/checkout/success') && redirectUrl.includes('session_id=')) {
+      // Extract session_id from URL
+      const sid = new URL(redirectUrl).searchParams.get('session_id') || sessionId;
+      const result = await activateFromSession(sid);
+      if (result.valid && checkoutWin && !checkoutWin.isDestroyed()) {
+        checkoutWin.close();
+      }
+    }
+  });
+
+  // Also check on any navigation (some redirects don't fire will-redirect)
+  checkoutWin.webContents.on('did-navigate', async (_e, navUrl) => {
+    if (navUrl.includes('/checkout/success')) {
+      const sid = (() => { try { return new URL(navUrl).searchParams.get('session_id'); } catch (_) { return sessionId; } })();
+      const result = await activateFromSession(sid || sessionId);
+      if (result.valid && checkoutWin && !checkoutWin.isDestroyed()) {
+        checkoutWin.close();
+      }
+    }
+  });
+
+  checkoutWin.on('closed', () => {
+    checkoutWin = null;
+    if (process.platform === 'darwin' && isLicensed()) app.dock?.hide();
+  });
+
+  return { opened: true };
+});
+
+// Validate subscription from a Checkout Session and activate
+async function activateFromSession(sessionId) {
+  try {
+    const stripe = getStripe();
+    if (!stripe) return { valid: false, error: 'Stripe not configured' };
+
+    const session = await stripe.checkout.sessions.retrieve(sessionId);
+    if (!session.subscription) return { valid: false, error: 'No subscription in session' };
+
+    const sub = await stripe.subscriptions.retrieve(session.subscription);
+
+    if (sub.status === 'active' || sub.status === 'trialing') {
+      const customer = typeof sub.customer === 'string'
+        ? await stripe.customers.retrieve(sub.customer)
+        : sub.customer;
+
+      store.set('licenseKey', sub.id);
+      store.set('stripeCustomerId', typeof sub.customer === 'string' ? sub.customer : sub.customer.id);
+      store.set('stripeSubscriptionId', sub.id);
+      store.set('stripeEmail', customer.email || '');
+      store.set('subscriptionStatus', sub.status);
+      store.set('licenseValid', true);
+      store.set('licenseEmail', customer.email || '');
+      store.set('lastSubscriptionCheck', Date.now());
+
+      proceedAfterLicense();
+      return { valid: true, email: customer.email };
+    }
+
+    return { valid: false, error: 'Subscription status: ' + sub.status };
+  } catch (err) {
+    console.error('activateFromSession failed:', err.message);
+    return { valid: false, error: err.message };
+  }
+}
+
+// Validate subscription from stored session ID (called from renderer)
+ipcMain.handle('validate-stripe-subscription', async (_ev, sessionId) => {
+  return activateFromSession(sessionId);
+});
+
+// Check subscription status on app start (once per 24 hours)
+async function checkSubscriptionStatus() {
+  const subId = store.get('stripeSubscriptionId');
+  if (!subId) return; // No Stripe subscription — might be admin key
+
+  const lastCheck = store.get('lastSubscriptionCheck') || 0;
+  const ONE_DAY = 24 * 60 * 60 * 1000;
+  if (Date.now() - lastCheck < ONE_DAY) return; // Checked recently
+
+  try {
+    const stripe = getStripe();
+    if (!stripe) return;
+
+    const sub = await stripe.subscriptions.retrieve(subId);
+
+    if (sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due') {
+      store.set('subscriptionStatus', sub.status);
+      store.set('licenseValid', true);
+      store.set('lastSubscriptionCheck', Date.now());
+    } else {
+      // Subscription canceled or expired
+      store.set('subscriptionStatus', sub.status);
+      store.set('licenseValid', false);
+    }
+  } catch (err) {
+    console.warn('Subscription check failed:', err.message);
+    // If offline, keep current license state
+  }
+}
 
 ipcMain.handle('get-license-status', () => {
   return {
@@ -679,7 +815,9 @@ ipcMain.handle('get-license-status', () => {
     licenseValid: store.get('licenseValid'),
     trialActive: store.get('trialStarted') > 0 && trialDaysLeft() > 0,
     trialDaysLeft: trialDaysLeft(),
-    email: store.get('licenseEmail') || ''
+    email: store.get('licenseEmail') || '',
+    subscriptionId: store.get('stripeSubscriptionId') || '',
+    subscriptionStatus: store.get('subscriptionStatus') || 'inactive'
   };
 });
 
@@ -949,6 +1087,7 @@ app.whenReady().then(() => {
   // Initialize store AFTER app is ready so getPath('userData') works
   initStore();
   initAnalytics();
+  checkSubscriptionStatus(); // Verify Stripe subscription is still active
 
   makeOverlay();
   makeTray();

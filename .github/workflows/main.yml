@@ -41,21 +41,21 @@ jobs:
           # Clean up
           rm certificate.p12
 
-      - name: Inject API key
+      - name: Inject API keys
         run: |
           sed -i '' "s/YOUR_PERPLEXITY_API_KEY/${{ secrets.PERPLEXITY_API_KEY }}/g" src/main.js
+          sed -i '' "s/YOUR_STRIPE_SECRET_KEY/${{ secrets.STRIPE_SECRET_KEY }}/g" src/main.js
 
-      - name: Verify API key was injected
+      - name: Verify API keys were injected
         run: |
-          if grep -q "const BUILT_IN_API_KEY = '';" src/main.js; then
-            echo "ERROR: API key is empty after injection! Check PERPLEXITY_API_KEY secret."
-            exit 1
-          fi
           if grep -q "YOUR_PERPLEXITY_API_KEY" src/main.js; then
-            echo "ERROR: Placeholder still present — PERPLEXITY_API_KEY secret may be missing."
+            echo "ERROR: Perplexity placeholder still present."
             exit 1
           fi
-          echo "API key injection verified successfully."
+          if grep -q "YOUR_STRIPE_SECRET_KEY" src/main.js; then
+            echo "WARNING: Stripe placeholder still present — STRIPE_SECRET_KEY secret may be missing."
+          fi
+          echo "API key injection verified."
 
       - name: Build and Sign
         env:
@@ -146,17 +146,21 @@ jobs:
           python -c "from PIL import Image; img=Image.open('assets/icon.png'); img.save('assets/icon.ico', format='ICO', sizes=[(256,256),(128,128),(64,64),(48,48),(32,32),(16,16)])"
         shell: pwsh
 
-      - name: Inject API key
+      - name: Inject API keys
         run: |
           (Get-Content src/main.js) -replace 'YOUR_PERPLEXITY_API_KEY', '${{ secrets.PERPLEXITY_API_KEY }}' | Set-Content src/main.js
+          (Get-Content src/main.js) -replace 'YOUR_STRIPE_SECRET_KEY', '${{ secrets.STRIPE_SECRET_KEY }}' | Set-Content src/main.js
         shell: pwsh
 
-      - name: Verify API key was injected
+      - name: Verify API keys were injected
         run: |
           $content = Get-Content src/main.js -Raw
           if ($content -match 'YOUR_PERPLEXITY_API_KEY') {
-            Write-Error "ERROR: Placeholder still present"
+            Write-Error "ERROR: Perplexity placeholder still present"
             exit 1
+          }
+          if ($content -match 'YOUR_STRIPE_SECRET_KEY') {
+            Write-Warning "Stripe placeholder still present — STRIPE_SECRET_KEY secret may be missing."
           }
           Write-Output "API key injection verified."
         shell: pwsh

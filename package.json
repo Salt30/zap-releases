@@ -1,7 +1,7 @@
 {
   "name": "zap",
-  "version": "2.5.0",
-  "description": "Zap \u2014 AI Screen Overlay",
+  "version": "3.0.0",
+  "description": "Zap — AI Screen Overlay",
   "main": "src/main.js",
   "author": "Zap",
   "license": "MIT",
@@ -55,11 +55,15 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ]
     },
@@ -90,7 +94,8 @@
     }
   },
   "dependencies": {
-    "electron-store": "^8.1.0"
+    "electron-store": "^8.1.0",
+    "stripe": "^20.3.1"
   },
   "devDependencies": {
     "@electron/notarize": "^2.5.0",
