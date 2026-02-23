@@ -4,50 +4,50 @@
 <meta charset="UTF-8">
 <title>Activate Zap</title>
 <style>
-  :root{--accent:#facc15;--accent-dim:rgba(250,204,21,0.15);--bg:#0a0a12;--card:#111118;--border:rgba(255,255,255,0.08);--text:#f5f5f7;--muted:rgba(255,255,255,0.55);--dim:rgba(255,255,255,0.3);--green:#22c55e;--red:#ef4444}
+  :root{--accent:#4a6fa5;--accent-glow:#5b82bd;--accent-dim:#3a5a8a;--bg-deep:#0a0a12;--bg-card:rgba(18,18,35,0.85);--bg-input:rgba(10,10,22,0.9);--text:#f5f0e8;--text-muted:#b8b0a0;--text-dim:#6e6a60;--border:rgba(74,111,165,0.15);--border-card:rgba(74,111,165,0.12);--green:#6ec87a;--red:#ef4444}
   *{margin:0;padding:0;box-sizing:border-box}
-  body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;-webkit-app-region:drag;overflow:hidden}
+  body{background:var(--bg-deep);background-image:radial-gradient(ellipse at 20% 0%,rgba(30,45,80,.4) 0%,transparent 60%),radial-gradient(ellipse at 80% 100%,rgba(20,30,60,.3) 0%,transparent 60%),linear-gradient(180deg,#0a0a14 0%,#0d0d1c 40%,#0a0b16 100%);color:var(--text);font-family:'SF Pro Display',system-ui,-apple-system,BlinkMacSystemFont,sans-serif;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;-webkit-app-region:drag;overflow:hidden}
   button,input,a{-webkit-app-region:no-drag}
 
-  .logo{font-size:48px;margin-bottom:8px;filter:drop-shadow(0 0 20px rgba(250,204,21,0.3))}
-  .title{font-size:24px;font-weight:700;letter-spacing:-0.3px;margin-bottom:4px}
-  .title span{color:var(--accent)}
+  .logo{width:72px;height:72px;background:linear-gradient(135deg,var(--accent),#3a5a8a);border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:34px;color:var(--text);box-shadow:0 4px 28px rgba(74,111,165,.35);margin-bottom:16px}
+  .title{font-size:26px;font-weight:700;letter-spacing:-.3px;margin-bottom:4px}
+  .title span{color:var(--accent-glow)}
 
-  .section{width:100%;max-width:360px}
-  .section-title{font-size:13px;font-weight:600;color:var(--muted);margin-bottom:10px}
+  .section{width:100%;max-width:380px}
+  .section-title{font-size:12px;font-weight:600;color:var(--text-muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.5px}
 
-  .email-input{width:100%;padding:14px 16px;background:var(--card);border:1px solid var(--border);border-radius:12px;color:var(--text);font-size:14px;outline:none;transition:all .2s}
-  .email-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(250,204,21,0.1)}
-  .email-input::placeholder{color:var(--dim)}
+  .email-input{width:100%;padding:14px 16px;background:var(--bg-input);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:inherit;font-size:14px;outline:none;transition:all .2s}
+  .email-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(74,111,165,.12)}
+  .email-input::placeholder{color:var(--text-dim)}
 
-  .subscribe-btn{width:100%;padding:13px;border:none;border-radius:12px;background:var(--accent);color:#000;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:all .15s;margin-top:12px;display:flex;align-items:center;justify-content:center;gap:8px}
-  .subscribe-btn:hover{background:#eab308;transform:scale(1.02)}
+  .subscribe-btn{width:100%;padding:14px;border:none;border-radius:12px;background:linear-gradient(135deg,var(--accent),#3a5a8a);color:var(--text);font-family:inherit;font-size:15px;font-weight:600;cursor:pointer;transition:all .2s;margin-top:14px;display:flex;align-items:center;justify-content:center;gap:8px;box-shadow:0 2px 16px rgba(74,111,165,.3);letter-spacing:.2px}
+  .subscribe-btn:hover{box-shadow:0 4px 24px rgba(74,111,165,.45);transform:translateY(-1px)}
   .subscribe-btn:disabled{opacity:0.4;cursor:not-allowed;transform:none}
 
-  .stripe-badge{font-size:11px;color:var(--dim);margin-top:10px;text-align:center;display:flex;align-items:center;justify-content:center;gap:4px}
+  .stripe-badge{font-size:12px;color:var(--text-dim);margin-top:12px;text-align:center;display:flex;align-items:center;justify-content:center;gap:5px}
 
-  .divider{display:flex;align-items:center;gap:12px;margin:20px 0;width:100%;max-width:360px}
+  .divider{display:flex;align-items:center;gap:12px;margin:24px 0;width:100%;max-width:380px}
   .divider::before,.divider::after{content:'';flex:1;height:1px;background:var(--border)}
-  .divider span{font-size:11px;color:var(--dim);text-transform:uppercase;letter-spacing:1px}
+  .divider span{font-size:11px;color:var(--text-dim);text-transform:uppercase;letter-spacing:1px}
 
-  .admin-section{width:100%;max-width:360px}
-  .admin-toggle{font-size:11px;color:var(--dim);cursor:pointer;text-decoration:none;transition:color .15s}
-  .admin-toggle:hover{color:var(--muted)}
-  .admin-input-wrap{display:none;margin-top:10px}
+  .admin-section{width:100%;max-width:380px}
+  .admin-toggle{font-size:12px;color:var(--text-dim);cursor:pointer;text-decoration:none;transition:color .15s}
+  .admin-toggle:hover{color:var(--text-muted)}
+  .admin-input-wrap{display:none;margin-top:12px}
 
-  .key-input{width:100%;padding:12px 14px;background:var(--card);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:'SF Mono','Fira Code',monospace;font-size:13px;outline:none;transition:all .2s;letter-spacing:0.5px}
-  .key-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(250,204,21,0.1)}
-  .key-input::placeholder{color:var(--dim);font-family:system-ui;letter-spacing:0}
+  .key-input{width:100%;padding:14px 16px;background:var(--bg-input);border:1px solid var(--border);border-radius:12px;color:var(--text);font-family:'SF Mono','Fira Code',monospace;font-size:13px;outline:none;transition:all .2s;letter-spacing:0.5px}
+  .key-input:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(74,111,165,.12)}
+  .key-input::placeholder{color:var(--text-dim);font-family:system-ui;letter-spacing:0}
 
-  .admin-btn{width:100%;padding:10px;border:1px solid var(--border);border-radius:10px;background:transparent;color:var(--text);font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;margin-top:8px}
-  .admin-btn:hover{border-color:var(--accent);color:var(--accent)}
+  .admin-btn{width:100%;padding:12px;border:1px solid var(--border);border-radius:12px;background:transparent;color:var(--text);font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;margin-top:10px}
+  .admin-btn:hover{border-color:var(--accent);color:var(--accent-glow)}
   .admin-btn:disabled{opacity:0.4;cursor:not-allowed}
 
-  .status{font-size:12px;margin-top:10px;min-height:20px;text-align:center;transition:opacity .2s}
+  .status{font-size:13px;margin-top:12px;min-height:20px;text-align:center;transition:opacity .2s}
   .status.error{color:var(--red)}
   .status.success{color:var(--green)}
 
-  .skip-text{font-size:11px;color:var(--dim);margin-top:20px;text-align:center}
+  .skip-text{font-size:12px;color:var(--text-dim);margin-top:24px;text-align:center}
 </style>
 </head>
 <body>
@@ -55,7 +55,7 @@
 <div class="logo">&#9889;</div>
 <div class="title">Activate <span>Zap</span></div>
 
-<div style="font-size:13px;color:var(--muted);margin:12px 0 24px;text-align:center">Subscribe to start using Zap</div>
+<div style="font-size:14px;color:var(--text-dim);margin:14px 0 28px;text-align:center">Subscribe to unlock full access</div>
 
 <div class="section">
   <div class="section-title">Monthly Subscription</div>
@@ -89,6 +89,11 @@
   var adminWrap = document.getElementById('admin-wrap');
   var adminKey = document.getElementById('admin-key');
   var adminBtn = document.getElementById('admin-btn');
+
+  // Pre-fill email from auth if available
+  window.zap.getSettings().then(function(s) {
+    if (s.authEmail && !emailInput.value) emailInput.value = s.authEmail;
+  }).catch(function(){});
 
   // Check if already licensed
   window.zap.getLicenseStatus().then(function(s) {
@@ -148,7 +153,6 @@
     statusEl.textContent = '';
 
     try {
-      // Create Stripe Checkout Session
       var session = await window.zap.createCheckoutSession(email);
 
       if (session.error) {
@@ -159,14 +163,12 @@
         return;
       }
 
-      // Open checkout in a popup BrowserWindow
       await window.zap.openCheckoutWindow(session.url, session.sessionId);
 
       subscribeBtn.innerHTML = '<span>Complete payment in the popup...</span>';
       statusEl.textContent = 'Waiting for payment...';
       statusEl.className = 'status';
 
-      // Poll license status every 2 seconds until activated or timeout
       var attempts = 0;
       var pollTimer = setInterval(async function() {
         attempts++;
@@ -177,7 +179,7 @@
             statusEl.textContent = 'Subscription activated!';
             statusEl.className = 'status success';
             subscribeBtn.innerHTML = 'Activated!';
-          } else if (attempts > 150) { // 5 min timeout
+          } else if (attempts > 150) {
             clearInterval(pollTimer);
             statusEl.textContent = 'Payment not detected. If you completed payment, restart Zap.';
             statusEl.className = 'status error';

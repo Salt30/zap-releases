@@ -237,7 +237,7 @@ function makeSettings() {
   if (settingsWin) { settingsWin.focus(); return; }
 
   settingsWin = new BrowserWindow({
-    width: 600, height: 750,
+    width: 700, height: 800,
     resizable: true, minimizable: true, maximizable: false,
     title: 'Zap Settings',
     backgroundColor: '#0a0a12',
@@ -603,7 +603,7 @@ function showActivate() {
   if (process.platform === 'darwin') app.dock?.show();
 
   activateWin = new BrowserWindow({
-    width: 480, height: 520,
+    width: 520, height: 620,
     resizable: false, minimizable: false, maximizable: false,
     title: 'Activate Zap',
     backgroundColor: '#0a0a12',
@@ -641,12 +641,8 @@ ipcMain.on('start-trial', () => {
 function proceedAfterLicense() {
   // Close activate window (the closed handler will check isLicensed and hide dock)
   if (activateWin) { activateWin.close(); activateWin = null; }
-  // Show welcome tour if not done, otherwise just hide dock
-  if (!store.get('onboardingDone')) {
-    showWelcome();
-  } else {
-    if (process.platform === 'darwin') app.dock?.hide();
-  }
+  // Tour already happened before payment — just hide dock and run
+  if (process.platform === 'darwin') app.dock?.hide();
 }
 
 // Admin key validation (still works for admin access)
@@ -821,6 +817,93 @@ ipcMain.handle('get-license-status', () => {
   };
 });
 
+/* ─────────────────── Subscription Management ─────────────────── */
+
+ipcMain.handle('get-subscription-info', async () => {
+  const subId = store.get('stripeSubscriptionId');
+  const info = {
+    active: isLicensed(),
+    email: store.get('licenseEmail') || store.get('authEmail') || '',
+    subscriptionId: subId || '',
+    status: store.get('subscriptionStatus') || 'inactive',
+    cancelAtPeriodEnd: false,
+    currentPeriodEnd: null,
+    isAdmin: ADMIN_KEYS.includes(store.get('licenseKey'))
+  };
+
+  // Fetch live data from Stripe if we have a subscription
+  if (subId) {
+    try {
+      const stripe = getStripe();
+      if (stripe) {
+        const sub = await stripe.subscriptions.retrieve(subId);
+        info.status = sub.status;
+        info.cancelAtPeriodEnd = sub.cancel_at_period_end;
+        info.currentPeriodEnd = sub.current_period_end ? new Date(sub.current_period_end * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null;
+        store.set('subscriptionStatus', sub.status);
+      }
+    } catch (_) {}
+  }
+
+  return info;
+});
+
+ipcMain.handle('cancel-subscription', async () => {
+  const subId = store.get('stripeSubscriptionId');
+  if (!subId) return { success: false, error: 'No subscription found.' };
+
+  try {
+    const stripe = getStripe();
+    if (!stripe) return { success: false, error: 'Payment system not configured.' };
+
+    // Cancel at period end — user keeps access until billing cycle ends
+    const sub = await stripe.subscriptions.update(subId, { cancel_at_period_end: true });
+    store.set('subscriptionStatus', sub.status);
+    return {
+      success: true,
+      cancelAtPeriodEnd: true,
+      currentPeriodEnd: sub.current_period_end ? new Date(sub.current_period_end * 1000).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : null
+    };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('reactivate-subscription', async () => {
+  const subId = store.get('stripeSubscriptionId');
+  if (!subId) return { success: false, error: 'No subscription found.' };
+
+  try {
+    const stripe = getStripe();
+    if (!stripe) return { success: false, error: 'Payment system not configured.' };
+
+    const sub = await stripe.subscriptions.update(subId, { cancel_at_period_end: false });
+    store.set('subscriptionStatus', sub.status);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('create-billing-portal', async () => {
+  const customerId = store.get('stripeCustomerId');
+  if (!customerId) return { error: 'No customer record found.' };
+
+  try {
+    const stripe = getStripe();
+    if (!stripe) return { error: 'Payment system not configured.' };
+
+    const session = await stripe.billingPortal.sessions.create({
+      customer: customerId,
+      return_url: 'https://tryzap.net'
+    });
+
+    return { url: session.url };
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
 /* ─────────────────── Auth / Sign Up / Sign In ─────────────────── */
 
 let authWin = null;
@@ -842,7 +925,7 @@ function showAuth() {
   if (process.platform === 'darwin') app.dock?.show();
 
   authWin = new BrowserWindow({
-    width: 440, height: 580,
+    width: 520, height: 660,
     resizable: false, minimizable: false, maximizable: false,
     title: 'Zap — Sign In',
     backgroundColor: '#0a0a12',
@@ -910,11 +993,11 @@ ipcMain.on('auth-done', () => {
   store.set('authDone', true);
   if (authWin) { authWin.close(); authWin = null; }
 
-  // After auth, require license key
-  if (!isLicensed()) {
-    showActivate();
-  } else if (!store.get('onboardingDone')) {
+  // After auth, show tour first, then payment
+  if (!store.get('onboardingDone')) {
     showWelcome();
+  } else if (!isLicensed()) {
+    showActivate();
   }
 });
 
@@ -929,7 +1012,7 @@ function showWelcome() {
   if (process.platform === 'darwin') app.dock?.show();
 
   welcomeWin = new BrowserWindow({
-    width: 680, height: 520,
+    width: 760, height: 600,
     resizable: false, minimizable: false, maximizable: false,
     title: 'Welcome to Zap',
     backgroundColor: '#0a0a12',
@@ -955,6 +1038,13 @@ function showWelcome() {
 ipcMain.on('welcome-done', () => {
   store.set('onboardingDone', true);
   if (welcomeWin) { welcomeWin.close(); welcomeWin = null; }
+
+  // After tour, require payment if not licensed
+  if (!isLicensed()) {
+    showActivate();
+  } else {
+    if (process.platform === 'darwin') app.dock?.hide();
+  }
 });
 
 /* ─────────────────── Replay Tour ─────────────────── */
@@ -985,6 +1075,15 @@ ipcMain.handle('get-changelog', async () => {
 
 ipcMain.handle('get-app-version', () => {
   return require('../package.json').version;
+});
+
+ipcMain.handle('open-external', async (_ev, url) => {
+  if (typeof url === 'string' && (url.startsWith('https://') || url.startsWith('http://'))) {
+    const { shell } = require('electron');
+    await shell.openExternal(url);
+    return { success: true };
+  }
+  return { success: false };
 });
 
 ipcMain.handle('check-for-updates', async () => {
@@ -1093,13 +1192,13 @@ app.whenReady().then(() => {
   makeTray();
   bindKeys();
 
-  // Flow: Auth → License → Welcome Tour → App
+  // Flow: Auth → Welcome Tour → Payment → App
   if (!store.get('authDone')) {
     showAuth();
-  } else if (!isLicensed()) {
-    showActivate();
   } else if (!store.get('onboardingDone')) {
     showWelcome();
+  } else if (!isLicensed()) {
+    showActivate();
   } else {
     if (process.platform === 'darwin') app.dock?.hide();
   }

@@ -92,6 +92,7 @@
   <button class="tab" data-tab="general">General</button>
   <button class="tab" data-tab="appearance">Appearance</button>
   <button class="tab" data-tab="hotkeys">Hotkeys</button>
+  <button class="tab" data-tab="subscription">Subscription</button>
   <button class="tab" data-tab="support">Support</button>
   <button class="tab" data-tab="whatsnew">What's New</button>
   <button class="tab" data-tab="updates">Updates</button>
@@ -331,6 +332,54 @@
       <div class="hotkey-field">
         <div class="hotkey-label">Copy Response</div>
         <div class="hotkey-input-wrap"><input type="text" readonly value="Cmd+C" style="opacity:.5;cursor:default" /></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="tab-panel" id="tab-subscription">
+    <div class="card" id="sub-loading" style="text-align:center;padding:30px">
+      <div style="font-size:13px;color:var(--text-dim)">Loading subscription info...</div>
+    </div>
+    <div id="sub-content" style="display:none">
+      <div class="card">
+        <div class="card-title">Subscription Status</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
+          <div id="sub-status-badge" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600"></div>
+        </div>
+        <div class="toggle-row" style="border-bottom:none;padding:8px 0">
+          <div class="toggle-info"><div class="toggle-label">Email</div><div class="toggle-desc" id="sub-email" style="font-family:'SF Mono','Fira Code',monospace;font-size:12px">—</div></div>
+        </div>
+        <div class="toggle-row" style="border-bottom:none;padding:8px 0">
+          <div class="toggle-info"><div class="toggle-label">Plan</div><div class="toggle-desc" id="sub-plan">Monthly Subscription</div></div>
+        </div>
+        <div class="toggle-row" style="border-bottom:none;padding:8px 0" id="sub-renews-row">
+          <div class="toggle-info"><div class="toggle-label" id="sub-renews-label">Renews</div><div class="toggle-desc" id="sub-renews">—</div></div>
+        </div>
+      </div>
+
+      <div class="card" id="sub-actions-card">
+        <div class="card-title">Manage</div>
+        <div style="display:flex;gap:10px;flex-wrap:wrap">
+          <button class="btn btn-secondary" id="sub-billing-btn" style="flex:1;min-width:140px">Manage Billing</button>
+          <button class="btn btn-secondary" id="sub-cancel-btn" style="flex:1;min-width:140px;color:#ef4444;border-color:rgba(239,68,68,0.3)">Cancel Subscription</button>
+        </div>
+        <div id="sub-action-status" style="font-size:12px;margin-top:12px;text-align:center;min-height:18px"></div>
+      </div>
+
+      <div class="card" id="sub-cancelled-card" style="display:none">
+        <div class="card-title">Subscription Cancelled</div>
+        <div style="font-size:13px;color:var(--text-muted);line-height:1.6;margin-bottom:14px">
+          Your subscription will remain active until <strong id="sub-cancel-date" style="color:var(--text)"></strong>. After that, you'll lose access.
+        </div>
+        <button class="btn btn-primary" id="sub-reactivate-btn" style="width:100%">Reactivate Subscription</button>
+        <div id="sub-reactivate-status" style="font-size:12px;margin-top:10px;text-align:center;min-height:18px"></div>
+      </div>
+
+      <div class="card" id="sub-admin-card" style="display:none">
+        <div class="card-title">Admin Access</div>
+        <div style="font-size:13px;color:var(--text-muted);line-height:1.6">
+          You're using an admin key. No subscription management needed.
+        </div>
       </div>
     </div>
   </div>
@@ -640,6 +689,107 @@
   tabs.forEach(function(t){
     t.addEventListener('click',function(){
       if(t.dataset.tab==='support')loadUserTickets();
+    });
+  });
+
+  // Subscription tab
+  var subLoaded=false;
+  function loadSubscription(){
+    if(subLoaded)return;
+    subLoaded=true;
+    window.zap.getSubscriptionInfo().then(function(info){
+      document.getElementById('sub-loading').style.display='none';
+      document.getElementById('sub-content').style.display='block';
+
+      var badge=document.getElementById('sub-status-badge');
+      var emailEl=document.getElementById('sub-email');
+      var renewsEl=document.getElementById('sub-renews');
+      var renewsLabel=document.getElementById('sub-renews-label');
+      var renewsRow=document.getElementById('sub-renews-row');
+      var actionsCard=document.getElementById('sub-actions-card');
+      var cancelledCard=document.getElementById('sub-cancelled-card');
+      var adminCard=document.getElementById('sub-admin-card');
+
+      emailEl.textContent=info.email||'—';
+
+      if(info.isAdmin){
+        badge.style.background='rgba(74,111,165,0.12)';badge.style.color='var(--accent-glow)';badge.textContent='Admin';
+        actionsCard.style.display='none';adminCard.style.display='block';renewsRow.style.display='none';
+        return;
+      }
+
+      if(info.status==='active'&&!info.cancelAtPeriodEnd){
+        badge.style.background='rgba(34,197,94,0.1)';badge.style.color='#22c55e';badge.textContent='\u25CF Active';
+      }else if(info.cancelAtPeriodEnd){
+        badge.style.background='rgba(245,158,11,0.1)';badge.style.color='#f59e0b';badge.textContent='\u25CF Cancelling';
+        actionsCard.style.display='none';cancelledCard.style.display='block';
+        document.getElementById('sub-cancel-date').textContent=info.currentPeriodEnd||'end of billing period';
+        renewsLabel.textContent='Access until';
+      }else if(info.status==='past_due'){
+        badge.style.background='rgba(239,68,68,0.1)';badge.style.color='#ef4444';badge.textContent='\u25CF Past Due';
+      }else if(info.status==='trialing'){
+        badge.style.background='rgba(96,165,250,0.1)';badge.style.color='#60a5fa';badge.textContent='\u25CF Trial';
+      }else{
+        badge.style.background='rgba(110,106,96,0.1)';badge.style.color='var(--text-dim)';badge.textContent='\u25CF Inactive';
+      }
+
+      if(info.currentPeriodEnd)renewsEl.textContent=info.currentPeriodEnd;
+    }).catch(function(){
+      document.getElementById('sub-loading').innerHTML='<div style="font-size:13px;color:var(--text-dim)">Could not load subscription info</div>';
+    });
+  }
+
+  // Cancel subscription
+  var cancelBtn=document.getElementById('sub-cancel-btn');
+  if(cancelBtn)cancelBtn.addEventListener('click',async function(){
+    var status=document.getElementById('sub-action-status');
+    if(!confirm('Cancel your subscription? You\'ll keep access until the end of your billing period.'))return;
+    cancelBtn.disabled=true;cancelBtn.textContent='Cancelling...';status.textContent='';
+    try{
+      var r=await window.zap.cancelSubscription();
+      if(r.success){
+        status.style.color='#f59e0b';status.textContent='Subscription will cancel at end of period.';
+        subLoaded=false;loadSubscription();
+      }else{status.style.color='#ef4444';status.textContent=r.error||'Failed to cancel.';}
+    }catch(e){status.style.color='#ef4444';status.textContent='Error cancelling.';}
+    cancelBtn.disabled=false;cancelBtn.textContent='Cancel Subscription';
+  });
+
+  // Reactivate subscription
+  var reactBtn=document.getElementById('sub-reactivate-btn');
+  if(reactBtn)reactBtn.addEventListener('click',async function(){
+    var status=document.getElementById('sub-reactivate-status');
+    reactBtn.disabled=true;reactBtn.textContent='Reactivating...';status.textContent='';
+    try{
+      var r=await window.zap.reactivateSubscription();
+      if(r.success){
+        status.style.color='#6ec87a';status.textContent='Subscription reactivated!';
+        subLoaded=false;loadSubscription();
+      }else{status.style.color='#ef4444';status.textContent=r.error||'Failed to reactivate.';}
+    }catch(e){status.style.color='#ef4444';status.textContent='Error reactivating.';}
+    reactBtn.disabled=false;reactBtn.textContent='Reactivate Subscription';
+  });
+
+  // Manage billing portal
+  var billingBtn=document.getElementById('sub-billing-btn');
+  if(billingBtn)billingBtn.addEventListener('click',async function(){
+    billingBtn.disabled=true;billingBtn.textContent='Opening...';
+    try{
+      var r=await window.zap.createBillingPortal();
+      if(r.url){
+        window.zap.openExternal(r.url);
+      }else{
+        document.getElementById('sub-action-status').style.color='#ef4444';
+        document.getElementById('sub-action-status').textContent=r.error||'Could not open billing.';
+      }
+    }catch(e){}
+    billingBtn.disabled=false;billingBtn.textContent='Manage Billing';
+  });
+
+  // Load subscription when tab clicked
+  tabs.forEach(function(t){
+    t.addEventListener('click',function(){
+      if(t.dataset.tab==='subscription')loadSubscription();
     });
   });
 

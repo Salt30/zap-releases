@@ -29,6 +29,10 @@ contextBridge.exposeInMainWorld('zap', {
   createCheckoutSession: (email) => ipcRenderer.invoke('create-checkout-session', email),
   openCheckoutWindow:    (url, sessionId) => ipcRenderer.invoke('open-checkout-window', url, sessionId),
   validateStripeSubscription: (sid) => ipcRenderer.invoke('validate-stripe-subscription', sid),
+  getSubscriptionInfo:   () => ipcRenderer.invoke('get-subscription-info'),
+  cancelSubscription:    () => ipcRenderer.invoke('cancel-subscription'),
+  reactivateSubscription:() => ipcRenderer.invoke('reactivate-subscription'),
+  createBillingPortal:   () => ipcRenderer.invoke('create-billing-portal'),
 
   copyToClipboard: (text) => {
     const { clipboard } = require('electron');
@@ -36,6 +40,7 @@ contextBridge.exposeInMainWorld('zap', {
   },
 
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
+  openExternal:  (url) => ipcRenderer.invoke('open-external', url),
 
   // Admin & Support
   isAdmin:          ()     => ipcRenderer.invoke('is-admin'),

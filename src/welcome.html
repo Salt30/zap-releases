@@ -4,50 +4,50 @@
 <meta charset="UTF-8">
 <title>Welcome to Zap</title>
 <style>
-  :root{--accent:#facc15;--accent-dim:rgba(250,204,21,0.15);--bg:#0a0a12;--card:#111118;--border:rgba(255,255,255,0.08);--text:#fff;--muted:#888;--dim:#555}
+  :root{--accent:#4a6fa5;--accent-glow:#5b82bd;--accent-dim:#3a5a8a;--bg-deep:#0a0a12;--bg-card:rgba(18,18,35,0.85);--bg-input:rgba(10,10,22,0.9);--text:#f5f0e8;--text-muted:#b8b0a0;--text-dim:#6e6a60;--border:rgba(74,111,165,0.15);--border-card:rgba(74,111,165,0.12);--green:#6ec87a}
   *{margin:0;padding:0;box-sizing:border-box}
-  body{background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,sans-serif;overflow:hidden;height:100vh;-webkit-app-region:drag}
+  body{background:var(--bg-deep);background-image:radial-gradient(ellipse at 20% 0%,rgba(30,45,80,.4) 0%,transparent 60%),radial-gradient(ellipse at 80% 100%,rgba(20,30,60,.3) 0%,transparent 60%),linear-gradient(180deg,#0a0a14 0%,#0d0d1c 40%,#0a0b16 100%);color:var(--text);font-family:'SF Pro Display',system-ui,-apple-system,BlinkMacSystemFont,sans-serif;overflow:hidden;height:100vh;-webkit-app-region:drag}
   button,a{-webkit-app-region:no-drag}
 
   .slides{position:relative;width:100%;height:100vh}
-  .slide{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px 50px;opacity:0;transform:translateX(40px);transition:opacity .4s,transform .4s;pointer-events:none}
+  .slide{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px 56px;opacity:0;transform:translateX(40px);transition:opacity .4s,transform .4s;pointer-events:none}
   .slide.active{opacity:1;transform:translateX(0);pointer-events:all}
   .slide.exit{opacity:0;transform:translateX(-40px)}
 
-  .logo{font-size:52px;margin-bottom:6px;filter:drop-shadow(0 0 30px rgba(250,204,21,0.4))}
+  .logo{width:72px;height:72px;background:linear-gradient(135deg,var(--accent),#3a5a8a);border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:34px;color:var(--text);box-shadow:0 4px 28px rgba(74,111,165,.35);margin-bottom:14px}
   .title{font-size:28px;font-weight:700;letter-spacing:-0.5px;margin-bottom:8px}
-  .title span{color:var(--accent)}
-  .subtitle{font-size:15px;color:var(--muted);margin-bottom:32px;text-align:center;line-height:1.6;max-width:420px}
+  .title span{color:var(--accent-glow)}
+  .subtitle{font-size:15px;color:var(--text-muted);margin-bottom:36px;text-align:center;line-height:1.6;max-width:480px}
 
-  .features{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;max-width:480px;margin-bottom:28px}
-  .feat{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;transition:border-color .2s,transform .2s}
-  .feat:hover{border-color:rgba(250,204,21,0.3);transform:translateY(-2px)}
-  .feat-icon{font-size:22px;margin-bottom:6px}
-  .feat-name{font-size:13px;font-weight:600;margin-bottom:3px}
-  .feat-desc{font-size:11px;color:var(--dim);line-height:1.4}
+  .features{display:grid;grid-template-columns:1fr 1fr;gap:14px;width:100%;max-width:520px;margin-bottom:32px}
+  .feat{background:var(--bg-card);border:1px solid var(--border-card);border-radius:14px;padding:18px;transition:border-color .2s,transform .2s;backdrop-filter:blur(20px)}
+  .feat:hover{border-color:rgba(74,111,165,.25);transform:translateY(-2px)}
+  .feat-icon{font-size:24px;margin-bottom:8px}
+  .feat-name{font-size:14px;font-weight:600;margin-bottom:4px;color:var(--text)}
+  .feat-desc{font-size:12px;color:var(--text-dim);line-height:1.4}
 
-  .hotkey-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;width:100%;max-width:440px;margin-bottom:28px}
-  .hk{display:flex;align-items:center;gap:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 16px}
-  .hk kbd{background:rgba(250,204,21,0.12);color:var(--accent);border:1px solid rgba(250,204,21,0.2);padding:3px 8px;border-radius:5px;font-family:inherit;font-size:12px;font-weight:600;white-space:nowrap}
-  .hk span{font-size:12px;color:var(--muted)}
+  .hotkey-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;width:100%;max-width:500px;margin-bottom:32px}
+  .hk{display:flex;align-items:center;gap:12px;background:var(--bg-card);border:1px solid var(--border-card);border-radius:12px;padding:14px 18px;backdrop-filter:blur(20px)}
+  .hk kbd{background:rgba(74,111,165,0.12);color:var(--accent-glow);border:1px solid rgba(74,111,165,0.2);padding:4px 10px;border-radius:6px;font-family:inherit;font-size:12px;font-weight:600;white-space:nowrap}
+  .hk span{font-size:13px;color:var(--text-muted)}
 
-  .demo-box{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:24px;width:100%;max-width:460px;margin-bottom:28px;text-align:center}
-  .demo-box .demo-title{font-size:14px;font-weight:600;color:var(--accent);margin-bottom:8px}
-  .demo-box .demo-text{font-size:13px;color:var(--muted);line-height:1.6}
+  .demo-box{background:var(--bg-card);border:1px solid var(--border-card);border-radius:16px;padding:26px;width:100%;max-width:500px;margin-bottom:16px;text-align:center;backdrop-filter:blur(20px)}
+  .demo-box .demo-title{font-size:15px;font-weight:600;color:var(--accent-glow);margin-bottom:10px}
+  .demo-box .demo-text{font-size:13px;color:var(--text-muted);line-height:1.6}
 
-  .stealth-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(34,197,94,0.1);border:1px solid rgba(34,197,94,0.2);color:#22c55e;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600;margin-bottom:16px}
+  .stealth-badge{display:inline-flex;align-items:center;gap:6px;background:rgba(34,197,94,0.08);border:1px solid rgba(34,197,94,0.15);color:#22c55e;padding:7px 16px;border-radius:20px;font-size:12px;font-weight:600;margin-bottom:18px}
 
-  .nav{position:fixed;bottom:30px;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:16px;-webkit-app-region:no-drag}
-  .dots{display:flex;gap:6px}
-  .dot{width:6px;height:6px;border-radius:50%;background:var(--dim);transition:all .2s}
-  .dot.active{background:var(--accent);width:18px;border-radius:3px}
-  .nav-btn{padding:10px 28px;border:none;border-radius:10px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s}
-  .nav-btn.primary{background:var(--accent);color:#000}
-  .nav-btn.primary:hover{background:#eab308;transform:scale(1.03)}
-  .nav-btn.secondary{background:transparent;border:1px solid var(--border);color:var(--muted)}
-  .nav-btn.secondary:hover{border-color:rgba(255,255,255,0.2);color:var(--text)}
-  .nav-btn.launch{background:var(--accent);color:#000;padding:12px 36px;font-size:15px}
-  .nav-btn.launch:hover{background:#eab308;transform:scale(1.03)}
+  .nav{position:fixed;bottom:32px;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:18px;-webkit-app-region:no-drag}
+  .dots{display:flex;gap:7px}
+  .dot{width:7px;height:7px;border-radius:50%;background:var(--text-dim);transition:all .2s}
+  .dot.active{background:var(--accent-glow);width:20px;border-radius:4px}
+  .nav-btn{padding:11px 30px;border:none;border-radius:12px;font-family:inherit;font-size:14px;font-weight:600;cursor:pointer;transition:all .15s}
+  .nav-btn.primary{background:linear-gradient(135deg,var(--accent),#3a5a8a);color:var(--text);box-shadow:0 2px 12px rgba(74,111,165,.25)}
+  .nav-btn.primary:hover{box-shadow:0 4px 20px rgba(74,111,165,.4);transform:translateY(-1px)}
+  .nav-btn.secondary{background:transparent;border:1px solid var(--border);color:var(--text-muted)}
+  .nav-btn.secondary:hover{border-color:rgba(74,111,165,.3);color:var(--text)}
+  .nav-btn.launch{background:linear-gradient(135deg,var(--accent),#3a5a8a);color:var(--text);padding:13px 38px;font-size:15px;box-shadow:0 2px 16px rgba(74,111,165,.3)}
+  .nav-btn.launch:hover{box-shadow:0 4px 24px rgba(74,111,165,.45);transform:translateY(-1px)}
 
   @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
   .float{animation:float 3s ease-in-out infinite}
@@ -73,8 +73,8 @@
 
   <!-- Slide 1: Hotkeys -->
   <div class="slide" data-slide="1">
-    <div class="title" style="font-size:22px;margin-bottom:6px">Your <span>Hotkeys</span></div>
-    <div class="subtitle" style="margin-bottom:20px">Zap is controlled entirely by keyboard shortcuts. No clicking around — just press and go.</div>
+    <div class="title" style="font-size:24px;margin-bottom:8px">Your <span>Hotkeys</span></div>
+    <div class="subtitle" style="margin-bottom:24px">Zap is controlled entirely by keyboard shortcuts. No clicking around — just press and go.</div>
     <div class="hotkey-grid">
       <div class="hk"><kbd>Alt + 1</kbd><span>Answer Mode</span></div>
       <div class="hk"><kbd>Alt + 2</kbd><span>Translate Mode</span></div>
@@ -85,37 +85,37 @@
       <div class="hk"><kbd>Tab</kbd><span>Type a Question</span></div>
       <div class="hk"><kbd>Cmd + C</kbd><span>Copy Response</span></div>
     </div>
-    <div style="font-size:12px;color:var(--dim);text-align:center">All hotkeys are customizable in Settings</div>
+    <div style="font-size:12px;color:var(--text-dim);text-align:center">All hotkeys are customizable in Settings</div>
   </div>
 
   <!-- Slide 2: How it works -->
   <div class="slide" data-slide="2">
-    <div class="title" style="font-size:22px;margin-bottom:6px">How It <span>Works</span></div>
-    <div class="subtitle" style="margin-bottom:20px">Three simple steps to use Zap</div>
+    <div class="title" style="font-size:24px;margin-bottom:8px">How It <span>Works</span></div>
+    <div class="subtitle" style="margin-bottom:24px">Three simple steps to use Zap</div>
     <div class="demo-box">
       <div class="demo-title">Step 1: Activate</div>
-      <div class="demo-text">Press <strong style="color:var(--accent)">Alt+1</strong> (or any mode hotkey). Zap captures your screen and shows an invisible overlay.</div>
+      <div class="demo-text">Press <strong style="color:var(--accent-glow)">Alt+1</strong> (or any mode hotkey). Zap captures your screen and shows an invisible overlay.</div>
     </div>
-    <div class="demo-box" style="margin-bottom:16px">
+    <div class="demo-box">
       <div class="demo-title">Step 2: Select</div>
-      <div class="demo-text">Drag to select any area on screen. Zap reads the text using OCR and sends it to AI. Or press <strong style="color:var(--accent)">Tab</strong> to type a question manually.</div>
+      <div class="demo-text">Drag to select any area on screen. Zap reads the text using OCR and sends it to AI. Or press <strong style="color:var(--accent-glow)">Tab</strong> to type a question manually.</div>
     </div>
     <div class="demo-box">
       <div class="demo-title">Step 3: Get Results</div>
-      <div class="demo-text">The AI response appears instantly in a floating panel. Copy it, or press <strong style="color:var(--accent)">Esc</strong> to dismiss and keep working.</div>
+      <div class="demo-text">The AI response appears instantly in a floating panel. Copy it, or press <strong style="color:var(--accent-glow)">Esc</strong> to dismiss and keep working.</div>
     </div>
   </div>
 
   <!-- Slide 3: Stealth & Launch -->
   <div class="slide" data-slide="3">
     <div class="stealth-badge"><span class="pulse">&#9679;</span> Stealth Mode Built-In</div>
-    <div class="title" style="font-size:22px;margin-bottom:6px">Truly <span>Undetectable</span></div>
-    <div class="subtitle" style="margin-bottom:20px">Zap runs silently in the background with no dock icon. When you dismiss the overlay, it disappears completely — but stays ready. Your hotkeys work globally, so you can summon Zap from any app instantly.</div>
+    <div class="title" style="font-size:24px;margin-bottom:8px">Truly <span>Undetectable</span></div>
+    <div class="subtitle" style="margin-bottom:24px">Zap runs silently in the background with no dock icon. When you dismiss the overlay, it disappears completely — but stays ready. Your hotkeys work globally, so you can summon Zap from any app instantly.</div>
     <div class="demo-box">
       <div class="demo-title">Phantom Mode</div>
       <div class="demo-text">Enable Phantom Mode in Settings to prevent screen recording software from capturing the Zap overlay. Perfect for screen shares and presentations.</div>
     </div>
-    <div class="demo-box" style="margin-bottom:16px">
+    <div class="demo-box">
       <div class="demo-title">Always Running</div>
       <div class="demo-text">Zap lives in your menu bar and runs in the background. Press your hotkey anytime to bring it back — it's always one keystroke away.</div>
     </div>
@@ -137,7 +137,6 @@
   var prevBtn = document.getElementById('prev-btn');
   var nextBtn = document.getElementById('next-btn');
 
-  // Create dots
   for (var i = 0; i < total; i++) {
     var d = document.createElement('div');
     d.className = 'dot' + (i === 0 ? ' active' : '');
@@ -164,7 +163,7 @@
     });
     prevBtn.style.display = current === 0 ? 'none' : '';
     if (current === total - 1) {
-      nextBtn.textContent = 'Get Started';
+      nextBtn.textContent = 'Continue';
       nextBtn.className = 'nav-btn launch';
     } else {
       nextBtn.textContent = 'Next';
