@@ -136,12 +136,20 @@ let overlayUp   = false;
 
 /* ─────────────────── Overlay Window ─────────────────── */
 
-/** Re-apply window level + workspace visibility + content protection (before every show) */
+/** Apply content protection — hides window from ALL screen capture/share/recording */
+function enforceContentProtection(win) {
+  if (!win || win.isDestroyed()) return;
+  try { win.setContentProtection(true); } catch (_) {}
+}
+
+/** Re-apply window level + workspace visibility + content protection */
 function applyOverlayLevel() {
-  if (!overlayWin) return;
-  // Content protection — must be set before visibility changes
-  try { overlayWin.setContentProtection(true); } catch (_) {}
+  if (!overlayWin || overlayWin.isDestroyed()) return;
+  // 1. Content protection first
+  enforceContentProtection(overlayWin);
+  // 2. Visible on all workspaces INCLUDING fullscreen spaces
   try { overlayWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (_) {}
+  // 3. Highest window level — screen-saver renders above everything
   try { overlayWin.setAlwaysOnTop(true, 'screen-saver', 1); } catch (_) { overlayWin.setAlwaysOnTop(true); }
   if (process.platform === 'darwin') {
     try { overlayWin.setWindowButtonVisibility(false); } catch (_) {}
@@ -152,7 +160,7 @@ function makeOverlay() {
   if (!store) initStore();
   const display = screen.getPrimaryDisplay();
 
-  overlayWin = new BrowserWindow({
+  const winOpts = {
     x: 0, y: 0,
     width:  display.size.width,
     height: display.size.height,
@@ -169,17 +177,28 @@ function makeOverlay() {
       contextIsolation: true,
       nodeIntegration:  false
     }
-  });
+  };
 
+  // Panel type on macOS — NSPanel can join fullscreen Spaces natively
+  if (process.platform === 'darwin') winOpts.type = 'panel';
+
+  overlayWin = new BrowserWindow(winOpts);
   overlayWin.loadFile(path.join(__dirname, 'overlay.html'));
 
-  // Content protection FIRST — before any level changes
-  // setContentProtection → NSWindow.sharingType = .none (hides from screen recording)
-  try { overlayWin.setContentProtection(true); } catch (_) {}
-  // excludeFromCapture is more aggressive — completely invisible to capture APIs (Electron 33+)
-  if (typeof overlayWin.setExcludedFromShownWindowsMenu === 'function') {
-    try { overlayWin.setExcludedFromShownWindowsMenu(true); } catch (_) {}
-  }
+  // Apply content protection immediately
+  enforceContentProtection(overlayWin);
+
+  // Re-apply content protection on EVERY visibility change
+  // macOS can reset sharingType when panel windows change state
+  overlayWin.on('show', () => {
+    enforceContentProtection(overlayWin);
+    // Double-apply after a short delay to catch any macOS resets
+    setTimeout(() => enforceContentProtection(overlayWin), 50);
+    setTimeout(() => enforceContentProtection(overlayWin), 200);
+  });
+  overlayWin.on('focus', () => enforceContentProtection(overlayWin));
+  overlayWin.on('blur', () => enforceContentProtection(overlayWin));
+  overlayWin.webContents.on('did-finish-load', () => enforceContentProtection(overlayWin));
 
   applyOverlayLevel();
 
@@ -247,6 +266,8 @@ function showWithMode(mode) {
     overlayWin.webContents.send('screen-captured', img);
     overlayWin.webContents.send('load-settings', store.store);
     overlayWin.showInactive();
+    // Re-enforce content protection AFTER show — critical for panel windows
+    enforceContentProtection(overlayWin);
     overlayUp = true;
   }).catch(() => {
     if (!overlayWin) return;
@@ -255,6 +276,8 @@ function showWithMode(mode) {
     overlayWin.webContents.send('screen-captured', null);
     overlayWin.webContents.send('load-settings', store.store);
     overlayWin.showInactive();
+    // Re-enforce content protection AFTER show — critical for panel windows
+    enforceContentProtection(overlayWin);
     overlayUp = true;
   });
 }
