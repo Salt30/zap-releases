@@ -36,10 +36,12 @@ const STORE_DEFAULTS = {
   hotkeyRewrite:   'Alt+4',
   hotkeyDripType:  'Alt+5',
   hotkeyStopDrip:  'Alt+0',
+  hotkeySimple:    'Alt+6',
   hotkeyApp:       'Alt+M',
   language:      'Spanish',
   theme:         'dark',
   lastMode:      'answer',
+  simpleMode:    false,
   phantomMode:   false,
   autoEngine:    true,
   maxTokens:     1024,
@@ -64,6 +66,7 @@ const STORE_DEFAULTS = {
   statsFirstLaunch: 0,
   statsTotalSessions: 0,
   statsAnswerCount: 0,
+  statsSimpleCount: 0,
   statsTranslateCount: 0,
   statsRewriteCount: 0,
   statsDripTypeCount: 0,
@@ -301,6 +304,7 @@ function makeTray() {
     { label: 'Toggle Overlay', accelerator: store.get('hotkey'), click: toggle },
     { type: 'separator' },
     { label: 'Answer Mode',    click: () => showWithMode('answer')    },
+    { label: 'Simple Mode',    click: () => showWithMode('simple')    },
     { label: 'Translate Mode',  click: () => showWithMode('translate')  },
     { label: 'Rewrite Mode',   click: () => showWithMode('rewrite')   },
     { label: 'Drip Type Mode',  click: () => showWithMode('driptype')  },
@@ -324,6 +328,7 @@ function bindKeys() {
   const map = [
     [store.get('hotkey'),          toggle],
     [store.get('hotkeyAnswer'),    () => showWithMode('answer')],
+    [store.get('hotkeySimple'),    () => showWithMode('simple')],
     [store.get('hotkeyTranslate'), () => showWithMode('translate')],
     [store.get('hotkeyRewrite'),   () => showWithMode('rewrite')],
     [store.get('hotkeyDripType'),  () => showWithMode('driptype')],
@@ -512,13 +517,16 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
 
   const prompts = {
     answer:    "You are a helpful AI assistant. Answer the user's question based on the content provided. Be concise and direct.",
+    simple:    "You are a helpful AI assistant. Give ONLY the final answer — no explanation, no steps, no reasoning, no extra words. If it's a math problem, just the number. If it's a question, just the answer. If it's multiple choice, just the letter. Nothing else.",
     translate: `You are a professional translator. Translate ALL the provided text into ${language || store.get('language')}. Only provide the translation, no explanations.`,
     summarize: 'You are an expert summarizer. Summarize the provided content in a clear, concise manner. Use bullet points for key takeaways.',
     explain:   'You are an expert teacher. Explain the concept or content provided in a clear and detailed way. Break down complex ideas simply.',
     rewrite:   'You are a professional editor. Rewrite the provided text to be clearer, more professional, and polished. Return only the rewritten text.'
   };
 
-  const msgs = [{ role: 'system', content: prompts[mode] || prompts.answer }];
+  // If simpleMode toggle is ON, override 'answer' mode to use 'simple' prompt
+  const effectiveMode = (mode === 'answer' && store.get('simpleMode')) ? 'simple' : mode;
+  const msgs = [{ role: 'system', content: prompts[effectiveMode] || prompts.answer }];
 
   // Build user message — include image if available (Perplexity sonar-pro supports vision)
   const parts = [];
