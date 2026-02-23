@@ -24,7 +24,7 @@ const API_PLACEHOLDER = 'YOUR_PERPLEXITY' + '_API_KEY';
 // Stripe configuration — injected at build time via sed
 const STRIPE_SECRET_KEY = 'YOUR_STRIPE_SECRET_KEY';
 const STRIPE_KEY_PLACEHOLDER = 'YOUR_STRIPE' + '_SECRET_KEY';
-const STRIPE_PRICE_ID = 'price_REPLACE_WITH_YOUR_PRICE_ID'; // Set your monthly subscription price ID
+const STRIPE_PRICE_ID = 'price_1T43bCDu0Wu9yqrt1RVLakzX';
 
 const STORE_DEFAULTS = {
   apiKey:        BUILT_IN_API_KEY,
