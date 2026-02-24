@@ -570,11 +570,11 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
   }
 
   const prompts = {
-    answer:    "You are a helpful AI assistant. Answer the user's question based on the content provided. Be concise and direct.",
-    simple:    "You are a helpful AI assistant. Give ONLY the final answer — no explanation, no steps, no reasoning, no extra words. If it's a math problem, just the number. If it's a question, just the answer. If it's multiple choice, just the letter. Nothing else.",
+    answer:    "You are a helpful AI assistant. Answer the user's question based on the content provided. Be concise and direct. IMPORTANT: If the content contains math, science, or technical notation, read the image VERY carefully. Pay close attention to exponents (superscripts like x², x³, xⁿ), fractions (numerator/denominator), integrals (∫), limits, subscripts, Greek letters, and special symbols. Do NOT guess — read the exact notation from the image. Show your work step by step for math problems.",
+    simple:    "You are a helpful AI assistant. Give ONLY the final answer — no explanation, no steps, no reasoning, no extra words. If it's a math problem, just the number or expression. If it's a question, just the answer. If it's multiple choice, just the letter. IMPORTANT: Read mathematical notation from the image extremely carefully — pay attention to exponents, fractions, subscripts, and special symbols. Do NOT guess what the notation says.",
     translate: `You are a professional translator. Translate ALL the provided text into ${language || store.get('language')}. Only provide the translation, no explanations.`,
     summarize: 'You are an expert summarizer. Summarize the provided content in a clear, concise manner. Use bullet points for key takeaways.',
-    explain:   'You are an expert teacher. Explain the concept or content provided in a clear and detailed way. Break down complex ideas simply.',
+    explain:   'You are an expert teacher. Explain the concept or content provided in a clear and detailed way. Break down complex ideas simply. If the content contains math or science, read all notation from the image VERY carefully — exponents, fractions, integrals, subscripts, Greek letters. Transcribe the exact problem before explaining.',
     rewrite:   'You are a professional editor. Rewrite the provided text to be clearer, more professional, and polished. Return only the rewritten text.'
   };
 
@@ -584,10 +584,13 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
 
   // Build user message — include image if available (Perplexity sonar-pro supports vision)
   const parts = [];
-  if (text) {
+  if (text && imageDataUrl) {
+    // Both OCR text and image available — tell AI to prefer the image for math
+    parts.push({ type: 'text', text: text + '\n\n[NOTE: The above text was extracted via OCR and may contain errors, especially with math notation like exponents, fractions, and symbols. ALWAYS rely on the attached image for the exact notation — the image is the ground truth.]' });
+  } else if (text) {
     parts.push({ type: 'text', text: text });
   } else {
-    parts.push({ type: 'text', text: 'Analyze the selected screen region shown in the image. Read any visible text and respond accordingly.' });
+    parts.push({ type: 'text', text: 'Analyze the selected screen region shown in the image. Read any visible text carefully and respond accordingly. Pay extra attention to mathematical notation — exponents, fractions, integrals, subscripts, and special symbols.' });
   }
   if (imageDataUrl) {
     parts.push({ type: 'image_url', image_url: { url: imageDataUrl } });

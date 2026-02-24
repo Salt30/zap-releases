@@ -243,7 +243,7 @@
         }
       }
       var compImg=capture?await compressImg(capture):null;
-      var res=await window.zap.aiRequest({mode:'answer',text:ocr||'Look at the screen and write a detailed, natural response to whatever question or prompt is visible. Write as if you are a student answering.',imageDataUrl:compImg,region:null,language:settings.language});
+      var res=await window.zap.aiRequest({mode:'answer',text:ocr||'Look at the screen and write a detailed, natural response to whatever question or prompt is visible. Write as if you are a student answering. If there is math, read all notation from the image carefully — exponents, fractions, integrals, subscripts. Show your work.',imageDataUrl:compImg,region:null,language:settings.language});
       if(res.error){
         dtPencil.innerHTML='<span class="pencil-icon">&#9998;</span> Auto Draft';
         dtPencil.disabled=false;
@@ -355,6 +355,8 @@
     }
   }
 
+  // Crop selection region — use PNG for small crops (preserves fine detail like exponents)
+  // Fall back to high-quality JPEG for large crops to stay within API size limits
   function cropImg(url,r){
     return new Promise(function(done){
       var i=new Image();
@@ -363,23 +365,29 @@
         var sx=i.width/window.innerWidth, sy=i.height/window.innerHeight;
         c.width=r.width*sx; c.height=r.height*sy;
         c.getContext('2d').drawImage(i,r.x*sx,r.y*sy,r.width*sx,r.height*sy,0,0,c.width,c.height);
-        done(c.toDataURL('image/jpeg',0.85));
+        // Use PNG for small/medium crops (under 800px) — lossless, critical for math notation
+        // Use high-quality JPEG for large crops to keep file size manageable
+        if(c.width<=800&&c.height<=800){
+          done(c.toDataURL('image/png'));
+        }else{
+          done(c.toDataURL('image/jpeg',0.92));
+        }
       };
       i.src=url;
     });
   }
 
-  // Compress full screenshot to JPEG and cap at 1920px wide for API
+  // Compress full screenshot — higher cap and quality for better math/symbol readability
   function compressImg(url){
     return new Promise(function(done){
       var i=new Image();
       i.onload=function(){
         var c=document.createElement('canvas');
-        var maxW=1920, scale=Math.min(1,maxW/i.width);
+        var maxW=2560, scale=Math.min(1,maxW/i.width);
         c.width=Math.round(i.width*scale);
         c.height=Math.round(i.height*scale);
         c.getContext('2d').drawImage(i,0,0,c.width,c.height);
-        done(c.toDataURL('image/jpeg',0.80));
+        done(c.toDataURL('image/jpeg',0.88));
       };
       i.src=url;
     });
