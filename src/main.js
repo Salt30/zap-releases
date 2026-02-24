@@ -320,15 +320,17 @@ function makeTray() {
 
   tray = new Tray(nativeImage.createFromDataURL('data:image/png;base64,' + icon64));
 
+  const licensed = isLicensed();
   const menu = Menu.buildFromTemplate([
-    { label: 'Toggle Overlay', accelerator: store.get('hotkey'), click: toggle },
+    { label: 'Toggle Overlay', accelerator: store.get('hotkey'), click: toggle, enabled: licensed },
     { type: 'separator' },
-    { label: 'Answer Mode',    click: () => showWithMode('answer')    },
-    { label: 'Simple Mode',    click: () => showWithMode('simple')    },
-    { label: 'Translate Mode',  click: () => showWithMode('translate')  },
-    { label: 'Rewrite Mode',   click: () => showWithMode('rewrite')   },
-    { label: 'Drip Type Mode',  click: () => showWithMode('driptype')  },
+    { label: 'Answer Mode',    click: () => showWithMode('answer'),    enabled: licensed },
+    { label: 'Simple Mode',    click: () => showWithMode('simple'),    enabled: licensed },
+    { label: 'Translate Mode',  click: () => showWithMode('translate'),  enabled: licensed },
+    { label: 'Rewrite Mode',   click: () => showWithMode('rewrite'),   enabled: licensed },
+    { label: 'Drip Type Mode',  click: () => showWithMode('driptype'),  enabled: licensed },
     { type: 'separator' },
+    ...(licensed ? [] : [{ label: 'Subscribe to Unlock', click: showActivate }, { type: 'separator' }]),
     { label: 'Settings', click: makeSettings },
     { type: 'separator' },
     { label: 'Phantom Mode (Always On)', type: 'checkbox', checked: true, enabled: false },
@@ -345,7 +347,18 @@ function makeTray() {
 
 function bindKeys() {
   globalShortcut.unregisterAll();
-  const map = [
+  // App/settings hotkeys always work
+  const appKeys = [
+    [store.get('hotkeyApp'), makeSettings],
+    ['Alt+9', makeSettings]
+  ];
+  for (const [key, fn] of appKeys) {
+    if (!key) continue;
+    try { globalShortcut.register(key, fn); } catch (_) {}
+  }
+  // Overlay/feature hotkeys only work if licensed
+  if (!isLicensed()) return;
+  const featureKeys = [
     [store.get('hotkey'),          toggle],
     [store.get('hotkeyAnswer'),    () => showWithMode('answer')],
     [store.get('hotkeySimple'),    () => showWithMode('simple')],
@@ -353,12 +366,9 @@ function bindKeys() {
     [store.get('hotkeyRewrite'),   () => showWithMode('rewrite')],
     [store.get('hotkeyDripType'),  () => showWithMode('driptype')],
     [store.get('hotkeyStopDrip'),  () => { dripTypeCancelled = true; }],
-    [store.get('hotkeyApp'),       makeSettings],
-    // Alt+8 = open overlay menu, Alt+9 = open app (settings)
-    ['Alt+8', toggle],
-    ['Alt+9', makeSettings]
+    ['Alt+8', toggle]
   ];
-  for (const [key, fn] of map) {
+  for (const [key, fn] of featureKeys) {
     if (!key) continue;
     try { globalShortcut.register(key, fn); } catch (_) {}
   }
@@ -398,6 +408,7 @@ ipcMain.on('cancel-drip-type', () => { dripTypeCancelled = true; });
 
 
 ipcMain.handle('drip-type', async (_ev, text) => {
+  if (!isLicensed()) return { error: 'Subscription required.' };
   if (!text) return;
   trackUsage('dripType');
   if (overlayWin) { overlayWin.hide(); overlayUp = false; }
@@ -499,7 +510,9 @@ ipcMain.on('open-app', () => {
 ipcMain.handle('get-settings', () => store.store);
 
 ipcMain.on('save-settings', (_ev, s) => {
-  for (const [k, v] of Object.entries(s)) store.set(k, v);
+  // Block renderer from modifying license/auth fields
+  const protectedKeys = ['licenseKey','licenseValid','licenseEmail','stripeCustomerId','stripeSubscriptionId','subscriptionStatus','authDone','authPasswordHash','onboardingDone'];
+  for (const [k, v] of Object.entries(s)) { if (!protectedKeys.includes(k)) store.set(k, v); }
   bindKeys();
   if (s.startAtLogin !== undefined) {
     try { app.setLoginItemSettings({ openAtLogin: s.startAtLogin }); } catch (_) {}
@@ -513,6 +526,8 @@ ipcMain.on('save-settings', (_ev, s) => {
 /* ─────────────────── AI Request ─────────────────── */
 
 ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, language }) => {
+  // Block AI usage for unlicensed users
+  if (!isLicensed()) return { error: 'Subscription required. Please subscribe to use Zap.' };
   // Track usage analytics
   trackUsage(mode || 'answer');
 
@@ -640,6 +655,9 @@ ipcMain.on('start-trial', () => {
 function proceedAfterLicense() {
   // Close activate window (the closed handler will check isLicensed and hide dock)
   if (activateWin) { activateWin.close(); activateWin = null; }
+  // Now that user is licensed, create overlay and bind hotkeys
+  if (!overlayWin) makeOverlay();
+  bindKeys();
   // Tour already happened before payment — just hide dock and run
   if (process.platform === 'darwin') app.dock?.hide();
 }
@@ -1214,9 +1232,14 @@ app.whenReady().then(async () => {
   initAnalytics();
   await checkSubscriptionStatus(); // Verify Stripe subscription — blocks until resolved
 
-  makeOverlay();
+  // Tray is always available (for Quit, Settings, etc.)
   makeTray();
-  bindKeys();
+
+  // Only create overlay and bind hotkeys if user is fully licensed
+  if (isLicensed()) {
+    makeOverlay();
+    bindKeys();
+  }
 
   // Flow: Auth → Welcome Tour → Payment → App
   if (!store.get('authDone')) {
@@ -1229,7 +1252,20 @@ app.whenReady().then(async () => {
     if (process.platform === 'darwin') app.dock?.hide();
   }
 
-  app.on('activate', () => { if (!overlayWin) makeOverlay(); });
+  // Periodic re-validation: check Stripe subscription every 30 minutes
+  setInterval(async () => {
+    if (isLicensed()) {
+      await checkSubscriptionStatus();
+      // If subscription was revoked, destroy overlay and unregister keys
+      if (!isLicensed()) {
+        globalShortcut.unregisterAll();
+        if (overlayWin && !overlayWin.isDestroyed()) { overlayWin.hide(); overlayWin.close(); overlayWin = null; overlayUp = false; }
+        showActivate();
+      }
+    }
+  }, 30 * 60 * 1000);
+
+  app.on('activate', () => { if (isLicensed() && !overlayWin) makeOverlay(); });
 });
 
 app.on('window-all-closed', () => {});
