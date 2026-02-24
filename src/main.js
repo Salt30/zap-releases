@@ -406,10 +406,29 @@ function escAS(c) { return c === '"' ? '\\"' : c === '\\' ? '\\\\' : c; }
 
 ipcMain.on('cancel-drip-type', () => { dripTypeCancelled = true; });
 
+// Strip markdown so drip-typed text reads like natural human writing
+function cleanMarkdown(t) {
+  if (!t) return t;
+  t = t.replace(/^#{1,6}\s+/gm, '');
+  t = t.replace(/\*{1,3}([^*]+?)\*{1,3}/g, '$1');
+  t = t.replace(/_{1,3}([^_]+?)_{1,3}/g, '$1');
+  t = t.replace(/~~([^~]+?)~~/g, '$1');
+  t = t.replace(/`([^`]+?)`/g, '$1');
+  t = t.replace(/```[\s\S]*?```/g, m => m.replace(/```\w*\n?/g, '').replace(/```/g, ''));
+  t = t.replace(/^[\s]*[-*+]\s+/gm, '');
+  t = t.replace(/^\s*\d+\.\s+/gm, '');
+  t = t.replace(/^>\s?/gm, '');
+  t = t.replace(/^[-*_]{3,}\s*$/gm, '');
+  t = t.replace(/\[([^\]]+?)\]\([^)]+?\)/g, '$1');
+  t = t.replace(/!\[([^\]]*?)\]\([^)]+?\)/g, '$1');
+  t = t.replace(/\n{3,}/g, '\n\n');
+  return t.trim();
+}
 
 ipcMain.handle('drip-type', async (_ev, text) => {
   if (!isLicensed()) return { error: 'Subscription required.' };
   if (!text) return;
+  text = cleanMarkdown(text);
   trackUsage('dripType');
   if (overlayWin) { overlayWin.hide(); overlayUp = false; }
 
