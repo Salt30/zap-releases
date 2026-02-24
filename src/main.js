@@ -621,11 +621,10 @@ function showActivate() {
   activateWin.once('ready-to-show', () => { activateWin.show(); activateWin.focus(); });
   activateWin.on('closed', () => {
     activateWin = null;
-    // If they closed without activating, quit the app
-    if (!isLicensed()) {
-      app.quit();
+    if (isLicensed()) {
+      if (process.platform === 'darwin') app.dock?.hide();
     } else {
-      // Hide dock again
+      // Don't quit — stay in tray so user can re-open via hotkey or tray menu
       if (process.platform === 'darwin') app.dock?.hide();
     }
   });
@@ -685,8 +684,12 @@ ipcMain.handle('create-checkout-session', async (_ev, email) => {
 
 // Open Stripe Checkout in a popup BrowserWindow
 let checkoutWin = null;
+let checkoutSucceeded = false;
+
 ipcMain.handle('open-checkout-window', async (_ev, url, sessionId) => {
   if (checkoutWin) { checkoutWin.focus(); return { opened: true }; }
+
+  checkoutSucceeded = false;
 
   // Show dock so checkout window can be focused
   if (process.platform === 'darwin') app.dock?.show();
@@ -705,12 +708,16 @@ ipcMain.handle('open-checkout-window', async (_ev, url, sessionId) => {
   // Monitor navigation — detect success redirect
   checkoutWin.webContents.on('will-redirect', async (_e, redirectUrl) => {
     if (redirectUrl.includes('/checkout/success') && redirectUrl.includes('session_id=')) {
-      // Extract session_id from URL
       const sid = new URL(redirectUrl).searchParams.get('session_id') || sessionId;
       const result = await activateFromSession(sid);
-      if (result.valid && checkoutWin && !checkoutWin.isDestroyed()) {
-        checkoutWin.close();
+      if (result.valid) {
+        checkoutSucceeded = true;
+        if (checkoutWin && !checkoutWin.isDestroyed()) checkoutWin.close();
       }
+    }
+    // Handle cancel URL — auto-close checkout window
+    if (redirectUrl.includes('/checkout/cancel')) {
+      if (checkoutWin && !checkoutWin.isDestroyed()) checkoutWin.close();
     }
   });
 
@@ -719,15 +726,25 @@ ipcMain.handle('open-checkout-window', async (_ev, url, sessionId) => {
     if (navUrl.includes('/checkout/success')) {
       const sid = (() => { try { return new URL(navUrl).searchParams.get('session_id'); } catch (_) { return sessionId; } })();
       const result = await activateFromSession(sid || sessionId);
-      if (result.valid && checkoutWin && !checkoutWin.isDestroyed()) {
-        checkoutWin.close();
+      if (result.valid) {
+        checkoutSucceeded = true;
+        if (checkoutWin && !checkoutWin.isDestroyed()) checkoutWin.close();
       }
+    }
+    // Handle cancel URL
+    if (navUrl.includes('/checkout/cancel')) {
+      if (checkoutWin && !checkoutWin.isDestroyed()) checkoutWin.close();
     }
   });
 
   checkoutWin.on('closed', () => {
     checkoutWin = null;
     if (process.platform === 'darwin' && isLicensed()) app.dock?.hide();
+
+    // Notify activate window that checkout closed without success
+    if (!checkoutSucceeded && activateWin && !activateWin.isDestroyed()) {
+      activateWin.webContents.send('checkout-cancelled');
+    }
   });
 
   return { opened: true };
@@ -762,7 +779,16 @@ async function activateFromSession(sessionId) {
       return { valid: true, email: customer.email };
     }
 
-    return { valid: false, error: 'Subscription status: ' + sub.status };
+    // Provide clear, actionable error messages
+    const statusErrors = {
+      past_due: 'Payment failed. Please update your card and try again.',
+      canceled: 'This subscription has been cancelled.',
+      unpaid: 'Payment is overdue. Please update your payment method.',
+      incomplete: 'Payment did not complete. Please try again.',
+      incomplete_expired: 'Payment session expired. Please subscribe again.'
+    };
+
+    return { valid: false, error: statusErrors[sub.status] || ('Subscription status: ' + sub.status) };
   } catch (err) {
     console.error('activateFromSession failed:', err.message);
     return { valid: false, error: err.message };
@@ -789,18 +815,18 @@ async function checkSubscriptionStatus() {
 
     const sub = await stripe.subscriptions.retrieve(subId);
 
-    if (sub.status === 'active' || sub.status === 'trialing' || sub.status === 'past_due') {
-      store.set('subscriptionStatus', sub.status);
+    store.set('subscriptionStatus', sub.status);
+
+    if (sub.status === 'active' || sub.status === 'trialing') {
       store.set('licenseValid', true);
       store.set('lastSubscriptionCheck', Date.now());
     } else {
-      // Subscription canceled or expired
-      store.set('subscriptionStatus', sub.status);
+      // past_due, canceled, unpaid, incomplete, expired — revoke access
       store.set('licenseValid', false);
     }
   } catch (err) {
     console.warn('Subscription check failed:', err.message);
-    // If offline, keep current license state
+    // If offline, keep current license state — don't lock out
   }
 }
 
@@ -1182,11 +1208,11 @@ ipcMain.handle('update-ticket-status', (_ev, { ticketId, status }) => {
 
 /* ─────────────────── App Lifecycle ─────────────────── */
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   // Initialize store AFTER app is ready so getPath('userData') works
   initStore();
   initAnalytics();
-  checkSubscriptionStatus(); // Verify Stripe subscription is still active
+  await checkSubscriptionStatus(); // Verify Stripe subscription — blocks until resolved
 
   makeOverlay();
   makeTray();

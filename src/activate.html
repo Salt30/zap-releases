@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <title>Activate Zap</title>
 <style>
-  :root{--accent:#4a6fa5;--accent-glow:#5b82bd;--accent-dim:#3a5a8a;--bg-deep:#0a0a12;--bg-card:rgba(18,18,35,0.85);--bg-input:rgba(10,10,22,0.9);--text:#f5f0e8;--text-muted:#b8b0a0;--text-dim:#6e6a60;--border:rgba(74,111,165,0.15);--border-card:rgba(74,111,165,0.12);--green:#6ec87a;--red:#ef4444}
+  :root{--accent:#4a6fa5;--accent-glow:#5b82bd;--accent-dim:#3a5a8a;--bg-deep:#0a0a12;--bg-card:rgba(18,18,35,0.85);--bg-input:rgba(10,10,22,0.9);--text:#f5f0e8;--text-muted:#b8b0a0;--text-dim:#6e6a60;--border:rgba(74,111,165,0.15);--border-card:rgba(74,111,165,0.12);--green:#6ec87a;--red:#ef4444;--orange:#f59e0b}
   *{margin:0;padding:0;box-sizing:border-box}
   body{background:var(--bg-deep);background-image:radial-gradient(ellipse at 20% 0%,rgba(30,45,80,.4) 0%,transparent 60%),radial-gradient(ellipse at 80% 100%,rgba(20,30,60,.3) 0%,transparent 60%),linear-gradient(180deg,#0a0a14 0%,#0d0d1c 40%,#0a0b16 100%);color:var(--text);font-family:'SF Pro Display',system-ui,-apple-system,BlinkMacSystemFont,sans-serif;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;-webkit-app-region:drag;overflow:hidden}
   button,input,a{-webkit-app-region:no-drag}
@@ -46,6 +46,8 @@
   .status{font-size:13px;margin-top:12px;min-height:20px;text-align:center;transition:opacity .2s}
   .status.error{color:var(--red)}
   .status.success{color:var(--green)}
+  .status.warn{color:var(--orange)}
+  .status.info{color:var(--text-muted)}
 
   .skip-text{font-size:12px;color:var(--text-dim);margin-top:24px;text-align:center}
 </style>
@@ -89,6 +91,8 @@
   var adminWrap = document.getElementById('admin-wrap');
   var adminKey = document.getElementById('admin-key');
   var adminBtn = document.getElementById('admin-btn');
+  var pollTimer = null;
+  var subscribeBtnDefault = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Subscribe with Stripe';
 
   // Pre-fill email from auth if available
   window.zap.getSettings().then(function(s) {
@@ -105,6 +109,19 @@
       document.getElementById('skip-text').textContent = 'You can close this window.';
     }
   });
+
+  // Listen for checkout-cancelled event from main process
+  window.zap.onCheckoutCancelled(function() {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    resetToRetry('Checkout was not completed. Ready to try again.');
+  });
+
+  function resetToRetry(msg) {
+    statusEl.textContent = msg;
+    statusEl.className = 'status warn';
+    subscribeBtn.disabled = false;
+    subscribeBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Try Again';
+  }
 
   // Toggle admin key section
   adminToggle.addEventListener('click', function(e) {
@@ -153,47 +170,43 @@
     statusEl.textContent = '';
 
     try {
+      // Create Stripe Checkout Session
       var session = await window.zap.createCheckoutSession(email);
 
       if (session.error) {
         statusEl.textContent = session.error;
         statusEl.className = 'status error';
-        subscribeBtn.disabled = false;
-        subscribeBtn.innerHTML = 'Subscribe with Stripe';
+        resetToRetry(session.error);
         return;
       }
 
+      // Open checkout in a popup BrowserWindow
       await window.zap.openCheckoutWindow(session.url, session.sessionId);
 
       subscribeBtn.innerHTML = '<span>Complete payment in the popup...</span>';
       statusEl.textContent = 'Waiting for payment...';
-      statusEl.className = 'status';
+      statusEl.className = 'status info';
 
+      // Poll license status — short timeout (1 min), event-driven cancel handles the rest
       var attempts = 0;
-      var pollTimer = setInterval(async function() {
+      pollTimer = setInterval(async function() {
         attempts++;
         try {
           var s = await window.zap.getLicenseStatus();
           if (s.licenseValid) {
-            clearInterval(pollTimer);
+            clearInterval(pollTimer); pollTimer = null;
             statusEl.textContent = 'Subscription activated!';
             statusEl.className = 'status success';
             subscribeBtn.innerHTML = 'Activated!';
-          } else if (attempts > 150) {
-            clearInterval(pollTimer);
-            statusEl.textContent = 'Payment not detected. If you completed payment, restart Zap.';
-            statusEl.className = 'status error';
-            subscribeBtn.disabled = false;
-            subscribeBtn.innerHTML = 'Subscribe with Stripe';
+          } else if (attempts > 30) { // 1 min timeout (checkout-cancelled event handles early close)
+            clearInterval(pollTimer); pollTimer = null;
+            resetToRetry('Payment not detected. Please try again.');
           }
         } catch (_) {}
       }, 2000);
 
     } catch (err) {
-      statusEl.textContent = err.message || 'Failed to create checkout session.';
-      statusEl.className = 'status error';
-      subscribeBtn.disabled = false;
-      subscribeBtn.innerHTML = 'Subscribe with Stripe';
+      resetToRetry(err.message || 'Failed to create checkout session. Please try again.');
     }
   });
 

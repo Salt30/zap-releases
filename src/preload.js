@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld('zap', {
   onLoadSettings:   (cb) => ipcRenderer.on('load-settings',   (_, d) => cb(d)),
   onSetMode:        (cb) => ipcRenderer.on('set-mode',         (_, m) => cb(m)),
   onSettingsSaved:  (cb) => ipcRenderer.on('settings-saved',   ()     => cb()),
+  onCheckoutCancelled: (cb) => ipcRenderer.on('checkout-cancelled', () => cb()),
 
   authSignup:      (data) => ipcRenderer.invoke('auth-signup', data),
   authSignin:      (data) => ipcRenderer.invoke('auth-signin', data),

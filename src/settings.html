@@ -340,9 +340,18 @@
     <div class="card" id="sub-loading" style="text-align:center;padding:30px">
       <div style="font-size:13px;color:var(--text-dim)">Loading subscription info...</div>
     </div>
+    <div class="card" id="sub-error" style="display:none;text-align:center;padding:24px">
+      <div style="font-size:28px;margin-bottom:8px">&#9888;&#65039;</div>
+      <div style="font-size:14px;color:var(--text);font-weight:600;margin-bottom:6px">Could not load subscription info</div>
+      <div style="font-size:12px;color:var(--text-dim);margin-bottom:16px;line-height:1.5">Check your internet connection and try again.</div>
+      <button class="btn btn-secondary" id="sub-retry-btn">Retry</button>
+    </div>
     <div id="sub-content" style="display:none">
       <div class="card">
-        <div class="card-title">Subscription Status</div>
+        <div class="card-title" style="justify-content:space-between;align-items:center">
+          <span>Subscription Status</span>
+          <button class="btn btn-secondary" id="sub-refresh-btn" style="padding:5px 12px;font-size:11px;margin:0">Refresh</button>
+        </div>
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px">
           <div id="sub-status-badge" style="display:inline-flex;align-items:center;gap:6px;padding:6px 14px;border-radius:20px;font-size:12px;font-weight:600"></div>
         </div>
@@ -355,6 +364,14 @@
         <div class="toggle-row" style="border-bottom:none;padding:8px 0" id="sub-renews-row">
           <div class="toggle-info"><div class="toggle-label" id="sub-renews-label">Renews</div><div class="toggle-desc" id="sub-renews">—</div></div>
         </div>
+      </div>
+
+      <div class="card" id="sub-pastdue-card" style="display:none;border-color:rgba(239,68,68,0.3)">
+        <div class="card-title" style="color:#ef4444">&#9888; Payment Failed</div>
+        <div style="font-size:13px;color:var(--text-muted);line-height:1.6;margin-bottom:14px">
+          Your last payment failed. Please update your payment method to keep your subscription active. If not resolved, your access will be revoked.
+        </div>
+        <button class="btn btn-primary" id="sub-update-card-btn" style="width:100%;background:linear-gradient(135deg,#ef4444,#dc2626)">Update Payment Method</button>
       </div>
 
       <div class="card" id="sub-actions-card">
@@ -373,6 +390,14 @@
         </div>
         <button class="btn btn-primary" id="sub-reactivate-btn" style="width:100%">Reactivate Subscription</button>
         <div id="sub-reactivate-status" style="font-size:12px;margin-top:10px;text-align:center;min-height:18px"></div>
+      </div>
+
+      <div class="card" id="sub-inactive-card" style="display:none">
+        <div class="card-title">No Active Subscription</div>
+        <div style="font-size:13px;color:var(--text-muted);line-height:1.6;margin-bottom:14px" id="sub-inactive-text">
+          You don't have an active subscription. Subscribe to unlock full access to Zap.
+        </div>
+        <button class="btn btn-primary" id="sub-subscribe-btn" style="width:100%">Subscribe Now</button>
       </div>
 
       <div class="card" id="sub-admin-card" style="display:none">
@@ -693,12 +718,19 @@
   });
 
   // Subscription tab
-  var subLoaded=false;
-  function loadSubscription(){
-    if(subLoaded)return;
-    subLoaded=true;
+  function loadSubscription(forceRefresh){
+    // Reset UI visibility
+    document.getElementById('sub-loading').style.display='block';
+    document.getElementById('sub-error').style.display='none';
+    document.getElementById('sub-content').style.display='none';
+
+    // Reset all conditional cards
+    var resetCards=['sub-actions-card','sub-cancelled-card','sub-admin-card','sub-pastdue-card','sub-inactive-card'];
+    resetCards.forEach(function(id){document.getElementById(id).style.display='none'});
+
     window.zap.getSubscriptionInfo().then(function(info){
       document.getElementById('sub-loading').style.display='none';
+      document.getElementById('sub-error').style.display='none';
       document.getElementById('sub-content').style.display='block';
 
       var badge=document.getElementById('sub-status-badge');
@@ -706,38 +738,64 @@
       var renewsEl=document.getElementById('sub-renews');
       var renewsLabel=document.getElementById('sub-renews-label');
       var renewsRow=document.getElementById('sub-renews-row');
-      var actionsCard=document.getElementById('sub-actions-card');
-      var cancelledCard=document.getElementById('sub-cancelled-card');
-      var adminCard=document.getElementById('sub-admin-card');
 
       emailEl.textContent=info.email||'—';
+      renewsLabel.textContent='Renews';
+      renewsRow.style.display='';
+      renewsEl.textContent='—';
 
       if(info.isAdmin){
         badge.style.background='rgba(74,111,165,0.12)';badge.style.color='var(--accent-glow)';badge.textContent='Admin';
-        actionsCard.style.display='none';adminCard.style.display='block';renewsRow.style.display='none';
+        document.getElementById('sub-admin-card').style.display='block';renewsRow.style.display='none';
         return;
       }
 
       if(info.status==='active'&&!info.cancelAtPeriodEnd){
         badge.style.background='rgba(34,197,94,0.1)';badge.style.color='#22c55e';badge.textContent='\u25CF Active';
+        document.getElementById('sub-actions-card').style.display='block';
       }else if(info.cancelAtPeriodEnd){
         badge.style.background='rgba(245,158,11,0.1)';badge.style.color='#f59e0b';badge.textContent='\u25CF Cancelling';
-        actionsCard.style.display='none';cancelledCard.style.display='block';
+        document.getElementById('sub-cancelled-card').style.display='block';
         document.getElementById('sub-cancel-date').textContent=info.currentPeriodEnd||'end of billing period';
         renewsLabel.textContent='Access until';
       }else if(info.status==='past_due'){
         badge.style.background='rgba(239,68,68,0.1)';badge.style.color='#ef4444';badge.textContent='\u25CF Past Due';
+        document.getElementById('sub-pastdue-card').style.display='block';
       }else if(info.status==='trialing'){
         badge.style.background='rgba(96,165,250,0.1)';badge.style.color='#60a5fa';badge.textContent='\u25CF Trial';
+        document.getElementById('sub-actions-card').style.display='block';
+      }else if(info.status==='canceled'){
+        badge.style.background='rgba(239,68,68,0.1)';badge.style.color='#ef4444';badge.textContent='\u25CF Cancelled';
+        document.getElementById('sub-inactive-card').style.display='block';
+        document.getElementById('sub-inactive-text').textContent='Your subscription has been cancelled. Subscribe again to regain access.';
+        renewsRow.style.display='none';
       }else{
+        // inactive / never subscribed / unknown
         badge.style.background='rgba(110,106,96,0.1)';badge.style.color='var(--text-dim)';badge.textContent='\u25CF Inactive';
+        document.getElementById('sub-inactive-card').style.display='block';
+        document.getElementById('sub-inactive-text').textContent="You don't have an active subscription. Subscribe to unlock full access to Zap.";
+        renewsRow.style.display='none';
       }
 
       if(info.currentPeriodEnd)renewsEl.textContent=info.currentPeriodEnd;
     }).catch(function(){
-      document.getElementById('sub-loading').innerHTML='<div style="font-size:13px;color:var(--text-dim)">Could not load subscription info</div>';
+      document.getElementById('sub-loading').style.display='none';
+      document.getElementById('sub-error').style.display='block';
+      document.getElementById('sub-content').style.display='none';
     });
   }
+
+  // Refresh button
+  var refreshBtn=document.getElementById('sub-refresh-btn');
+  if(refreshBtn)refreshBtn.addEventListener('click',function(){
+    refreshBtn.disabled=true;refreshBtn.textContent='...';
+    loadSubscription(true);
+    setTimeout(function(){refreshBtn.disabled=false;refreshBtn.textContent='Refresh'},1500);
+  });
+
+  // Retry button (shown on error)
+  var retryBtn=document.getElementById('sub-retry-btn');
+  if(retryBtn)retryBtn.addEventListener('click',function(){ loadSubscription(true); });
 
   // Cancel subscription
   var cancelBtn=document.getElementById('sub-cancel-btn');
@@ -749,7 +807,7 @@
       var r=await window.zap.cancelSubscription();
       if(r.success){
         status.style.color='#f59e0b';status.textContent='Subscription will cancel at end of period.';
-        subLoaded=false;loadSubscription();
+        setTimeout(function(){loadSubscription(true)},800);
       }else{status.style.color='#ef4444';status.textContent=r.error||'Failed to cancel.';}
     }catch(e){status.style.color='#ef4444';status.textContent='Error cancelling.';}
     cancelBtn.disabled=false;cancelBtn.textContent='Cancel Subscription';
@@ -764,7 +822,7 @@
       var r=await window.zap.reactivateSubscription();
       if(r.success){
         status.style.color='#6ec87a';status.textContent='Subscription reactivated!';
-        subLoaded=false;loadSubscription();
+        setTimeout(function(){loadSubscription(true)},800);
       }else{status.style.color='#ef4444';status.textContent=r.error||'Failed to reactivate.';}
     }catch(e){status.style.color='#ef4444';status.textContent='Error reactivating.';}
     reactBtn.disabled=false;reactBtn.textContent='Reactivate Subscription';
@@ -782,14 +840,35 @@
         document.getElementById('sub-action-status').style.color='#ef4444';
         document.getElementById('sub-action-status').textContent=r.error||'Could not open billing.';
       }
-    }catch(e){}
+    }catch(e){
+      document.getElementById('sub-action-status').style.color='#ef4444';
+      document.getElementById('sub-action-status').textContent='Network error. Check your connection.';
+    }
     billingBtn.disabled=false;billingBtn.textContent='Manage Billing';
   });
 
+  // Update payment method (past_due) — opens billing portal
+  var updateCardBtn=document.getElementById('sub-update-card-btn');
+  if(updateCardBtn)updateCardBtn.addEventListener('click',async function(){
+    updateCardBtn.disabled=true;updateCardBtn.textContent='Opening...';
+    try{
+      var r=await window.zap.createBillingPortal();
+      if(r.url){window.zap.openExternal(r.url);}
+    }catch(e){}
+    updateCardBtn.disabled=false;updateCardBtn.textContent='Update Payment Method';
+  });
+
+  // Subscribe now (inactive/cancelled) — opens activate window
+  var subscribeBtn=document.getElementById('sub-subscribe-btn');
+  if(subscribeBtn)subscribeBtn.addEventListener('click',function(){
+    window.zap.openSettings&&window.close&&window.close();
+  });
+
   // Load subscription when tab clicked
+  var subFirstLoad=false;
   tabs.forEach(function(t){
     t.addEventListener('click',function(){
-      if(t.dataset.tab==='subscription')loadSubscription();
+      if(t.dataset.tab==='subscription'&&!subFirstLoad){subFirstLoad=true;loadSubscription();}
     });
   });
 
