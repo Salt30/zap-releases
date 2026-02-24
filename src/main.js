@@ -1152,6 +1152,17 @@ ipcMain.handle('open-external', async (_ev, url) => {
   return { success: false };
 });
 
+// Proper semver comparison: returns true if a > b (e.g. "3.4.0" > "3.3.3")
+function isNewerVersion(a, b) {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < 3; i++) {
+    if ((pa[i] || 0) > (pb[i] || 0)) return true;
+    if ((pa[i] || 0) < (pb[i] || 0)) return false;
+  }
+  return false; // equal
+}
+
 ipcMain.handle('check-for-updates', async () => {
   try {
     const currentVersion = require('../package.json').version;
@@ -1159,7 +1170,10 @@ ipcMain.handle('check-for-updates', async () => {
     if (!res.ok) return { upToDate: true, current: currentVersion };
     const data = await res.json();
     const latest = (data.tag_name || '').replace(/^v/, '');
-    if (!latest || latest === currentVersion) return { upToDate: true, current: currentVersion };
+    if (!latest) return { upToDate: true, current: currentVersion };
+
+    // Only show update if latest release is actually newer than current version
+    if (!isNewerVersion(latest, currentVersion)) return { upToDate: true, current: currentVersion };
 
     // Find all platform download URLs
     const assets = data.assets || [];

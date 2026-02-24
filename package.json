@@ -1,6 +1,6 @@
 {
   "name": "zap",
-  "version": "3.3.1",
+  "version": "3.4.0",
   "description": "Zap — AI Screen Overlay",
   "main": "src/main.js",
   "author": "Zap",
