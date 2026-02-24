@@ -57,6 +57,7 @@ const STORE_DEFAULTS = {
   dripPauseChance: 0.03,
   dripBurstChance: 0.08,
   invisibleOverlay: true,
+  lockdownMode: false,
   authDone: false,
   authName: '',
   authEmail: '',
@@ -148,6 +149,28 @@ function trackUsage(mode) {
 function initAnalytics() {
   if (!store.get('statsFirstLaunch')) store.set('statsFirstLaunch', Date.now());
   store.set('statsTotalSessions', (store.get('statsTotalSessions') || 0) + 1);
+}
+
+/* ─────────────────── Lockdown Mode ─────────────────── */
+
+function isLockdown() {
+  return !!(store && store.get('lockdownMode'));
+}
+
+/** In lockdown mode, re-assert overlay above everything on a fast timer */
+let lockdownKeepAlive = null;
+
+function startLockdownKeepAlive() {
+  if (lockdownKeepAlive) return;
+  lockdownKeepAlive = setInterval(() => {
+    if (!overlayWin || overlayWin.isDestroyed()) return;
+    if (!overlayUp) return;
+    applyOverlayLevel();
+  }, 800);
+}
+
+function stopLockdownKeepAlive() {
+  if (lockdownKeepAlive) { clearInterval(lockdownKeepAlive); lockdownKeepAlive = null; }
 }
 
 /* ─────────────────── Window References ─────────────────── */
@@ -282,7 +305,7 @@ function showWithMode(mode) {
     return;
   }
 
-  grabScreen().then(img => {
+  const finishShow = (img) => {
     if (!overlayWin) return;
     applyOverlayLevel();               // re-assert level before every show
     overlayWin.webContents.send('set-mode', mode);
@@ -292,24 +315,24 @@ function showWithMode(mode) {
     // Re-enforce content protection AFTER show — critical for panel windows
     enforceContentProtection(overlayWin);
     overlayUp = true;
-  }).catch(() => {
-    if (!overlayWin) return;
-    applyOverlayLevel();               // re-assert level before every show
-    overlayWin.webContents.send('set-mode', mode);
-    overlayWin.webContents.send('screen-captured', null);
-    overlayWin.webContents.send('load-settings', store.store);
-    overlayWin.showInactive();
-    // Re-enforce content protection AFTER show — critical for panel windows
-    enforceContentProtection(overlayWin);
-    overlayUp = true;
-  });
+    // In lockdown mode, start the keep-alive timer to stay above lockdown browsers
+    if (isLockdown()) startLockdownKeepAlive();
+  };
+
+  // In lockdown mode, skip desktopCapturer entirely — it will be blocked by lockdown browsers
+  if (isLockdown()) {
+    finishShow(null);
+    return;
+  }
+
+  grabScreen().then(img => finishShow(img)).catch(() => finishShow(null));
 }
 
 function toggle() {
   // Block overlay if not licensed
   if (!isLicensed()) { showActivate(); return; }
   if (!overlayWin) makeOverlay();
-  if (overlayUp) { overlayWin.hide(); overlayUp = false; }
+  if (overlayUp) { overlayWin.hide(); overlayUp = false; stopLockdownKeepAlive(); }
   else showWithMode(store.get('lastMode') || 'answer');
 }
 
@@ -358,6 +381,9 @@ function bindKeys() {
   }
   // Overlay/feature hotkeys only work if licensed
   if (!isLicensed()) return;
+
+  // In lockdown mode, register BOTH normal hotkeys AND stealth hotkeys
+  // Stealth hotkeys use F-key combos that lockdown browsers are less likely to intercept
   const featureKeys = [
     [store.get('hotkey'),          toggle],
     [store.get('hotkeyAnswer'),    () => showWithMode('answer')],
@@ -371,6 +397,22 @@ function bindKeys() {
   for (const [key, fn] of featureKeys) {
     if (!key) continue;
     try { globalShortcut.register(key, fn); } catch (_) {}
+  }
+
+  // Stealth hotkeys for lockdown mode — low-profile combos less likely to be blocked
+  if (isLockdown()) {
+    const stealthKeys = [
+      ['Control+Shift+F2',  toggle],
+      ['Control+Shift+F3',  () => showWithMode('answer')],
+      ['Control+Shift+F4',  () => showWithMode('simple')],
+      ['Control+Shift+F5',  () => showWithMode('translate')],
+      ['Control+Shift+F6',  () => showWithMode('rewrite')],
+      ['Control+Shift+F7',  () => showWithMode('driptype')],
+      ['Control+Shift+F8',  () => { dripTypeCancelled = true; }]
+    ];
+    for (const [key, fn] of stealthKeys) {
+      try { globalShortcut.register(key, fn); } catch (_) {}
+    }
   }
 }
 
@@ -514,7 +556,7 @@ ipcMain.handle('drip-type', async (_ev, text) => {
 /* ─────────────────── IPC Handlers ─────────────────── */
 
 ipcMain.on('hide-overlay', () => {
-  if (overlayWin) { overlayWin.hide(); overlayUp = false; }
+  if (overlayWin) { overlayWin.hide(); overlayUp = false; stopLockdownKeepAlive(); }
   // Also cancel drip type if running
   if (dripTypeRunning) dripTypeCancelled = true;
 });
@@ -533,6 +575,7 @@ ipcMain.on('save-settings', (_ev, s) => {
   const protectedKeys = ['licenseKey','licenseValid','licenseEmail','stripeCustomerId','stripeSubscriptionId','subscriptionStatus','authDone','authPasswordHash','onboardingDone'];
   for (const [k, v] of Object.entries(s)) { if (!protectedKeys.includes(k)) store.set(k, v); }
   bindKeys();
+  applyProcessDisguise(); // Re-apply disguise if lockdown mode was toggled
   if (s.startAtLogin !== undefined) {
     try { app.setLoginItemSettings({ openAtLogin: s.startAtLogin }); } catch (_) {}
   }
@@ -1266,12 +1309,27 @@ ipcMain.handle('update-ticket-status', (_ev, { ticketId, status }) => {
   return { error: 'Ticket not found' };
 });
 
+/* ─────────────────── Process Disguise (Lockdown Mode) ─────────────────── */
+
+function applyProcessDisguise() {
+  if (!isLockdown()) return;
+  // Disguise process title so lockdown browsers don't recognize "Zap" or "Electron"
+  try { process.title = 'SystemUIServer'; } catch (_) {}
+  // On macOS, set app name to something innocuous
+  if (process.platform === 'darwin') {
+    try { app.setName('System Preferences Helper'); } catch (_) {}
+  } else {
+    try { app.setName('WindowsSecurityHealth'); } catch (_) {}
+  }
+}
+
 /* ─────────────────── App Lifecycle ─────────────────── */
 
 app.whenReady().then(async () => {
   // Initialize store AFTER app is ready so getPath('userData') works
   initStore();
   initAnalytics();
+  applyProcessDisguise(); // Disguise process name if lockdown mode is active
   await checkSubscriptionStatus(); // Verify Stripe subscription — blocks until resolved
 
   // Tray is always available (for Quit, Settings, etc.)

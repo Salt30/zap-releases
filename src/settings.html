@@ -185,6 +185,61 @@
       </div>
     </div>
 
+    <div class="card" style="border-color:rgba(239,68,68,0.2)">
+      <div class="card-title" style="color:#f87171">Lockdown Mode</div>
+      <div class="toggle-row" style="border-bottom:none">
+        <div class="toggle-info">
+          <div class="toggle-label">Enable Lockdown Mode</div>
+          <div class="toggle-desc">Use Zap alongside lockdown browsers like DigiExam, Respondus, or ExamSoft</div>
+        </div>
+        <div class="toggle" id="toggle-lockdown" data-key="lockdownMode"><div class="thumb"></div></div>
+      </div>
+      <div id="lockdown-details" style="display:none;margin-top:14px;border-top:1px solid rgba(239,68,68,0.1);padding-top:14px">
+        <div style="background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.12);border-radius:10px;padding:14px 16px;margin-bottom:14px">
+          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:10px">How to use Lockdown Mode:</div>
+          <div style="font-size:12px;color:var(--text-muted);line-height:1.8">
+            <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:6px">
+              <span style="background:rgba(239,68,68,0.15);color:#f87171;padding:1px 8px;border-radius:4px;font-weight:700;font-size:11px;flex-shrink:0">1</span>
+              <span>Enable Lockdown Mode and press <strong style="color:var(--text)">Save Settings</strong></span>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:6px">
+              <span style="background:rgba(239,68,68,0.15);color:#f87171;padding:1px 8px;border-radius:4px;font-weight:700;font-size:11px;flex-shrink:0">2</span>
+              <span>Open Zap and <strong style="color:var(--text)">activate the overlay</strong> (Alt+1 or your hotkey)</span>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:6px">
+              <span style="background:rgba(239,68,68,0.15);color:#f87171;padding:1px 8px;border-radius:4px;font-weight:700;font-size:11px;flex-shrink:0">3</span>
+              <span><strong style="color:var(--text)">Then</strong> open your lockdown browser / exam app</span>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:6px">
+              <span style="background:rgba(239,68,68,0.15);color:#f87171;padding:1px 8px;border-radius:4px;font-weight:700;font-size:11px;flex-shrink:0">4</span>
+              <span>Use <strong style="color:var(--text)">stealth hotkeys</strong> to control Zap during the exam (see below)</span>
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-start">
+              <span style="background:rgba(239,68,68,0.15);color:#f87171;padding:1px 8px;border-radius:4px;font-weight:700;font-size:11px;flex-shrink:0">5</span>
+              <span>When done, press Escape to hide the overlay, then close the exam app</span>
+            </div>
+          </div>
+        </div>
+        <div style="background:rgba(74,111,165,0.06);border:1px solid rgba(74,111,165,0.1);border-radius:10px;padding:14px 16px;margin-bottom:14px">
+          <div style="font-size:13px;font-weight:600;color:var(--text);margin-bottom:8px">Stealth Hotkeys (active in Lockdown Mode)</div>
+          <div style="font-size:12px;color:var(--text-muted);line-height:1.8">
+            <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Toggle Overlay</span><kbd style="background:rgba(74,111,165,0.12);color:var(--accent-glow);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;border:1px solid rgba(74,111,165,0.2)">Ctrl+Shift+F2</kbd></div>
+            <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Answer Mode</span><kbd style="background:rgba(74,111,165,0.12);color:var(--accent-glow);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;border:1px solid rgba(74,111,165,0.2)">Ctrl+Shift+F3</kbd></div>
+            <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Simple Mode</span><kbd style="background:rgba(74,111,165,0.12);color:var(--accent-glow);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;border:1px solid rgba(74,111,165,0.2)">Ctrl+Shift+F4</kbd></div>
+            <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Translate</span><kbd style="background:rgba(74,111,165,0.12);color:var(--accent-glow);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;border:1px solid rgba(74,111,165,0.2)">Ctrl+Shift+F5</kbd></div>
+            <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Rewrite</span><kbd style="background:rgba(74,111,165,0.12);color:var(--accent-glow);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;border:1px solid rgba(74,111,165,0.2)">Ctrl+Shift+F6</kbd></div>
+            <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Drip Type</span><kbd style="background:rgba(74,111,165,0.12);color:var(--accent-glow);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;border:1px solid rgba(74,111,165,0.2)">Ctrl+Shift+F7</kbd></div>
+            <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Stop Drip</span><kbd style="background:rgba(74,111,165,0.12);color:var(--accent-glow);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;border:1px solid rgba(74,111,165,0.2)">Ctrl+Shift+F8</kbd></div>
+          </div>
+        </div>
+        <div style="background:rgba(245,158,11,0.06);border:1px solid rgba(245,158,11,0.12);border-radius:10px;padding:12px 16px">
+          <div style="font-size:12px;color:var(--text-muted);line-height:1.6">
+            <strong style="color:#f59e0b">Important:</strong> Screen capture is disabled in Lockdown Mode since exam browsers block it. The overlay will appear on a transparent background instead. You can still type questions using Tab. Your normal hotkeys also remain active as backup.
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div class="card">
       <div class="card-title">Translation</div>
       <div class="field">
@@ -505,6 +560,10 @@
       if(el&&s[f])el.value=s[f];
     });
     updateVals();
+    // Show lockdown details if lockdown mode is active
+    var ldToggle=document.getElementById('toggle-lockdown');
+    var ldDetails=document.getElementById('lockdown-details');
+    if(ldToggle&&ldDetails)ldDetails.style.display=ldToggle.classList.contains('active')?'block':'none';
   }
 
   function updateVals(){
@@ -536,7 +595,14 @@
   });
 
   document.querySelectorAll('.toggle').forEach(function(tog){
-    tog.addEventListener('click',function(){tog.classList.toggle('active')});
+    tog.addEventListener('click',function(){
+      tog.classList.toggle('active');
+      // Show/hide lockdown details when lockdown toggle changes
+      if(tog.id==='toggle-lockdown'){
+        var details=document.getElementById('lockdown-details');
+        if(details)details.style.display=tog.classList.contains('active')?'block':'none';
+      }
+    });
   });
 
   var activeHK=null;
@@ -562,6 +628,7 @@
 
   function gather(){
     return {
+      lockdownMode:document.getElementById('toggle-lockdown').classList.contains('active'),
       phantomMode:document.getElementById('toggle-phantom').classList.contains('active'),
       invisibleOverlay:document.getElementById('toggle-invisible').classList.contains('active'),
       autoEngine:document.getElementById('toggle-autoengine').classList.contains('active'),
@@ -593,7 +660,7 @@
   document.getElementById('save-btn').addEventListener('click',function(){window.zap.saveSettings(gather());showSaved()});
 
   document.getElementById('reset-btn').addEventListener('click',function(){
-    window.zap.saveSettings({accentColor:'#facc15',fontSize:14,fontFamily:'system-ui, -apple-system, sans-serif',borderRadius:12,hotkey:'Alt+3',hotkeyAnswer:'Alt+1',hotkeySimple:'Alt+6',hotkeyTranslate:'Alt+2',hotkeyRewrite:'Alt+4',hotkeyDripType:'Alt+5',hotkeyStopDrip:'Alt+0',hotkeyApp:'Alt+M',language:'Spanish',phantomMode:false,invisibleOverlay:true,autoEngine:true,simpleMode:false,dripSpeed:40,dripWPM:45,dripDelay:10,typoRate:0.06,dripPauseChance:0.03,dripBurstChance:0.08,overlayOpacity:0});
+    window.zap.saveSettings({accentColor:'#facc15',fontSize:14,fontFamily:'system-ui, -apple-system, sans-serif',borderRadius:12,hotkey:'Alt+3',hotkeyAnswer:'Alt+1',hotkeySimple:'Alt+6',hotkeyTranslate:'Alt+2',hotkeyRewrite:'Alt+4',hotkeyDripType:'Alt+5',hotkeyStopDrip:'Alt+0',hotkeyApp:'Alt+M',language:'Spanish',phantomMode:false,invisibleOverlay:true,autoEngine:true,simpleMode:false,lockdownMode:false,dripSpeed:40,dripWPM:45,dripDelay:10,typoRate:0.06,dripPauseChance:0.03,dripBurstChance:0.08,overlayOpacity:0});
     loadSettings();showSaved();
   });
 
