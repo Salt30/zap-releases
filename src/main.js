@@ -1139,13 +1139,19 @@ ipcMain.handle('check-for-updates', async () => {
     const latest = (data.tag_name || '').replace(/^v/, '');
     if (!latest || latest === currentVersion) return { upToDate: true, current: currentVersion };
 
-    // Find DMG download URL
-    const dmgAsset = (data.assets || []).find(a => a.name.endsWith('.dmg'));
+    // Find all platform download URLs
+    const assets = data.assets || [];
+    const find = (ext) => { const a = assets.find(x => x.name.endsWith(ext)); return a ? a.browser_download_url : null; };
     return {
       upToDate: false,
       current: currentVersion,
       latest: latest,
-      downloadUrl: dmgAsset ? dmgAsset.browser_download_url : data.html_url,
+      downloads: {
+        macDmg: find('.dmg'),
+        macZip: find('-mac.zip'),
+        winExe: find('.exe'),
+        winZip: find('-win.zip')
+      },
       releaseUrl: data.html_url
     };
   } catch (_) {

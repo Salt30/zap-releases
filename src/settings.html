@@ -448,6 +448,29 @@
       <button class="btn-update" id="check-update-btn">Check for Updates</button>
       <div class="update-status" id="update-status"></div>
     </div>
+    <div class="card" id="update-downloads" style="display:none">
+      <div class="card-title">Download Update</div>
+      <div style="font-size:13px;color:var(--text-muted);margin-bottom:14px">Choose your platform:</div>
+      <div style="display:flex;flex-direction:column;gap:8px">
+        <div id="dl-mac" style="display:none">
+          <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px">macOS (Apple Silicon)</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary dl-btn" id="dl-mac-dmg" style="flex:1;font-size:12px;padding:9px 12px">DMG Installer</button>
+            <button class="btn btn-secondary dl-btn" id="dl-mac-zip" style="flex:1;font-size:12px;padding:9px 12px">ZIP Archive</button>
+          </div>
+        </div>
+        <div id="dl-win" style="display:none">
+          <div style="font-size:12px;font-weight:600;color:var(--text);margin-bottom:6px;margin-top:8px">Windows (x64)</div>
+          <div style="display:flex;gap:8px">
+            <button class="btn btn-primary dl-btn" id="dl-win-exe" style="flex:1;font-size:12px;padding:9px 12px">EXE Installer</button>
+            <button class="btn btn-secondary dl-btn" id="dl-win-zip" style="flex:1;font-size:12px;padding:9px 12px">ZIP Archive</button>
+          </div>
+        </div>
+      </div>
+      <div style="text-align:center;margin-top:12px">
+        <a id="dl-release-link" href="#" style="font-size:11px;color:var(--text-dim);text-decoration:underline;cursor:pointer">View release notes on GitHub</a>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -586,6 +609,7 @@
       updateBtn.disabled=true;
       updateBtn.textContent='Checking...';
       updateStatus.textContent='';
+      document.getElementById('update-downloads').style.display='none';
       try{
         var r=await window.zap.checkForUpdates();
         if(r.upToDate){
@@ -594,13 +618,35 @@
         }else{
           updateStatus.innerHTML='Version <strong style="color:var(--text)">v'+r.latest+'</strong> is available!';
           updateStatus.style.color='#34d399';
-          updateBtn.textContent='Download Update';
-          updateBtn.disabled=false;
-          var dlUrl=r.downloadUrl||r.releaseUrl;
-          updateBtn.onclick=function(){
-            window.open(dlUrl,'_blank');
-          };
-          return;
+
+          // Show platform download buttons
+          var dlPanel=document.getElementById('update-downloads');
+          dlPanel.style.display='block';
+          var dl=r.downloads||{};
+
+          // macOS section
+          var macSection=document.getElementById('dl-mac');
+          if(dl.macDmg||dl.macZip){
+            macSection.style.display='block';
+            var macDmgBtn=document.getElementById('dl-mac-dmg');
+            var macZipBtn=document.getElementById('dl-mac-zip');
+            if(dl.macDmg){macDmgBtn.style.display='';macDmgBtn.onclick=function(){window.zap.openExternal(dl.macDmg)}}else{macDmgBtn.style.display='none'}
+            if(dl.macZip){macZipBtn.style.display='';macZipBtn.onclick=function(){window.zap.openExternal(dl.macZip)}}else{macZipBtn.style.display='none'}
+          }else{macSection.style.display='none'}
+
+          // Windows section
+          var winSection=document.getElementById('dl-win');
+          if(dl.winExe||dl.winZip){
+            winSection.style.display='block';
+            var winExeBtn=document.getElementById('dl-win-exe');
+            var winZipBtn=document.getElementById('dl-win-zip');
+            if(dl.winExe){winExeBtn.style.display='';winExeBtn.onclick=function(){window.zap.openExternal(dl.winExe)}}else{winExeBtn.style.display='none'}
+            if(dl.winZip){winZipBtn.style.display='';winZipBtn.onclick=function(){window.zap.openExternal(dl.winZip)}}else{winZipBtn.style.display='none'}
+          }else{winSection.style.display='none'}
+
+          // Release notes link
+          var rlLink=document.getElementById('dl-release-link');
+          if(r.releaseUrl){rlLink.style.display='';rlLink.onclick=function(e){e.preventDefault();window.zap.openExternal(r.releaseUrl)}}else{rlLink.style.display='none'}
         }
       }catch(e){
         updateStatus.textContent='Could not check for updates.';
