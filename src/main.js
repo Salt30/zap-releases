@@ -399,16 +399,16 @@ function bindKeys() {
     try { globalShortcut.register(key, fn); } catch (_) {}
   }
 
-  // Stealth hotkeys for lockdown mode — low-profile combos less likely to be blocked
+  // Stealth hotkeys for lockdown mode — letter-based combos that work without Fn key
   if (isLockdown()) {
     const stealthKeys = [
-      ['Control+Shift+F2',  toggle],
-      ['Control+Shift+F3',  () => showWithMode('answer')],
-      ['Control+Shift+F4',  () => showWithMode('simple')],
-      ['Control+Shift+F5',  () => showWithMode('translate')],
-      ['Control+Shift+F6',  () => showWithMode('rewrite')],
-      ['Control+Shift+F7',  () => showWithMode('driptype')],
-      ['Control+Shift+F8',  () => { dripTypeCancelled = true; }]
+      ['Control+Shift+Z',  toggle],
+      ['Control+Shift+A',  () => showWithMode('answer')],
+      ['Control+Shift+S',  () => showWithMode('simple')],
+      ['Control+Shift+T',  () => showWithMode('translate')],
+      ['Control+Shift+R',  () => showWithMode('rewrite')],
+      ['Control+Shift+D',  () => showWithMode('driptype')],
+      ['Control+Shift+X',  () => { dripTypeCancelled = true; }]
     ];
     for (const [key, fn] of stealthKeys) {
       try { globalShortcut.register(key, fn); } catch (_) {}
