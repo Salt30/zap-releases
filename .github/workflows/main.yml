@@ -46,8 +46,6 @@ jobs:
           sed -i '' "s/YOUR_PERPLEXITY_API_KEY/${{ secrets.PERPLEXITY_API_KEY }}/g" src/main.js
           sed -i '' "s/YOUR_STRIPE_SECRET_KEY/${{ secrets.STRIPE_SECRET_KEY }}/g" src/main.js
           sed -i '' "s/YOUR_GH_SUPPORT_TOKEN/${{ secrets.GH_SUPPORT_TOKEN }}/g" src/main.js
-          sed -i '' "s/YOUR_HUMANIZER_EMAIL/${{ secrets.HUMANIZER_EMAIL }}/g" src/main.js
-          sed -i '' "s/YOUR_HUMANIZER_PASS/${{ secrets.HUMANIZER_PASS }}/g" src/main.js
 
       - name: Verify API keys were injected
         run: |
@@ -60,9 +58,6 @@ jobs:
           fi
           if grep -q "YOUR_GH_SUPPORT_TOKEN" src/main.js; then
             echo "WARNING: GitHub support token placeholder still present."
-          fi
-          if grep -q "YOUR_HUMANIZER_EMAIL" src/main.js; then
-            echo "WARNING: Humanizer email placeholder still present."
           fi
           echo "API key injection verified."
 
@@ -160,8 +155,6 @@ jobs:
           (Get-Content src/main.js) -replace 'YOUR_PERPLEXITY_API_KEY', '${{ secrets.PERPLEXITY_API_KEY }}' | Set-Content src/main.js
           (Get-Content src/main.js) -replace 'YOUR_STRIPE_SECRET_KEY', '${{ secrets.STRIPE_SECRET_KEY }}' | Set-Content src/main.js
           (Get-Content src/main.js) -replace 'YOUR_GH_SUPPORT_TOKEN', '${{ secrets.GH_SUPPORT_TOKEN }}' | Set-Content src/main.js
-          (Get-Content src/main.js) -replace 'YOUR_HUMANIZER_EMAIL', '${{ secrets.HUMANIZER_EMAIL }}' | Set-Content src/main.js
-          (Get-Content src/main.js) -replace 'YOUR_HUMANIZER_PASS', '${{ secrets.HUMANIZER_PASS }}' | Set-Content src/main.js
         shell: pwsh
 
       - name: Verify API keys were injected

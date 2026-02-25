@@ -31,11 +31,6 @@ const GITHUB_SUPPORT_TOKEN = 'YOUR_GH_SUPPORT_TOKEN';
 const GITHUB_SUPPORT_PLACEHOLDER = 'YOUR_GH' + '_SUPPORT_TOKEN';
 const GITHUB_REPO = 'Salt30/Zap';
 
-// AI Text Humanizer API credentials — injected at build time via sed
-const HUMANIZER_EMAIL = 'YOUR_HUMANIZER_EMAIL';
-const HUMANIZER_EMAIL_PLACEHOLDER = 'YOUR_HUMANIZER' + '_EMAIL';
-const HUMANIZER_PASS = 'YOUR_HUMANIZER_PASS';
-const HUMANIZER_PASS_PLACEHOLDER = 'YOUR_HUMANIZER' + '_PASS';
 
 const STORE_DEFAULTS = {
   apiKey:        BUILT_IN_API_KEY,
@@ -1504,41 +1499,6 @@ ipcMain.handle('update-ticket-status', async (_ev, { ticketId, status, reply }) 
   }
 });
 
-/* ─────────────────── AI Text Humanizer ─────────────────── */
-
-ipcMain.handle('humanize-text', async (_ev, text) => {
-  if (!text || !text.trim()) return { error: 'No text to humanize.' };
-
-  const email = HUMANIZER_EMAIL !== HUMANIZER_EMAIL_PLACEHOLDER ? HUMANIZER_EMAIL : null;
-  const pass = HUMANIZER_PASS !== HUMANIZER_PASS_PLACEHOLDER ? HUMANIZER_PASS : null;
-
-  if (!email || !pass) return { error: 'Humanizer not configured. Please reinstall Zap or contact support.' };
-
-  try {
-    const params = new URLSearchParams();
-    params.append('email', email);
-    params.append('password', pass);
-    params.append('text', text.trim());
-
-    const res = await fetch('https://ai-text-humanizer.com/api.php', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString()
-    });
-
-    if (!res.ok) return { error: `Humanizer API error (${res.status})` };
-
-    const data = await res.text();
-
-    // The API returns the humanized text directly, or an error message
-    if (!data || data.trim().length === 0) return { error: 'Humanizer returned empty response.' };
-    if (data.includes('error') || data.includes('Invalid')) return { error: data.trim() };
-
-    return { result: data.trim() };
-  } catch (err) {
-    return { error: 'Humanizer request failed: ' + err.message };
-  }
-});
 
 /* ─────────────────── Process Disguise (Lockdown Mode) ─────────────────── */
 

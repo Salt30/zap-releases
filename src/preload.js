@@ -51,8 +51,5 @@ contextBridge.exposeInMainWorld('zap', {
   updateTicketStatus: (data) => ipcRenderer.invoke('update-ticket-status', data),
 
   // Fetch ticket comments (admin replies)
-  getTicketComments: (issueNumber) => ipcRenderer.invoke('get-ticket-comments', issueNumber),
-
-  // AI Text Humanizer
-  humanizeText: (text) => ipcRenderer.invoke('humanize-text', text)
+  getTicketComments: (issueNumber) => ipcRenderer.invoke('get-ticket-comments', issueNumber)
 });
