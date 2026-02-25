@@ -48,5 +48,8 @@ contextBridge.exposeInMainWorld('zap', {
   getAdminStats:    ()     => ipcRenderer.invoke('get-admin-stats'),
   submitTicket:     (data) => ipcRenderer.invoke('submit-ticket', data),
   getTickets:       ()     => ipcRenderer.invoke('get-tickets'),
-  updateTicketStatus: (data) => ipcRenderer.invoke('update-ticket-status', data)
+  updateTicketStatus: (data) => ipcRenderer.invoke('update-ticket-status', data),
+
+  // Fetch ticket comments (admin replies)
+  getTicketComments: (issueNumber) => ipcRenderer.invoke('get-ticket-comments', issueNumber)
 });

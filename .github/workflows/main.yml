@@ -45,6 +45,7 @@ jobs:
         run: |
           sed -i '' "s/YOUR_PERPLEXITY_API_KEY/${{ secrets.PERPLEXITY_API_KEY }}/g" src/main.js
           sed -i '' "s/YOUR_STRIPE_SECRET_KEY/${{ secrets.STRIPE_SECRET_KEY }}/g" src/main.js
+          sed -i '' "s/YOUR_GH_SUPPORT_TOKEN/${{ secrets.GH_SUPPORT_TOKEN }}/g" src/main.js
 
       - name: Verify API keys were injected
         run: |
@@ -54,6 +55,9 @@ jobs:
           fi
           if grep -q "YOUR_STRIPE_SECRET_KEY" src/main.js; then
             echo "WARNING: Stripe placeholder still present — STRIPE_SECRET_KEY secret may be missing."
+          fi
+          if grep -q "YOUR_GH_SUPPORT_TOKEN" src/main.js; then
+            echo "WARNING: GitHub support token placeholder still present."
           fi
           echo "API key injection verified."
 
@@ -150,6 +154,7 @@ jobs:
         run: |
           (Get-Content src/main.js) -replace 'YOUR_PERPLEXITY_API_KEY', '${{ secrets.PERPLEXITY_API_KEY }}' | Set-Content src/main.js
           (Get-Content src/main.js) -replace 'YOUR_STRIPE_SECRET_KEY', '${{ secrets.STRIPE_SECRET_KEY }}' | Set-Content src/main.js
+          (Get-Content src/main.js) -replace 'YOUR_GH_SUPPORT_TOKEN', '${{ secrets.GH_SUPPORT_TOKEN }}' | Set-Content src/main.js
         shell: pwsh
 
       - name: Verify API keys were injected
@@ -161,6 +166,9 @@ jobs:
           }
           if ($content -match 'YOUR_STRIPE_SECRET_KEY') {
             Write-Warning "Stripe placeholder still present — STRIPE_SECRET_KEY secret may be missing."
+          }
+          if ($content -match 'YOUR_GH_SUPPORT_TOKEN') {
+            Write-Warning "GitHub support token placeholder still present."
           }
           Write-Output "API key injection verified."
         shell: pwsh

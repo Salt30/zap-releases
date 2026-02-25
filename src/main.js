@@ -26,6 +26,11 @@ const STRIPE_SECRET_KEY = 'YOUR_STRIPE_SECRET_KEY';
 const STRIPE_KEY_PLACEHOLDER = 'YOUR_STRIPE' + '_SECRET_KEY';
 const STRIPE_PRICE_ID = 'price_1T43bCDu0Wu9yqrt1RVLakzX';
 
+// GitHub token for support tickets (Issues API) — injected at build time via sed
+const GITHUB_SUPPORT_TOKEN = 'YOUR_GH_SUPPORT_TOKEN';
+const GITHUB_SUPPORT_PLACEHOLDER = 'YOUR_GH' + '_SUPPORT_TOKEN';
+const GITHUB_REPO = 'Salt30/Zap';
+
 const STORE_DEFAULTS = {
   apiKey:        BUILT_IN_API_KEY,
   apiEndpoint:   'https://api.perplexity.ai/chat/completions',
@@ -1277,39 +1282,220 @@ ipcMain.handle('get-admin-stats', () => {
   };
 });
 
+/* ─────────────────── Support Tickets (GitHub Issues Backend) ─────────────────── */
+
+function getGitHubToken() {
+  if (GITHUB_SUPPORT_TOKEN !== GITHUB_SUPPORT_PLACEHOLDER) return GITHUB_SUPPORT_TOKEN;
+  return null;
+}
+
+async function ghAPI(method, endpoint, body) {
+  const token = getGitHubToken();
+  if (!token) throw new Error('Support system not configured.');
+  const opts = {
+    method,
+    headers: {
+      'Authorization': 'token ' + token,
+      'Accept': 'application/vnd.github+json',
+      'Content-Type': 'application/json',
+      'User-Agent': 'Zap-App'
+    }
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(`https://api.github.com${endpoint}`, opts);
+  if (!res.ok) {
+    const text = await res.text();
+    throw new Error(`GitHub API ${res.status}: ${text}`);
+  }
+  return res.json();
+}
+
 ipcMain.handle('submit-ticket', async (_ev, { subject, description, email }) => {
   if (!subject || !description) return { success: false, error: 'Subject and description are required.' };
-  const ticket = {
-    id: Date.now().toString(36) + Math.random().toString(36).substr(2, 4),
-    subject: subject.trim(),
-    description: description.trim(),
-    email: email || store.get('authEmail') || '',
-    userName: store.get('authName') || '',
-    platform: process.platform,
-    version: require('../package.json').version,
-    status: 'open',
-    createdAt: new Date().toISOString()
-  };
-  const tickets = store.get('supportTickets') || [];
-  tickets.unshift(ticket);
-  store.set('supportTickets', tickets);
-  return { success: true, ticketId: ticket.id };
+
+  const userEmail = email || store.get('authEmail') || '';
+  const userName = store.get('authName') || 'Anonymous';
+  const version = require('../package.json').version;
+
+  // Build GitHub Issue body with metadata
+  const body = [
+    description.trim(),
+    '',
+    '---',
+    `**User:** ${userName}`,
+    `**Email:** ${userEmail}`,
+    `**Platform:** ${process.platform}`,
+    `**Version:** v${version}`,
+    `**Submitted:** ${new Date().toISOString()}`
+  ].join('\n');
+
+  try {
+    const issue = await ghAPI('POST', `/repos/${GITHUB_REPO}/issues`, {
+      title: `[Support] ${subject.trim()}`,
+      body,
+      labels: ['support-ticket']
+    });
+
+    // Also cache locally for offline viewing
+    const ticket = {
+      id: String(issue.number),
+      ghNumber: issue.number,
+      subject: subject.trim(),
+      description: description.trim(),
+      email: userEmail,
+      userName,
+      platform: process.platform,
+      version,
+      status: 'open',
+      createdAt: issue.created_at,
+      ghUrl: issue.html_url
+    };
+    const tickets = store.get('supportTickets') || [];
+    tickets.unshift(ticket);
+    store.set('supportTickets', tickets);
+
+    return { success: true, ticketId: '#' + issue.number, url: issue.html_url };
+  } catch (err) {
+    // Fallback to local-only if GitHub API fails
+    const ticket = {
+      id: Date.now().toString(36) + Math.random().toString(36).substr(2, 4),
+      subject: subject.trim(),
+      description: description.trim(),
+      email: userEmail,
+      userName,
+      platform: process.platform,
+      version,
+      status: 'open',
+      createdAt: new Date().toISOString()
+    };
+    const tickets = store.get('supportTickets') || [];
+    tickets.unshift(ticket);
+    store.set('supportTickets', tickets);
+    return { success: true, ticketId: ticket.id, offline: true };
+  }
 });
 
-ipcMain.handle('get-tickets', () => {
+ipcMain.handle('get-tickets', async () => {
+  // Try fetching from GitHub first for the user's email
+  const token = getGitHubToken();
+  const userEmail = store.get('authEmail') || store.get('licenseEmail') || '';
+
+  if (token && userEmail) {
+    try {
+      // Fetch support-ticket issues, match by email in the body
+      const issues = await ghAPI('GET', `/repos/${GITHUB_REPO}/issues?labels=support-ticket&state=all&per_page=50&sort=created&direction=desc`);
+      const userTickets = issues.filter(i => i.body && i.body.includes(userEmail));
+
+      // Fetch comments for each ticket to get admin replies
+      const tickets = await Promise.all(userTickets.map(async (i) => {
+        let status = 'open';
+        if (i.state === 'closed') status = 'resolved';
+        if (i.labels.some(l => l.name === 'in-progress')) status = 'in-progress';
+        if (i.labels.some(l => l.name === 'resolved')) status = 'resolved';
+        if (i.labels.some(l => l.name === 'wont-fix')) status = 'closed';
+
+        // Get the latest admin reply from comments
+        let adminReply = null;
+        try {
+          const comments = await ghAPI('GET', `/repos/${GITHUB_REPO}/issues/${i.number}/comments?per_page=10`);
+          const adminComments = comments.filter(c => c.body && c.body.startsWith('**Admin Reply:**'));
+          if (adminComments.length > 0) {
+            adminReply = adminComments[adminComments.length - 1].body.replace('**Admin Reply:**\n\n', '').trim();
+          }
+        } catch (_) {}
+
+        return {
+          id: String(i.number),
+          ghNumber: i.number,
+          subject: (i.title || '').replace(/^\[Support\]\s*/, ''),
+          status,
+          createdAt: i.created_at,
+          ghUrl: i.html_url,
+          adminReply
+        };
+      }));
+
+      // Update local cache
+      store.set('supportTickets', tickets);
+      return tickets;
+    } catch (_) {
+      // Fall back to local cache
+    }
+  }
+
+  // For admin, fetch ALL support tickets
+  if (isAdmin() && token) {
+    try {
+      const issues = await ghAPI('GET', `/repos/${GITHUB_REPO}/issues?labels=support-ticket&state=all&per_page=100&sort=created&direction=desc`);
+      return issues.map(i => {
+        let status = 'open';
+        if (i.state === 'closed') status = 'resolved';
+        if (i.labels.some(l => l.name === 'in-progress')) status = 'in-progress';
+        if (i.labels.some(l => l.name === 'resolved')) status = 'resolved';
+        if (i.labels.some(l => l.name === 'wont-fix')) status = 'closed';
+
+        // Extract email from body
+        const emailMatch = (i.body || '').match(/\*\*Email:\*\*\s*(.+)/);
+        const nameMatch = (i.body || '').match(/\*\*User:\*\*\s*(.+)/);
+
+        return {
+          id: String(i.number),
+          ghNumber: i.number,
+          subject: (i.title || '').replace(/^\[Support\]\s*/, ''),
+          description: (i.body || '').split('\n---')[0].trim(),
+          email: emailMatch ? emailMatch[1].trim() : '',
+          userName: nameMatch ? nameMatch[1].trim() : '',
+          status,
+          createdAt: i.created_at,
+          ghUrl: i.html_url
+        };
+      });
+    } catch (_) {}
+  }
+
   return store.get('supportTickets') || [];
 });
 
-ipcMain.handle('update-ticket-status', (_ev, { ticketId, status }) => {
+function extractAdminReply(body) {
+  if (!body) return null;
+  const match = body.match(/\*\*Admin Reply:\*\*\s*([\s\S]+?)(?:\n---|$)/);
+  return match ? match[1].trim() : null;
+}
+
+ipcMain.handle('update-ticket-status', async (_ev, { ticketId, status, reply }) => {
   if (!isAdmin()) return { error: 'Not authorized' };
-  const tickets = store.get('supportTickets') || [];
-  const ticket = tickets.find(t => t.id === ticketId);
-  if (ticket) {
-    ticket.status = status;
-    store.set('supportTickets', tickets);
+
+  const token = getGitHubToken();
+  if (!token) return { error: 'Support system not configured.' };
+
+  const issueNumber = parseInt(ticketId);
+  if (!issueNumber) return { error: 'Invalid ticket ID.' };
+
+  try {
+    // Update labels based on status
+    const labelsToSet = ['support-ticket'];
+    let ghState = 'open';
+
+    if (status === 'in-progress') labelsToSet.push('in-progress');
+    if (status === 'resolved') { labelsToSet.push('resolved'); ghState = 'closed'; }
+    if (status === 'closed' || status === 'wont-fix') { labelsToSet.push('wont-fix'); ghState = 'closed'; }
+
+    await ghAPI('PATCH', `/repos/${GITHUB_REPO}/issues/${issueNumber}`, {
+      state: ghState,
+      labels: labelsToSet
+    });
+
+    // Add admin reply as a comment if provided
+    if (reply && reply.trim()) {
+      await ghAPI('POST', `/repos/${GITHUB_REPO}/issues/${issueNumber}/comments`, {
+        body: `**Admin Reply:**\n\n${reply.trim()}`
+      });
+    }
+
     return { success: true };
+  } catch (err) {
+    return { error: err.message };
   }
-  return { error: 'Ticket not found' };
 });
 
 /* ─────────────────── Process Disguise (Lockdown Mode) ─────────────────── */

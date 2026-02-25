@@ -784,6 +784,9 @@
 
   // Support ticket submission
   var submitBtn=document.getElementById('submit-ticket-btn');
+  var isAdminUser=false;
+  window.zap.isAdmin().then(function(v){isAdminUser=v});
+
   if(submitBtn){
     submitBtn.addEventListener('click',async function(){
       var subj=document.getElementById('ticket-subject').value.trim();
@@ -795,7 +798,9 @@
       try{
         var r=await window.zap.submitTicket({subject:subj,description:desc,email:email});
         if(r.success){
-          status.style.color='#6ec87a';status.textContent='Ticket submitted! ID: '+r.ticketId;
+          var msg='Ticket submitted! ID: '+r.ticketId;
+          if(r.offline) msg+=' (saved locally — will sync when online)';
+          status.style.color='#6ec87a';status.textContent=msg;
           document.getElementById('ticket-subject').value='';
           document.getElementById('ticket-description').value='';
           loadUserTickets();
@@ -805,23 +810,74 @@
     });
   }
 
+  function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
+
   function loadUserTickets(){
+    var el=document.getElementById('user-tickets-list');
+    el.innerHTML='<div style="text-align:center;color:var(--text-dim);padding:8px">Loading tickets...</div>';
     window.zap.getTickets().then(function(tickets){
-      var el=document.getElementById('user-tickets-list');
       if(!tickets||tickets.length===0){el.textContent='No tickets submitted yet.';return}
       var html='';
       tickets.forEach(function(t){
-        var statusColor=t.status==='open'?'#f59e0b':t.status==='resolved'?'#6ec87a':'#ef4444';
-        html+='<div style="padding:12px 0;border-bottom:1px solid rgba(74,111,165,0.06)">';
+        var statusColors={'open':'#f59e0b','in-progress':'#3b82f6','resolved':'#6ec87a','closed':'#ef4444','wont-fix':'#6b7280'};
+        var statusColor=statusColors[t.status]||'#f59e0b';
+        html+='<div style="padding:12px 0;border-bottom:1px solid rgba(74,111,165,0.06)" data-ticket-id="'+(t.ghNumber||t.id)+'">';
         html+='<div style="display:flex;align-items:center;justify-content:space-between">';
-        html+='<div style="font-size:14px;font-weight:500;color:var(--text)">'+t.subject+'</div>';
-        html+='<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:'+statusColor+';background:'+statusColor+'15;padding:3px 8px;border-radius:4px">'+t.status+'</div>';
+        html+='<div style="font-size:14px;font-weight:500;color:var(--text)">'+esc(t.subject)+'</div>';
+        html+='<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:'+statusColor+';background:'+statusColor+'15;padding:3px 8px;border-radius:4px">'+esc(t.status)+'</div>';
         html+='</div>';
-        html+='<div style="font-size:11px;color:var(--text-dim);margin-top:4px">'+new Date(t.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'})+'</div>';
+        // Meta line: date + ticket number
+        var meta='';
+        if(t.createdAt) meta+=new Date(t.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
+        if(t.ghNumber) meta+=' &middot; #'+t.ghNumber;
+        html+='<div style="font-size:11px;color:var(--text-dim);margin-top:4px">'+meta+'</div>';
+        // Show email + description for admin
+        if(isAdminUser&&t.email){
+          html+='<div style="font-size:11px;color:var(--text-dim);margin-top:2px">'+esc(t.email)+'</div>';
+        }
+        if(isAdminUser&&t.description){
+          html+='<div style="font-size:12px;color:var(--text-muted);margin-top:6px;line-height:1.5;white-space:pre-wrap">'+esc(t.description)+'</div>';
+        }
+        // Admin reply (visible to everyone)
+        if(t.adminReply){
+          html+='<div style="margin-top:8px;padding:8px 12px;background:rgba(107,142,35,0.08);border-left:3px solid #6ec87a;border-radius:0 6px 6px 0;font-size:12px;color:var(--text-muted);line-height:1.5">';
+          html+='<div style="font-size:10px;font-weight:600;color:#6ec87a;margin-bottom:4px">ADMIN REPLY</div>';
+          html+=esc(t.adminReply);
+          html+='</div>';
+        }
+        // Admin controls
+        if(isAdminUser&&t.ghNumber){
+          html+='<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">';
+          html+='<select class="admin-status-select" data-id="'+t.ghNumber+'" style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;font-family:inherit">';
+          var opts=['open','in-progress','resolved','wont-fix'];
+          opts.forEach(function(o){html+='<option value="'+o+'"'+(t.status===o?' selected':'')+'>'+o+'</option>'});
+          html+='</select>';
+          html+='<input type="text" class="admin-reply-input" data-id="'+t.ghNumber+'" placeholder="Reply to user..." style="flex:1;min-width:120px;padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;font-family:inherit" />';
+          html+='<button class="admin-update-btn btn btn-primary" data-id="'+t.ghNumber+'" style="padding:4px 12px;font-size:11px;border-radius:6px">Update</button>';
+          html+='</div>';
+        }
         html+='</div>';
       });
       el.innerHTML=html;
-    });
+
+      // Bind admin update buttons
+      if(isAdminUser){
+        el.querySelectorAll('.admin-update-btn').forEach(function(btn){
+          btn.addEventListener('click',async function(){
+            var id=btn.dataset.id;
+            var row=btn.closest('[data-ticket-id]');
+            var sel=row.querySelector('.admin-status-select');
+            var inp=row.querySelector('.admin-reply-input');
+            btn.disabled=true;btn.textContent='Saving...';
+            try{
+              var r=await window.zap.updateTicketStatus({ticketId:id,status:sel.value,reply:inp.value.trim()});
+              if(r.success){btn.textContent='Saved!';inp.value='';setTimeout(function(){loadUserTickets()},800)}
+              else{btn.textContent='Error';setTimeout(function(){btn.textContent='Update';btn.disabled=false},1500)}
+            }catch(_){btn.textContent='Error';setTimeout(function(){btn.textContent='Update';btn.disabled=false},1500)}
+          });
+        });
+      }
+    }).catch(function(){el.textContent='Failed to load tickets.'});
   }
 
   tabs.forEach(function(t){
