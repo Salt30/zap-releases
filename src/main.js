@@ -1333,7 +1333,7 @@ ipcMain.handle('submit-ticket', async (_ev, { subject, description, email }) => 
     const issue = await ghAPI('POST', `/repos/${GITHUB_REPO}/issues`, {
       title: `[Support] ${subject.trim()}`,
       body,
-      labels: ['support-ticket']
+      labels: ['support']
     });
 
     // Also cache locally for offline viewing
@@ -1382,8 +1382,8 @@ ipcMain.handle('get-tickets', async () => {
 
   if (token && userEmail) {
     try {
-      // Fetch support-ticket issues, match by email in the body
-      const issues = await ghAPI('GET', `/repos/${GITHUB_REPO}/issues?labels=support-ticket&state=all&per_page=50&sort=created&direction=desc`);
+      // Fetch support issues, match by email in the body
+      const issues = await ghAPI('GET', `/repos/${GITHUB_REPO}/issues?labels=support&state=all&per_page=50&sort=created&direction=desc`);
       const userTickets = issues.filter(i => i.body && i.body.includes(userEmail));
 
       // Fetch comments for each ticket to get admin replies
@@ -1426,7 +1426,7 @@ ipcMain.handle('get-tickets', async () => {
   // For admin, fetch ALL support tickets
   if (isAdmin() && token) {
     try {
-      const issues = await ghAPI('GET', `/repos/${GITHUB_REPO}/issues?labels=support-ticket&state=all&per_page=100&sort=created&direction=desc`);
+      const issues = await ghAPI('GET', `/repos/${GITHUB_REPO}/issues?labels=support&state=all&per_page=100&sort=created&direction=desc`);
       return issues.map(i => {
         let status = 'open';
         if (i.state === 'closed') status = 'resolved';
@@ -1473,7 +1473,7 @@ ipcMain.handle('update-ticket-status', async (_ev, { ticketId, status, reply }) 
 
   try {
     // Update labels based on status
-    const labelsToSet = ['support-ticket'];
+    const labelsToSet = ['support'];
     let ghState = 'open';
 
     if (status === 'in-progress') labelsToSet.push('in-progress');
