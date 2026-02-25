@@ -623,7 +623,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
     if (isLockdown()) {
       return { error: 'Lockdown Mode is active — screen capture is disabled.\nPress Tab to type your question, then press Enter.' };
     }
-    return { error: 'Screen capture failed. Please try:\n1. Open System Settings → Privacy & Security → Screen Recording\n2. Toggle Zap OFF then ON again\n3. Quit Zap completely (right-click tray → Quit) and reopen it' };
+    return { error: 'Screen capture unavailable. Press Tab to type your question instead.\n\nTo fix screen capture: System Settings → Privacy & Security → Screen Recording → Toggle Zap OFF then ON → Restart Zap.' };
   }
 
   const prompts = {

@@ -152,7 +152,16 @@
   var inputBar=$('text-input-bar'), inputEl=$('text-input');
   var dtPanel=$('drip-type-panel'), dtArea=$('dt-textarea'), dtStart=$('dt-start-btn'), dtClose=$('dt-close-btn'), dtPencil=$('dt-pencil-btn'), dtHumanize=$('dt-humanize-btn');
 
-  window.zap.onScreenCaptured(function(u){capture=u});
+  window.zap.onScreenCaptured(function(u){
+    capture=u;
+    // If screen capture failed (null) and not in lockdown mode, auto-fallback to text input
+    if(!u && settings && !settings.lockdownMode && currentMode!=='driptype'){
+      textMode=true;
+      inputBar.style.display='block';
+      instr.innerHTML='Screen capture unavailable &mdash; type your question and press <kbd>Enter</kbd> &middot; <kbd>Esc</kbd> close';
+      setTimeout(function(){inputEl.focus()},150);
+    }
+  });
 
   window.zap.onLoadSettings(function(s){
     settings=s;
@@ -164,11 +173,15 @@
     var op=(s.overlayOpacity!=null?s.overlayOpacity:0)/10;
     layer.style.background=op>0?'rgba(0,0,0,'+op+')':'transparent';
 
-    // Lockdown mode: auto-open text input since screen capture is disabled
-    if(s.lockdownMode && currentMode!=='driptype'){
+    // Lockdown mode OR capture failed: auto-open text input
+    if((s.lockdownMode || !capture) && currentMode!=='driptype'){
       textMode=true;
       inputBar.style.display='block';
-      instr.innerHTML='Type your question and press <kbd>Enter</kbd> &middot; <kbd>Esc</kbd> close';
+      if(s.lockdownMode){
+        instr.innerHTML='Type your question and press <kbd>Enter</kbd> &middot; <kbd>Esc</kbd> close';
+      } else if(!capture){
+        instr.innerHTML='Screen capture unavailable &mdash; type your question and press <kbd>Enter</kbd> &middot; <kbd>Esc</kbd> close';
+      }
       setTimeout(function(){inputEl.focus()},150);
     }
   });
