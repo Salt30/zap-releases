@@ -89,10 +89,10 @@
   #drip-type-panel .dt-footer .dt-start:hover{background:var(--accent-hover)}
   #drip-type-panel .dt-footer .dt-start:disabled{opacity:.4;cursor:not-allowed}
 
-  #dt-pencil-btn{padding:9px 16px;border:1px solid var(--glass-border);border-radius:8px;background:rgba(255,255,255,0.06);color:var(--text-muted);font-family:inherit;font-size:12px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:6px}
-  #dt-pencil-btn:hover{background:rgba(255,255,255,0.12);color:var(--text);border-color:rgba(255,255,255,0.25)}
-  #dt-pencil-btn:disabled{opacity:.4;cursor:not-allowed}
-  #dt-pencil-btn .pencil-icon{font-size:14px}
+  #dt-pencil-btn,#dt-humanize-btn{padding:9px 16px;border:1px solid var(--glass-border);border-radius:8px;background:rgba(255,255,255,0.06);color:var(--text-muted);font-family:inherit;font-size:12px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:6px}
+  #dt-pencil-btn:hover,#dt-humanize-btn:hover{background:rgba(255,255,255,0.12);color:var(--text);border-color:rgba(255,255,255,0.25)}
+  #dt-pencil-btn:disabled,#dt-humanize-btn:disabled{opacity:.4;cursor:not-allowed}
+  #dt-pencil-btn .pencil-icon,#dt-humanize-btn .pencil-icon{font-size:14px}
 
   #settings-btn{position:fixed;top:12px;right:14px;z-index:100;width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:var(--glass);backdrop-filter:blur(40px) saturate(180%);-webkit-backdrop-filter:blur(40px) saturate(180%);border:1px solid var(--glass-border);border-radius:10px;color:var(--text-dim);font-size:14px;cursor:pointer;transition:all .15s;box-shadow:0 2px 12px rgba(0,0,0,0.2),inset 0 1px 0 var(--glass-glow)}
   #settings-btn:hover{color:var(--text);background:rgba(255,255,255,0.1);border-color:rgba(255,255,255,0.25)}
@@ -134,6 +134,7 @@
   </div>
   <div class="dt-footer">
     <button id="dt-pencil-btn" title="Auto-draft: reads your screen and generates a response"><span class="pencil-icon">&#9998;</span> Auto Draft</button>
+    <button id="dt-humanize-btn" title="Humanize: rewrites text to sound more natural and bypass AI detection"><span class="pencil-icon">&#129489;</span> Humanize</button>
     <span class="dt-hint">Overlay will hide &amp; typing starts</span>
     <button class="dt-start" id="dt-start-btn">Start Typing</button>
   </div>
@@ -149,7 +150,7 @@
   var resPanel=$('response-panel'), resBody=$('response-body'), resModeText=$('response-mode-text');
   var copyBtn=$('copy-btn'), closeResBtn=$('close-response-btn');
   var inputBar=$('text-input-bar'), inputEl=$('text-input');
-  var dtPanel=$('drip-type-panel'), dtArea=$('dt-textarea'), dtStart=$('dt-start-btn'), dtClose=$('dt-close-btn'), dtPencil=$('dt-pencil-btn');
+  var dtPanel=$('drip-type-panel'), dtArea=$('dt-textarea'), dtStart=$('dt-start-btn'), dtClose=$('dt-close-btn'), dtPencil=$('dt-pencil-btn'), dtHumanize=$('dt-humanize-btn');
 
   window.zap.onScreenCaptured(function(u){capture=u});
 
@@ -264,6 +265,22 @@
     }
     dtPencil.innerHTML='<span class="pencil-icon">&#9998;</span> Auto Draft';
     dtPencil.disabled=false;
+    dtArea.focus();
+  });
+
+  // Humanize — sends text to humanizer API to bypass AI detection
+  dtHumanize.addEventListener('click',async function(){
+    var txt=dtArea.value.trim();
+    if(!txt){dtArea.placeholder='Write or Auto Draft some text first, then Humanize it.';return}
+    dtHumanize.disabled=true;
+    dtHumanize.innerHTML='<span class="pencil-icon">&#8987;</span> Humanizing...';
+    try{
+      var r=await window.zap.humanizeText(txt);
+      if(r.error){dtArea.value='Error: '+r.error}
+      else{dtArea.value=r.result||txt}
+    }catch(err){dtArea.value='Error: '+err.message}
+    dtHumanize.innerHTML='<span class="pencil-icon">&#129489;</span> Humanize';
+    dtHumanize.disabled=false;
     dtArea.focus();
   });
 
