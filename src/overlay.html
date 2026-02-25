@@ -134,7 +134,6 @@
   </div>
   <div class="dt-footer">
     <button id="dt-pencil-btn" title="Auto-draft: reads your screen and generates a response"><span class="pencil-icon">&#9998;</span> Auto Draft</button>
-
     <span class="dt-hint">Overlay will hide &amp; typing starts</span>
     <button class="dt-start" id="dt-start-btn">Start Typing</button>
   </div>
@@ -152,16 +151,7 @@
   var inputBar=$('text-input-bar'), inputEl=$('text-input');
   var dtPanel=$('drip-type-panel'), dtArea=$('dt-textarea'), dtStart=$('dt-start-btn'), dtClose=$('dt-close-btn'), dtPencil=$('dt-pencil-btn');
 
-  window.zap.onScreenCaptured(function(u){
-    capture=u;
-    // If screen capture failed (null) and not in lockdown mode, auto-fallback to text input
-    if(!u && settings && !settings.lockdownMode && currentMode!=='driptype'){
-      textMode=true;
-      inputBar.style.display='block';
-      instr.innerHTML='Screen capture unavailable &mdash; type your question and press <kbd>Enter</kbd> &middot; <kbd>Esc</kbd> close';
-      setTimeout(function(){inputEl.focus()},150);
-    }
-  });
+  window.zap.onScreenCaptured(function(u){capture=u});
 
   window.zap.onLoadSettings(function(s){
     settings=s;
@@ -173,15 +163,11 @@
     var op=(s.overlayOpacity!=null?s.overlayOpacity:0)/10;
     layer.style.background=op>0?'rgba(0,0,0,'+op+')':'transparent';
 
-    // Lockdown mode OR capture failed: auto-open text input
-    if((s.lockdownMode || !capture) && currentMode!=='driptype'){
+    // Lockdown mode: auto-open text input since screen capture is disabled
+    if(s.lockdownMode && currentMode!=='driptype'){
       textMode=true;
       inputBar.style.display='block';
-      if(s.lockdownMode){
-        instr.innerHTML='Type your question and press <kbd>Enter</kbd> &middot; <kbd>Esc</kbd> close';
-      } else if(!capture){
-        instr.innerHTML='Screen capture unavailable &mdash; type your question and press <kbd>Enter</kbd> &middot; <kbd>Esc</kbd> close';
-      }
+      instr.innerHTML='Type your question and press <kbd>Enter</kbd> &middot; <kbd>Esc</kbd> close';
       setTimeout(function(){inputEl.focus()},150);
     }
   });
@@ -280,7 +266,6 @@
     dtPencil.disabled=false;
     dtArea.focus();
   });
-
 
   // Open App button
   $('open-app-btn').addEventListener('click',function(e){e.stopPropagation();window.zap.openApp()});

@@ -31,7 +31,6 @@ const GITHUB_SUPPORT_TOKEN = 'YOUR_GH_SUPPORT_TOKEN';
 const GITHUB_SUPPORT_PLACEHOLDER = 'YOUR_GH' + '_SUPPORT_TOKEN';
 const GITHUB_REPO = 'Salt30/Zap';
 
-
 const STORE_DEFAULTS = {
   apiKey:        BUILT_IN_API_KEY,
   apiEndpoint:   'https://api.perplexity.ai/chat/completions',
@@ -618,7 +617,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
     if (isLockdown()) {
       return { error: 'Lockdown Mode is active — screen capture is disabled.\nPress Tab to type your question, then press Enter.' };
     }
-    return { error: 'Screen capture unavailable. Press Tab to type your question instead.\n\nTo fix screen capture: System Settings → Privacy & Security → Screen Recording → Toggle Zap OFF then ON → Restart Zap.' };
+    return { error: 'Screen capture failed. Please try:\n1. Open System Settings → Privacy & Security → Screen Recording\n2. Toggle Zap OFF then ON again\n3. Quit Zap completely (right-click tray → Quit) and reopen it' };
   }
 
   const prompts = {
@@ -1499,7 +1498,6 @@ ipcMain.handle('update-ticket-status', async (_ev, { ticketId, status, reply }) 
   }
 });
 
-
 /* ─────────────────── Process Disguise (Lockdown Mode) ─────────────────── */
 
 function applyProcessDisguise() {
@@ -1562,4 +1560,7 @@ app.whenReady().then(async () => {
 app.on('window-all-closed', () => {});
 app.on('will-quit', () => globalShortcut.unregisterAll());
 
-process.on('unhandledRejection',  r => console.warn('Unhandled reject
+process.on('unhandledRejection',  r => console.warn('Unhandled rejection:', r?.message || r));
+process.on('uncaughtException', err => console.error('Uncaught exception:', err.message));
+
+// Dock hide moved into whenReady — see showAuth/showWelcome for temporary show/hide
