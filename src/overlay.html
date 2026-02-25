@@ -162,6 +162,14 @@
     if(s.borderRadius)r.style.setProperty('--radius',s.borderRadius+'px');
     var op=(s.overlayOpacity!=null?s.overlayOpacity:0)/10;
     layer.style.background=op>0?'rgba(0,0,0,'+op+')':'transparent';
+
+    // Lockdown mode: auto-open text input since screen capture is disabled
+    if(s.lockdownMode && currentMode!=='driptype'){
+      textMode=true;
+      inputBar.style.display='block';
+      instr.innerHTML='Type your question and press <kbd>Enter</kbd> &middot; <kbd>Esc</kbd> close';
+      setTimeout(function(){inputEl.focus()},150);
+    }
   });
 
   window.zap.onSetMode(function(m){setMode(m)});
@@ -266,6 +274,7 @@
     if(e.button!==0||textMode)return;
     if(currentMode==='driptype')return;
     if(resPanel.style.display==='flex')return;
+    if(settings.lockdownMode)return; // No screen capture in lockdown — drag is disabled
     isSelecting=true;
     selStart={x:e.clientX,y:e.clientY};
     sel.style.display='block';
