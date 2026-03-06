@@ -24,7 +24,7 @@ const API_PLACEHOLDER = 'YOUR_PERPLEXITY' + '_API_KEY';
 // Stripe configuration — injected at build time via sed
 const STRIPE_SECRET_KEY = 'YOUR_STRIPE_SECRET_KEY';
 const STRIPE_KEY_PLACEHOLDER = 'YOUR_STRIPE' + '_SECRET_KEY';
-const STRIPE_PRICE_ID = 'price_1T43bCDu0Wu9yqrt1RVLakzX';
+const STRIPE_PRICE_ID = 'price_1T7p8qDu0Wu9yqrt7NG7SsY5';
 
 // GitHub token for support tickets (Issues API) — injected at build time via sed
 const GITHUB_SUPPORT_TOKEN = 'YOUR_GH_SUPPORT_TOKEN';
