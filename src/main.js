@@ -417,8 +417,7 @@ function bindKeys() {
   globalShortcut.unregisterAll();
   // App/settings hotkeys always work
   const appKeys = [
-    [store.get('hotkeyApp'), makeSettings],
-    ['Alt+9', makeSettings]
+    [store.get('hotkeyApp'), makeSettings]
   ];
   for (const [key, fn] of appKeys) {
     if (!key) continue;
