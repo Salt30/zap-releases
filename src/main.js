@@ -60,6 +60,7 @@ const STORE_DEFAULTS = {
   simpleMode:    false,
   phantomMode:   false,
   autoEngine:    true,
+  credibleSourcesOnly: false,
   maxTokens:     1024,
   dripSpeed:     40,
   dripWPM:       45,
@@ -186,10 +187,11 @@ function stopLockdownKeepAlive() {
 
 /* ─────────────────── Window References ─────────────────── */
 
-let overlayWin  = null;
-let settingsWin = null;
-let tray        = null;
-let overlayUp   = false;
+let overlayWin     = null;
+let settingsWin    = null;
+let flashcardsWin  = null;
+let tray           = null;
+let overlayUp      = false;
 
 /* ─────────────────── Overlay Window ─────────────────── */
 
@@ -285,6 +287,38 @@ function makeSettings() {
   settingsWin.loadFile(path.join(__dirname, 'settings.html'));
   try { settingsWin.setContentProtection(true); } catch (_) {}
   settingsWin.on('closed', () => { settingsWin = null; });
+}
+
+/* ─────────────────── Flashcards Window ─────────────────── */
+
+function showFlashcards(cardsText) {
+  if (flashcardsWin) { flashcardsWin.focus(); return; }
+  if (process.platform === 'darwin') app.dock?.show();
+
+  flashcardsWin = new BrowserWindow({
+    width: 1024, height: 768,
+    resizable: true, minimizable: true, maximizable: true,
+    fullscreenable: true,
+    title: 'Zap Flashcards',
+    backgroundColor: '#0a0a12',
+    show: false,
+    webPreferences: {
+      preload:          path.join(__dirname, 'preload.js'),
+      contextIsolation: true,
+      nodeIntegration:  false
+    }
+  });
+
+  flashcardsWin.loadFile(path.join(__dirname, 'flashcards.html'));
+  try { flashcardsWin.setContentProtection(true); } catch (_) {}
+  flashcardsWin.webContents.on('did-finish-load', () => {
+    flashcardsWin.webContents.send('load-cards', cardsText || '');
+  });
+  flashcardsWin.once('ready-to-show', () => { flashcardsWin.show(); flashcardsWin.focus(); });
+  flashcardsWin.on('closed', () => {
+    flashcardsWin = null;
+    if (process.platform === 'darwin' && isLicensed()) app.dock?.hide();
+  });
 }
 
 /* ─────────────────── Screen Capture ─────────────────── */
@@ -583,6 +617,8 @@ ipcMain.on('hide-overlay', () => {
   if (dripTypeRunning) dripTypeCancelled = true;
 });
 
+ipcMain.on('open-flashcards', (_ev, cards) => showFlashcards(cards));
+
 ipcMain.handle('paste-to-screen', async () => {
   // Hide overlay first so the target app gets focus
   if (overlayWin) { overlayWin.hide(); overlayUp = false; stopLockdownKeepAlive(); }
@@ -668,7 +704,9 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
     solve:     'You are an expert tutor. Solve the problem step-by-step, showing ALL work exactly as a student would write it on paper. Number each step clearly. State the final answer on its own line at the end (e.g. "Final Answer: 42"). NEVER use LaTeX — write math in plain text with / for fractions, ^ for exponents, sqrt() for roots, and Unicode symbols (∫, Σ, π, ∞, ², ³). Read all notation from the image VERY carefully.',
     essay:     'You are an academic essay writer. Write a well-structured essay on the topic shown. Include: a clear thesis statement, 3-4 body paragraphs with topic sentences and supporting evidence, and a strong conclusion. Use formal academic tone. Aim for 500-800 words. Write in proper paragraph form — no bullet points or lists.',
     code:      'You are an expert programmer. Write clean, well-documented code to solve the problem shown. Use markdown code blocks with the correct language specifier (e.g. ```python, ```javascript, ```java, ```cpp). Include comments explaining key logic. Follow best practices: meaningful variable names, error handling, efficiency. If the language is not specified, infer it from context.',
-    research:  'You are a research specialist. Provide a thorough, well-organized analysis of the topic shown. Structure your response as: 1) Brief overview, 2) Key findings with specific details and data, 3) Sources and references at the end. Use real, credible sources where possible. Be factual and detailed.',
+    research:  store.get('credibleSourcesOnly')
+      ? 'You are a research specialist. Provide a thorough analysis using ONLY credible academic and institutional sources (.edu, .org, .gov domains). Do NOT cite .com or commercial sources. Structure: 1) Brief overview, 2) Key findings with data from credible sources only, 3) References — list only .edu/.org/.gov URLs. Be factual and thorough.'
+      : 'You are a research specialist. Provide a thorough, well-organized analysis of the topic shown. Structure your response as: 1) Brief overview, 2) Key findings with specific details and data, 3) Sources and references at the end. Use real, credible sources where possible. Be factual and detailed.',
     email:     'You are a professional communication expert. Draft a polished email reply based on the context shown on screen. Match the tone and formality of the original message. Include an appropriate greeting, clear and concise body, and professional closing. Return ONLY the email text — no Subject line, no "To:" field, no metadata.',
     flashcards:'You are an educational content creator. Generate 5-8 Q&A flashcards from the material shown on screen. Format each as: **Q:** [question] followed by **A:** [concise answer]. Focus on key concepts, definitions, formulas, and important facts. Number each flashcard.'
   };

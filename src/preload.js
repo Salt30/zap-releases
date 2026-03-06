@@ -10,9 +10,11 @@ contextBridge.exposeInMainWorld('zap', {
   dripType:       (text)   => ipcRenderer.invoke('drip-type', text),
   cancelDripType: ()       => ipcRenderer.send('cancel-drip-type'),
   pasteToScreen:  ()       => ipcRenderer.invoke('paste-to-screen'),
+  openFlashcards: (cards)  => ipcRenderer.send('open-flashcards', cards),
   checkForUpdates:()       => ipcRenderer.invoke('check-for-updates'),
 
   onScreenCaptured: (cb) => ipcRenderer.on('screen-captured', (_, d) => cb(d)),
+  onLoadCards:      (cb) => ipcRenderer.on('load-cards',       (_, d) => cb(d)),
   onLoadSettings:   (cb) => ipcRenderer.on('load-settings',   (_, d) => cb(d)),
   onSetMode:        (cb) => ipcRenderer.on('set-mode',         (_, m) => cb(m)),
   onSettingsSaved:  (cb) => ipcRenderer.on('settings-saved',   ()     => cb()),

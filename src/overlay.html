@@ -350,6 +350,17 @@
       var r=await window.zap.aiRequest({mode:currentMode,text:ocr||manual||null,imageDataUrl:img,region:selRect,language:settings.language});
       if(r.error){resBody.className='';resBody.innerHTML='<div class="error-msg">'+esc(r.error)+'</div>';return}
       resBody.className='';resBody.innerHTML=fmtMd(r.result);
+      // Mode-specific enhancements
+      if(currentMode==='flashcards'){
+        var fbtn=document.createElement('button');
+        fbtn.textContent='Study in Fullscreen';
+        fbtn.style.cssText='margin-top:14px;padding:10px 20px;background:#facc15;color:#000;border:none;border-radius:10px;font-size:13px;font-weight:600;cursor:pointer;display:block;width:100%';
+        fbtn.onmouseover=function(){this.style.background='#fbd948'};
+        fbtn.onmouseout=function(){this.style.background='#facc15'};
+        fbtn.onclick=function(){window.zap.openFlashcards(resBody.innerText)};
+        resBody.appendChild(fbtn);
+      }
+      pasteBtn.textContent=(currentMode==='email')?'Paste Reply':'Paste';
     }catch(err){resBody.className='';resBody.innerHTML='<div class="error-msg">'+esc(err.message)+'</div>'}
   }
 

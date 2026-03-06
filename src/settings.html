@@ -185,6 +185,17 @@
       </div>
     </div>
 
+    <div class="card">
+      <div class="card-title">Research Settings</div>
+      <div class="toggle-row" style="border-bottom:none">
+        <div class="toggle-info">
+          <div class="toggle-label">Credible Sources Only</div>
+          <div class="toggle-desc">Research mode uses only .edu, .org, .gov sources — no commercial sites</div>
+        </div>
+        <div class="toggle" id="toggle-credible" data-key="credibleSourcesOnly"><div class="thumb"></div></div>
+      </div>
+    </div>
+
     <div class="card" style="border-color:rgba(239,68,68,0.2)">
       <div class="card-title" style="color:#f87171">Lockdown Mode</div>
       <div class="toggle-row" style="border-bottom:none">
@@ -633,6 +644,7 @@
       invisibleOverlay:document.getElementById('toggle-invisible').classList.contains('active'),
       autoEngine:document.getElementById('toggle-autoengine').classList.contains('active'),
       simpleMode:document.getElementById('toggle-simple').classList.contains('active'),
+      credibleSourcesOnly:document.getElementById('toggle-credible').classList.contains('active'),
       startAtLogin:document.getElementById('toggle-startup').classList.contains('active'),
       language:document.getElementById('setting-language').value,
       accentColor:document.getElementById('setting-accentColor').value,
