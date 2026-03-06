@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('zap', {
   aiRequest:      (params) => ipcRenderer.invoke('ai-request', params),
   dripType:       (text)   => ipcRenderer.invoke('drip-type', text),
   cancelDripType: ()       => ipcRenderer.send('cancel-drip-type'),
+  pasteToScreen:  ()       => ipcRenderer.invoke('paste-to-screen'),
   checkForUpdates:()       => ipcRenderer.invoke('check-for-updates'),
 
   onScreenCaptured: (cb) => ipcRenderer.on('screen-captured', (_, d) => cb(d)),

@@ -116,6 +116,7 @@
   <div id="response-header">
     <span class="mode-label" id="response-mode-text">Answer</span>
     <div class="actions">
+      <button id="paste-btn" title="Copy answer and paste into your app">Paste</button>
       <button id="copy-btn">Copy</button>
       <button id="close-response-btn">Close</button>
     </div>
@@ -147,7 +148,7 @@
   var layer=$('capture-layer'), sel=$('selection'), selLbl=$('selection-label');
   var modeInd=$('mode-indicator'), instr=$('instructions');
   var resPanel=$('response-panel'), resBody=$('response-body'), resModeText=$('response-mode-text');
-  var copyBtn=$('copy-btn'), closeResBtn=$('close-response-btn');
+  var copyBtn=$('copy-btn'), pasteBtn=$('paste-btn'), closeResBtn=$('close-response-btn');
   var inputBar=$('text-input-bar'), inputEl=$('text-input');
   var dtPanel=$('drip-type-panel'), dtArea=$('dt-textarea'), dtStart=$('dt-start-btn'), dtClose=$('dt-close-btn'), dtPencil=$('dt-pencil-btn');
 
@@ -174,7 +175,7 @@
 
   window.zap.onSetMode(function(m){setMode(m)});
 
-  var labels={answer:'Answer',simple:'Simple',translate:'Translate',rewrite:'Rewrite',driptype:'Drip Type'};
+  var labels={answer:'Answer',simple:'Simple',translate:'Translate',rewrite:'Rewrite',solve:'Solve',essay:'Essay',code:'Code',research:'Research',email:'Email',flashcards:'Flashcards',driptype:'Drip Type'};
   function setMode(m){
     currentMode=m;
     modeInd.textContent=labels[m]||m;
@@ -480,6 +481,17 @@
     window.zap.copyToClipboard(resBody.innerText);
     copyBtn.textContent='Copied!';
     setTimeout(function(){copyBtn.textContent='Copy'},1200);
+  });
+
+  pasteBtn.addEventListener('click',function(){
+    var txt=resBody.innerText;
+    if(!txt) return;
+    window.zap.copyToClipboard(txt);
+    pasteBtn.textContent='Pasting...';
+    // Hide overlay and paste into the previous app
+    resPanel.style.display='none';resPanel.style.transform='';resetSel();
+    window.zap.pasteToScreen();
+    setTimeout(function(){pasteBtn.textContent='Paste'},1500);
   });
 
   closeResBtn.addEventListener('click',function(){resPanel.style.display='none';resPanel.style.transform='';resetSel()});
