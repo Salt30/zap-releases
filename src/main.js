@@ -193,6 +193,114 @@ let flashcardsWin  = null;
 let tray           = null;
 let overlayUp      = false;
 
+/* ─────────────────── Screen Share Stealth ─────────────────── */
+
+let screenBeingCaptured = false;
+let screenCaptureSubId  = null;
+let screenCapturePoll   = null;
+
+/**
+ * When screen recording/sharing is detected:
+ *  - Set overlay window opacity to 0 (completely invisible in recordings)
+ *  - Content protection makes it a black box, but opacity 0 makes even THAT invisible
+ *  - The window remains active and functional — hotkeys, selections still work
+ *  - Notify overlay renderer to show a tiny stealth indicator so user knows it's hidden
+ *
+ * When recording stops: restore full opacity
+ */
+function onScreenCaptureChanged(isCapturing) {
+  screenBeingCaptured = isCapturing;
+  if (!overlayWin || overlayWin.isDestroyed()) return;
+
+  if (isCapturing) {
+    // Make window completely invisible in screen capture
+    try { overlayWin.setOpacity(0); } catch (_) {}
+    // Notify renderer to show stealth indicator
+    try { overlayWin.webContents.send('screen-share-status', true); } catch (_) {}
+  } else {
+    // Restore full visibility
+    try { overlayWin.setOpacity(1); } catch (_) {}
+    try { overlayWin.webContents.send('screen-share-status', false); } catch (_) {}
+  }
+}
+
+function initScreenCaptureDetection() {
+  if (process.platform === 'darwin') {
+    // macOS: subscribe to system notification when screen capture state changes
+    try {
+      const { systemPreferences } = require('electron');
+      screenCaptureSubId = systemPreferences.subscribeNotification(
+        'com.apple.screenIsBeingCapturedDidChange',
+        () => {
+          // Query actual screen capture state via Python + CoreGraphics
+          exec(
+            `python3 -c "
+import Quartz
+session = Quartz.CGSessionCopyCurrentDictionary()
+captured = session.get('kCGSSessionScreenIsBeingCaptured', 0) if session else 0
+print('yes' if captured else 'no')
+" 2>/dev/null`,
+            { timeout: 3000 },
+            (err, stdout) => {
+              const capturing = stdout && stdout.trim() === 'yes';
+              if (capturing !== screenBeingCaptured) {
+                onScreenCaptureChanged(capturing);
+              }
+            }
+          );
+        }
+      );
+
+      // Also do an initial check on startup
+      exec(
+        `python3 -c "
+import Quartz
+session = Quartz.CGSessionCopyCurrentDictionary()
+captured = session.get('kCGSSessionScreenIsBeingCaptured', 0) if session else 0
+print('yes' if captured else 'no')
+" 2>/dev/null`,
+        { timeout: 3000 },
+        (err, stdout) => {
+          if (stdout && stdout.trim() === 'yes') onScreenCaptureChanged(true);
+        }
+      );
+    } catch (_) {
+      // Fallback: poll-based detection for older macOS
+      startScreenCapturePoll();
+    }
+  } else if (process.platform === 'win32') {
+    // Windows: poll for common screen recording processes
+    startScreenCapturePoll();
+  }
+}
+
+function startScreenCapturePoll() {
+  if (screenCapturePoll) return;
+  screenCapturePoll = setInterval(() => {
+    if (process.platform === 'win32') {
+      exec(
+        `powershell -Command "Get-Process -Name obs64,obs32,ScreenClip,CamtasiaStudio -ErrorAction SilentlyContinue | Select-Object -First 1 | ForEach-Object { $_.Name }"`,
+        { timeout: 3000 },
+        (err, stdout) => {
+          const capturing = !!(stdout && stdout.trim());
+          if (capturing !== screenBeingCaptured) onScreenCaptureChanged(capturing);
+        }
+      );
+    }
+  }, 3000);
+}
+
+function cleanupScreenCaptureDetection() {
+  if (screenCaptureSubId !== null && process.platform === 'darwin') {
+    try {
+      const { systemPreferences } = require('electron');
+      systemPreferences.unsubscribeNotification(screenCaptureSubId);
+    } catch (_) {}
+    screenCaptureSubId = null;
+  }
+  if (screenCapturePoll) { clearInterval(screenCapturePoll); screenCapturePoll = null; }
+}
+
 /* ─────────────────── Overlay Window ─────────────────── */
 
 /** Apply content protection — hides window from ALL screen capture/share/recording */
@@ -212,6 +320,10 @@ function applyOverlayLevel() {
   try { overlayWin.setAlwaysOnTop(true, 'screen-saver', 1); } catch (_) { overlayWin.setAlwaysOnTop(true); }
   if (process.platform === 'darwin') {
     try { overlayWin.setWindowButtonVisibility(false); } catch (_) {}
+  }
+  // 4. If screen is being captured, keep opacity at 0
+  if (screenBeingCaptured) {
+    try { overlayWin.setOpacity(0); } catch (_) {}
   }
 }
 
@@ -1611,6 +1723,9 @@ app.whenReady().then(async () => {
     bindKeys();
   }
 
+  // Start screen capture detection — hides overlay during screen recording/sharing
+  initScreenCaptureDetection();
+
   // Flow: Auth → Welcome Tour → Payment → App
   if (!store.get('authDone')) {
     showAuth();
@@ -1639,7 +1754,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {});
-app.on('will-quit', () => globalShortcut.unregisterAll());
+app.on('will-quit', () => { globalShortcut.unregisterAll(); cleanupScreenCaptureDetection(); });
 
 process.on('unhandledRejection',  r => console.warn('Unhandled rejection:', r?.message || r));
 process.on('uncaughtException', err => console.error('Uncaught exception:', err.message));

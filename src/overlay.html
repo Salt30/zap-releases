@@ -175,6 +175,24 @@
 
   window.zap.onSetMode(function(m){setMode(m)});
 
+  // Screen share stealth: show small indicator when overlay is hidden from recordings
+  window.zap.onScreenShareStatus(function(hidden){
+    var badge=document.getElementById('stealth-badge');
+    if(!badge){
+      badge=document.createElement('div');
+      badge.id='stealth-badge';
+      badge.style.cssText='position:fixed;top:8px;right:8px;z-index:9999;padding:4px 10px;border-radius:12px;font-size:10px;font-weight:600;background:rgba(34,197,94,0.15);color:#22c55e;border:1px solid rgba(34,197,94,0.2);pointer-events:none;transition:opacity .3s';
+      document.body.appendChild(badge);
+    }
+    if(hidden){
+      badge.textContent='Stealth Active';
+      badge.style.opacity='1';badge.style.display='block';
+    } else {
+      badge.style.opacity='0';
+      setTimeout(function(){badge.style.display='none'},300);
+    }
+  });
+
   var labels={answer:'Answer',simple:'Simple',translate:'Translate',rewrite:'Rewrite',solve:'Solve',essay:'Essay',code:'Code',research:'Research',email:'Email',flashcards:'Flashcards',driptype:'Drip Type'};
   function setMode(m){
     currentMode=m;
