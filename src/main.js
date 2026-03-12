@@ -185,6 +185,81 @@ function stopLockdownKeepAlive() {
   if (lockdownKeepAlive) { clearInterval(lockdownKeepAlive); lockdownKeepAlive = null; }
 }
 
+/* ─────────────────── Screen Share Detection ─────────────────── */
+
+let screenSharePoll = null;
+let hiddenByScreenShare = false;
+
+/**
+ * Detect if screen recording/sharing is active.
+ * macOS: checks for common screen-sharing processes
+ * Windows: checks for known screen capture processes
+ */
+function checkScreenSharing() {
+  return new Promise(resolve => {
+    if (process.platform === 'darwin') {
+      // macOS: detect screen sharing/recording via process list
+      // Covers: Zoom screen share, Teams, Google Meet (Chrome), Discord, OBS, macOS native recording, Loom, ScreenFlow
+      exec(
+        `ps aux | grep -iE '(screencapture|screen.?record|screen.?share|ScreenFlow|OBS|obs-browser|CaptureOne|Loom|com\\.apple\\.screencaptureui)' | grep -v grep | head -1`,
+        { timeout: 3000 },
+        (err, stdout) => {
+          if (err || !stdout.trim()) {
+            // Also check if any app has an active screen capture session via CGWindow
+            exec(
+              `python3 -c "import Quartz; wl=Quartz.CGWindowListCopyWindowInfo(Quartz.kCGWindowListOptionOnScreenOnly,Quartz.kCGNullWindowID); sharing=[w for w in wl if w.get('kCGWindowSharingState',0)!=0 and w.get('kCGWindowOwnerName','') not in ['Window Server','Dock','SystemUIServer','Zap']]; print(len(sharing))" 2>/dev/null`,
+              { timeout: 3000 },
+              (err2, stdout2) => {
+                resolve(false); // Default safe: don't hide if detection uncertain
+              }
+            );
+          } else {
+            resolve(true);
+          }
+        }
+      );
+    } else if (process.platform === 'win32') {
+      // Windows: detect common screen sharing apps
+      exec(
+        `tasklist /FI "IMAGENAME eq obs64.exe" /FI "IMAGENAME eq obs32.exe" /NH 2>nul & tasklist /FI "IMAGENAME eq ScreenClip.exe" /NH 2>nul`,
+        { timeout: 3000 },
+        (err, stdout) => {
+          const active = stdout && (stdout.includes('obs64') || stdout.includes('obs32') || stdout.includes('ScreenClip'));
+          resolve(!!active);
+        }
+      );
+    } else {
+      resolve(false);
+    }
+  });
+}
+
+function startScreenShareDetection() {
+  if (screenSharePoll) return;
+  screenSharePoll = setInterval(async () => {
+    if (!overlayWin || overlayWin.isDestroyed()) return;
+    const sharing = await checkScreenSharing();
+    if (sharing && overlayUp && !hiddenByScreenShare) {
+      // Screen sharing detected — hide overlay to stay invisible
+      hiddenByScreenShare = true;
+      overlayWin.hide();
+    } else if (!sharing && hiddenByScreenShare) {
+      // Screen sharing stopped — restore overlay
+      hiddenByScreenShare = false;
+      if (overlayUp) {
+        applyOverlayLevel();
+        overlayWin.showInactive();
+        enforceContentProtection(overlayWin);
+      }
+    }
+  }, 2000);
+}
+
+function stopScreenShareDetection() {
+  if (screenSharePoll) { clearInterval(screenSharePoll); screenSharePoll = null; }
+  hiddenByScreenShare = false;
+}
+
 /* ─────────────────── Window References ─────────────────── */
 
 let overlayWin     = null;
@@ -362,6 +437,8 @@ function showWithMode(mode) {
     overlayUp = true;
     // In lockdown mode, start the keep-alive timer to stay above lockdown browsers
     if (isLockdown()) startLockdownKeepAlive();
+    // Start screen share detection to auto-hide during recordings
+    startScreenShareDetection();
   };
 
   // In lockdown mode, skip desktopCapturer entirely — it will be blocked by lockdown browsers
@@ -377,7 +454,7 @@ function toggle() {
   // Block overlay if not licensed
   if (!isLicensed()) { showActivate(); return; }
   if (!overlayWin) makeOverlay();
-  if (overlayUp) { overlayWin.hide(); overlayUp = false; stopLockdownKeepAlive(); }
+  if (overlayUp) { overlayWin.hide(); overlayUp = false; stopLockdownKeepAlive(); stopScreenShareDetection(); }
   else showWithMode(store.get('lastMode') || 'answer');
 }
 
@@ -611,7 +688,7 @@ ipcMain.handle('drip-type', async (_ev, text) => {
 /* ─────────────────── IPC Handlers ─────────────────── */
 
 ipcMain.on('hide-overlay', () => {
-  if (overlayWin) { overlayWin.hide(); overlayUp = false; stopLockdownKeepAlive(); }
+  if (overlayWin) { overlayWin.hide(); overlayUp = false; stopLockdownKeepAlive(); stopScreenShareDetection(); }
   // Also cancel drip type if running
   if (dripTypeRunning) dripTypeCancelled = true;
 });
@@ -620,7 +697,7 @@ ipcMain.on('open-flashcards', (_ev, cards) => showFlashcards(cards));
 
 ipcMain.handle('paste-to-screen', async () => {
   // Hide overlay first so the target app gets focus
-  if (overlayWin) { overlayWin.hide(); overlayUp = false; stopLockdownKeepAlive(); }
+  if (overlayWin) { overlayWin.hide(); overlayUp = false; stopLockdownKeepAlive(); stopScreenShareDetection(); }
   // Small delay to let the previous app regain focus
   await new Promise(r => setTimeout(r, 150));
   // Simulate Cmd+V (macOS) or Ctrl+V (Windows) to paste clipboard contents
