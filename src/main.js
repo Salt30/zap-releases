@@ -53,7 +53,6 @@ const STORE_DEFAULTS = {
   hotkeyResearch:  'CmdOrCtrl+Alt+1',
   hotkeyEmail:     'CmdOrCtrl+Alt+2',
   hotkeyFlashcards:'CmdOrCtrl+Alt+3',
-  hotkeyRewrite:   'CmdOrCtrl+Alt+4',
   hotkeyApp:       'Alt+M',
   language:      'Spanish',
   theme:         'dark',
@@ -123,6 +122,16 @@ function initStore() {
   const savedKey = store.get('apiKey');
   if ((!savedKey || savedKey === API_PLACEHOLDER) && BUILT_IN_API_KEY !== API_PLACEHOLDER) {
     store.set('apiKey', BUILT_IN_API_KEY);
+  }
+
+  // v3.15.1 migration: Rewrite mode removed — remap its hotkey to Autopilot
+  if (store.get('hotkeyRewrite')) {
+    const oldRewriteKey = store.get('hotkeyRewrite');
+    // If autopilot has no hotkey or still has old default, give it rewrite's hotkey
+    if (!store.get('hotkeyAutopilot') || store.get('hotkeyAutopilot') === 'CmdOrCtrl+Alt+4') {
+      store.set('hotkeyAutopilot', oldRewriteKey);
+    }
+    store.delete('hotkeyRewrite');
   }
 
   return store;
@@ -508,7 +517,7 @@ function makeTray() {
     { label: 'Answer Mode',    click: () => showWithMode('answer'),    enabled: licensed },
     { label: 'Simple Mode',    click: () => showWithMode('simple'),    enabled: licensed },
     { label: 'Translate Mode',  click: () => showWithMode('translate'),  enabled: licensed },
-    { label: 'Rewrite Mode',   click: () => showWithMode('rewrite'),   enabled: licensed },
+    { label: 'Autopilot Mode',  click: () => showWithMode('autopilot'), enabled: licensed },
     { label: 'Drip Type Mode',  click: () => showWithMode('driptype'),  enabled: licensed },
     { type: 'separator' },
     ...(licensed ? [] : [{ label: 'Subscribe to Unlock', click: showActivate }, { type: 'separator' }]),
@@ -546,7 +555,6 @@ function bindKeys() {
     [store.get('hotkeyAnswer'),    () => showWithMode('answer')],
     [store.get('hotkeySimple'),    () => showWithMode('simple')],
     [store.get('hotkeyTranslate'), () => showWithMode('translate')],
-    [store.get('hotkeyRewrite'),   () => showWithMode('rewrite')],
     [store.get('hotkeyDripType'),  () => showWithMode('driptype')],
     [store.get('hotkeySolve'),     () => showWithMode('solve')],
     [store.get('hotkeyEssay'),     () => showWithMode('essay')],
@@ -569,7 +577,6 @@ function bindKeys() {
       ['Control+Shift+A',  () => showWithMode('answer')],
       ['Control+Shift+S',  () => showWithMode('simple')],
       ['Control+Shift+T',  () => showWithMode('translate')],
-      ['Control+Shift+R',  () => showWithMode('rewrite')],
       ['Control+Shift+D',  () => showWithMode('driptype')],
       ['Control+Shift+V',  () => showWithMode('solve')],
       ['Control+Shift+E',  () => showWithMode('essay')],
@@ -879,7 +886,6 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
     translate: `You are a professional translator. Translate ALL the provided text into ${language || store.get('language')}. Only provide the translation, no explanations.`,
     summarize: 'You are an expert summarizer. Start with a one-line summary, then key takeaways. Be concise. Never use LaTeX formatting.',
     explain:   'You are an expert teacher. Start with the direct answer, then explain step by step. Keep it clear and readable. NEVER use LaTeX commands like \\frac, \\left, \\right — write math in plain text with / for fractions, ^ for exponents, sqrt() for roots, and Unicode symbols (∫, Σ, π, ², ³). If the content contains math or science, read all notation from the image VERY carefully.',
-    rewrite:   'You are a professional editor. Rewrite the provided text to be clearer, more professional, and polished. Return only the rewritten text.',
     solve:     'You are an expert tutor. Solve the problem step-by-step, showing ALL work exactly as a student would write it on paper. Number each step clearly. State the final answer on its own line at the end (e.g. "Final Answer: 42"). NEVER use LaTeX — write math in plain text with / for fractions, ^ for exponents, sqrt() for roots, and Unicode symbols (∫, Σ, π, ∞, ², ³). Read all notation from the image VERY carefully.',
     essay:     'You are an academic essay writer. Write a well-structured essay on the topic shown. Include: a clear thesis statement, 3-4 body paragraphs with topic sentences and supporting evidence, and a strong conclusion. Use formal academic tone. Aim for 500-800 words. Write in proper paragraph form — no bullet points or lists.',
     code:      'You are an expert programmer. Write clean, well-documented code to solve the problem shown. Use markdown code blocks with the correct language specifier (e.g. ```python, ```javascript, ```java, ```cpp). Include comments explaining key logic. Follow best practices: meaningful variable names, error handling, efficiency. If the language is not specified, infer it from context.',
@@ -1526,7 +1532,7 @@ ipcMain.handle('get-admin-stats', () => {
     modes: {
       answer: store.get('statsAnswerCount') || 0,
       translate: store.get('statsTranslateCount') || 0,
-      rewrite: store.get('statsRewriteCount') || 0,
+      autopilot: store.get('statsAutopilotCount') || 0,
       dripType: store.get('statsDripTypeCount') || 0,
       summarize: store.get('statsSummarizeCount') || 0,
       explain: store.get('statsExplainCount') || 0
