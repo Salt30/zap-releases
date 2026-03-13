@@ -773,29 +773,11 @@ function execPromise(cmd, timeout) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// macOS: click at absolute screen coordinates using CoreGraphics CGEvent via JXA
-// Uses numeric constants to avoid JXA bridge symbol resolution issues
+// macOS: click at absolute screen coordinates using compiled Swift helper
 function macClickAt(x, y) {
-  const fs = require('fs');
-  const os = require('os');
-  const scriptPath = path.join(os.tmpdir(), 'zap_click.js');
-  // Use numeric constants directly:
-  // kCGEventMouseMoved=5, kCGEventLeftMouseDown=1, kCGEventLeftMouseUp=2
-  // kCGMouseButtonLeft=0, kCGHIDEventTap=0
-  const script = `ObjC.import('CoreGraphics');
-var pt = $.CGPointMake(${x}, ${y});
-var move = $.CGEventCreateMouseEvent(null, 5, pt, 0);
-$.CGEventPost(0, move);
-delay(0.05);
-var down = $.CGEventCreateMouseEvent(null, 1, pt, 0);
-$.CGEventPost(0, down);
-delay(0.05);
-var up = $.CGEventCreateMouseEvent(null, 2, pt, 0);
-$.CGEventPost(0, up);
-`;
-  fs.writeFileSync(scriptPath, script);
-  console.log('[Autopilot] macClickAt:', x, y);
-  return execPromise(`osascript -l JavaScript "${scriptPath}"`, 5000);
+  const clickerPath = path.join(process.resourcesPath, 'helpers', 'zap-clicker');
+  console.log('[Autopilot] macClickAt:', x, y, 'using', clickerPath);
+  return execPromise(`"${clickerPath}" ${x} ${y}`, 5000);
 }
 
 // Windows: click at absolute screen coordinates using user32.dll
@@ -992,7 +974,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
     const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
-      body: JSON.stringify({ model, messages: msgs, max_tokens: tokens, temperature: 0.3 })
+      body: JSON.stringify({ model, messages: msgs, max_tokens: tokens, temperature: 0 })
     });
     if (!res.ok) return { error: `API Error (${res.status}): ${await res.text()}` };
     const data = await res.json();

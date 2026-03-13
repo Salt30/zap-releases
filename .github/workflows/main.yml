@@ -61,6 +61,14 @@ jobs:
           fi
           echo "API key injection verified."
 
+      - name: Compile native helpers
+        run: |
+          mkdir -p helpers/bin
+          swiftc -O -o helpers/bin/zap-clicker helpers/zap-clicker.swift
+          chmod +x helpers/bin/zap-clicker
+          echo "Compiled zap-clicker:"
+          file helpers/bin/zap-clicker
+
       - name: Build and Sign
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
