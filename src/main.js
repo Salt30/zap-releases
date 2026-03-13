@@ -775,16 +775,20 @@ function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // macOS: click at absolute screen coordinates using CoreGraphics CGEvent via JXA
 function macClickAt(x, y) {
-  const script = `
-    ObjC.import('CoreGraphics');
-    var pt = $.CGPointMake(${x}, ${y});
-    var down = $.CGEventCreateMouseEvent(null, $.kCGEventLeftMouseDown, pt, $.kCGMouseButtonLeft);
-    $.CGEventPost($.kCGHIDEventTap, down);
-    delay(0.05);
-    var up = $.CGEventCreateMouseEvent(null, $.kCGEventLeftMouseUp, pt, $.kCGMouseButtonLeft);
-    $.CGEventPost($.kCGHIDEventTap, up);
-  `.replace(/\n/g, ' ');
-  return execPromise(`osascript -l JavaScript -e '${script}'`, 5000);
+  const fs = require('fs');
+  const os = require('os');
+  const scriptPath = path.join(os.tmpdir(), 'zap_click.js');
+  const script = `ObjC.import('CoreGraphics');
+var pt = $.CGPointMake(${x}, ${y});
+var down = $.CGEventCreateMouseEvent(null, $.kCGEventLeftMouseDown, pt, $.kCGMouseButtonLeft);
+$.CGEventPost($.kCGHIDEventTap, down);
+delay(0.05);
+var up = $.CGEventCreateMouseEvent(null, $.kCGEventLeftMouseUp, pt, $.kCGMouseButtonLeft);
+$.CGEventPost($.kCGHIDEventTap, up);
+`;
+  fs.writeFileSync(scriptPath, script);
+  console.log('[Autopilot] macClickAt:', x, y, '— script written to', scriptPath);
+  return execPromise(`osascript -l JavaScript "${scriptPath}"`, 5000);
 }
 
 // Windows: click at absolute screen coordinates using user32.dll
@@ -795,11 +799,22 @@ function winClickAt(x, y) {
 ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
   if (!fields || !fields.length) return { success: false, error: 'No fields to fill' };
 
+  console.log('[Autopilot] Executing', fields.length, 'fields:', JSON.stringify(fields));
+
   // Hide overlay so we can interact with the underlying app
   if (overlayWin) { overlayWin.hide(); overlayUp = false; stopLockdownKeepAlive(); stopScreenShareDetection(); }
-  await sleep(600);
+  await sleep(400);
+
+  // Bring the previously-active app to front (the one behind our overlay)
+  if (process.platform === 'darwin') {
+    try {
+      await execPromise(`osascript -e 'tell application "System Events" to set frontmost of (first process whose frontmost is true) to true'`, 3000);
+    } catch(_) { /* ignore */ }
+    await sleep(200);
+  }
 
   const scale = screen.getPrimaryDisplay().scaleFactor || 1;
+  console.log('[Autopilot] Display scale factor:', scale);
   const results = [];
 
   for (const field of fields) {
@@ -811,15 +826,17 @@ ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
     // AI returns coordinates in image pixels; divide by scale to get screen points
     const x = Math.round(field.clickX / scale);
     const y = Math.round(field.clickY / scale);
+    console.log(`[Autopilot] Field "${field.label}" type=${field.type} answer="${field.answer}" raw=(${field.clickX},${field.clickY}) scaled=(${x},${y})`);
 
     try {
       // Click at the target coordinates using CGEvent (macOS) or user32 (Windows)
       if (process.platform === 'darwin') {
         await macClickAt(x, y);
+        console.log(`[Autopilot] Click completed at (${x},${y})`);
       } else {
         await winClickAt(x, y);
       }
-      await sleep(300);
+      await sleep(350);
 
       // If text/select field, type the answer after clicking
       if ((field.type === 'text' || field.type === 'select') && field.answer) {
