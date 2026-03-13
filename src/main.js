@@ -773,12 +773,31 @@ function execPromise(cmd, timeout) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
+// macOS: click at absolute screen coordinates using CoreGraphics CGEvent via JXA
+function macClickAt(x, y) {
+  const script = `
+    ObjC.import('CoreGraphics');
+    var pt = $.CGPointMake(${x}, ${y});
+    var down = $.CGEventCreateMouseEvent(null, $.kCGEventLeftMouseDown, pt, $.kCGMouseButtonLeft);
+    $.CGEventPost($.kCGHIDEventTap, down);
+    delay(0.05);
+    var up = $.CGEventCreateMouseEvent(null, $.kCGEventLeftMouseUp, pt, $.kCGMouseButtonLeft);
+    $.CGEventPost($.kCGHIDEventTap, up);
+  `.replace(/\n/g, ' ');
+  return execPromise(`osascript -l JavaScript -e '${script}'`, 5000);
+}
+
+// Windows: click at absolute screen coordinates using user32.dll
+function winClickAt(x, y) {
+  return execPromise(`powershell -Command "Add-Type -AssemblyName System.Windows.Forms; Add-Type -MemberDefinition '[DllImport(\\\"user32.dll\\\")]public static extern bool SetCursorPos(int x,int y);[DllImport(\\\"user32.dll\\\")]public static extern void mouse_event(int f,int x,int y,int d,int e);' -Name U -Namespace W; [W.U]::SetCursorPos(${x},${y}); [W.U]::mouse_event(2,0,0,0,0); [W.U]::mouse_event(4,0,0,0,0)"`, 5000);
+}
+
 ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
   if (!fields || !fields.length) return { success: false, error: 'No fields to fill' };
 
   // Hide overlay so we can interact with the underlying app
   if (overlayWin) { overlayWin.hide(); overlayUp = false; stopLockdownKeepAlive(); stopScreenShareDetection(); }
-  await sleep(400);
+  await sleep(600);
 
   const scale = screen.getPrimaryDisplay().scaleFactor || 1;
   const results = [];
@@ -794,13 +813,13 @@ ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
     const y = Math.round(field.clickY / scale);
 
     try {
-      // Click at the target coordinates
+      // Click at the target coordinates using CGEvent (macOS) or user32 (Windows)
       if (process.platform === 'darwin') {
-        await execPromise(`osascript -e 'tell application "System Events" to click at {${x}, ${y}}'`, 5000);
+        await macClickAt(x, y);
       } else {
-        await execPromise(`powershell -Command "Add-Type -AssemblyName System.Windows.Forms; Add-Type -MemberDefinition '[DllImport(\\\"user32.dll\\\")]public static extern bool SetCursorPos(int x,int y);[DllImport(\\\"user32.dll\\\")]public static extern void mouse_event(int f,int x,int y,int d,int e);' -Name U -Namespace W; [W.U]::SetCursorPos(${x},${y}); [W.U]::mouse_event(2,0,0,0,0); [W.U]::mouse_event(4,0,0,0,0)"`, 5000);
+        await winClickAt(x, y);
       }
-      await sleep(200);
+      await sleep(300);
 
       // If text/select field, type the answer after clicking
       if ((field.type === 'text' || field.type === 'select') && field.answer) {
@@ -808,7 +827,6 @@ ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
         if (process.platform === 'darwin') {
           await execPromise(`osascript -e 'tell application "System Events" to keystroke "a" using command down'`, 3000);
           await sleep(100);
-          // Type the answer character by character for reliability
           const escaped = field.answer.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/'/g, "'\\''");
           await execPromise(`osascript -e 'tell application "System Events" to keystroke "${escaped}"'`, 15000);
         } else {
@@ -817,10 +835,17 @@ ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
       }
 
       results.push({ label: field.label || '?', ok: true });
-      await sleep(250);
+      await sleep(300);
     } catch (err) {
       results.push({ label: field.label || '?', ok: false, reason: err.message });
     }
+  }
+
+  // Show overlay again with results
+  if (overlayWin && !overlayWin.isDestroyed()) {
+    overlayWin.show();
+    overlayUp = true;
+    initScreenCaptureDetection();
   }
 
   return { success: true, results, filled: results.filter(r => r.ok).length, total: results.length };
