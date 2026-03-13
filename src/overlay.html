@@ -175,6 +175,9 @@
 
   window.zap.onSetMode(function(m){setMode(m)});
 
+  // Listen for autopilot results pushed from main process (e.g. accessibility error)
+  window.zap.onAutopilotResult(function(result){ showAutopilotResults(result); });
+
   // Screen share stealth: show small indicator when overlay is hidden from recordings
   window.zap.onScreenShareStatus(function(hidden){
     var badge=document.getElementById('stealth-badge');
@@ -430,6 +433,10 @@
 
   function showAutopilotResults(result){
     if(!result)return;
+    if(result.error==='accessibility_not_granted'){
+      resBody.className='';resBody.innerHTML='<div class="error-msg" style="text-align:center;padding:14px 0"><div style="font-size:28px;margin-bottom:8px">&#128274;</div><div style="font-size:13px;font-weight:600;color:#facc15;margin-bottom:6px">Accessibility Permission Required</div><div style="font-size:11px;color:rgba(255,255,255,0.55);line-height:1.5">Go to <b>System Settings → Privacy &amp; Security → Accessibility</b> and enable <b>Zap</b>. Then press Alt+4 to try again.</div></div>';
+      return;
+    }
     var filled=result.filled||0, total=result.total||0;
     var html='<div style="text-align:center;padding:10px 0 14px">';
     html+='<div style="font-size:32px;margin-bottom:6px">'+(filled===total?'&#9989;':'&#9888;&#65039;')+'</div>';

@@ -774,20 +774,27 @@ function execPromise(cmd, timeout) {
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
 // macOS: click at absolute screen coordinates using CoreGraphics CGEvent via JXA
+// Uses numeric constants to avoid JXA bridge symbol resolution issues
 function macClickAt(x, y) {
   const fs = require('fs');
   const os = require('os');
   const scriptPath = path.join(os.tmpdir(), 'zap_click.js');
+  // Use numeric constants directly:
+  // kCGEventMouseMoved=5, kCGEventLeftMouseDown=1, kCGEventLeftMouseUp=2
+  // kCGMouseButtonLeft=0, kCGHIDEventTap=0
   const script = `ObjC.import('CoreGraphics');
 var pt = $.CGPointMake(${x}, ${y});
-var down = $.CGEventCreateMouseEvent(null, $.kCGEventLeftMouseDown, pt, $.kCGMouseButtonLeft);
-$.CGEventPost($.kCGHIDEventTap, down);
+var move = $.CGEventCreateMouseEvent(null, 5, pt, 0);
+$.CGEventPost(0, move);
 delay(0.05);
-var up = $.CGEventCreateMouseEvent(null, $.kCGEventLeftMouseUp, pt, $.kCGMouseButtonLeft);
-$.CGEventPost($.kCGHIDEventTap, up);
+var down = $.CGEventCreateMouseEvent(null, 1, pt, 0);
+$.CGEventPost(0, down);
+delay(0.05);
+var up = $.CGEventCreateMouseEvent(null, 2, pt, 0);
+$.CGEventPost(0, up);
 `;
   fs.writeFileSync(scriptPath, script);
-  console.log('[Autopilot] macClickAt:', x, y, '— script written to', scriptPath);
+  console.log('[Autopilot] macClickAt:', x, y);
   return execPromise(`osascript -l JavaScript "${scriptPath}"`, 5000);
 }
 
@@ -801,16 +808,35 @@ ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
 
   console.log('[Autopilot] Executing', fields.length, 'fields:', JSON.stringify(fields));
 
+  // ── macOS: check Accessibility permission (required for CGEvent clicks) ──
+  if (process.platform === 'darwin') {
+    const { systemPreferences } = require('electron');
+    // Passing true shows the macOS prompt asking the user to grant access
+    const trusted = systemPreferences.isTrustedAccessibilityClient(true);
+    console.log('[Autopilot] Accessibility trusted:', trusted);
+    if (!trusted) {
+      // Show overlay with error telling user to grant permission
+      if (overlayWin && !overlayWin.isDestroyed()) {
+        overlayWin.webContents.send('autopilot-result', {
+          success: false,
+          error: 'Zap needs Accessibility permission. Go to System Settings → Privacy & Security → Accessibility → enable Zap, then try again.'
+        });
+      }
+      return { success: false, error: 'accessibility_not_granted' };
+    }
+  }
+
   // Hide overlay so we can interact with the underlying app
   if (overlayWin) { overlayWin.hide(); overlayUp = false; stopLockdownKeepAlive(); stopScreenShareDetection(); }
-  await sleep(400);
+  await sleep(500);
 
   // Bring the previously-active app to front (the one behind our overlay)
   if (process.platform === 'darwin') {
     try {
-      await execPromise(`osascript -e 'tell application "System Events" to set frontmost of (first process whose frontmost is true) to true'`, 3000);
-    } catch(_) { /* ignore */ }
-    await sleep(200);
+      // Activate the frontmost non-Zap process
+      await execPromise(`osascript -e 'tell application "System Events"' -e 'set procs to every process whose visible is true and name is not "Zap"' -e 'if (count of procs) > 0 then' -e 'set frontmost of item 1 of procs to true' -e 'end if' -e 'end tell'`, 3000);
+    } catch(e) { console.log('[Autopilot] Focus error (non-fatal):', e.message); }
+    await sleep(300);
   }
 
   const scale = screen.getPrimaryDisplay().scaleFactor || 1;
@@ -829,18 +855,16 @@ ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
     console.log(`[Autopilot] Field "${field.label}" type=${field.type} answer="${field.answer}" raw=(${field.clickX},${field.clickY}) scaled=(${x},${y})`);
 
     try {
-      // Click at the target coordinates using CGEvent (macOS) or user32 (Windows)
       if (process.platform === 'darwin') {
         await macClickAt(x, y);
-        console.log(`[Autopilot] Click completed at (${x},${y})`);
+        console.log(`[Autopilot] Click done at (${x},${y})`);
       } else {
         await winClickAt(x, y);
       }
-      await sleep(350);
+      await sleep(400);
 
       // If text/select field, type the answer after clicking
       if ((field.type === 'text' || field.type === 'select') && field.answer) {
-        // Select all existing text first (Cmd+A / Ctrl+A) then type over it
         if (process.platform === 'darwin') {
           await execPromise(`osascript -e 'tell application "System Events" to keystroke "a" using command down'`, 3000);
           await sleep(100);
@@ -854,6 +878,7 @@ ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
       results.push({ label: field.label || '?', ok: true });
       await sleep(300);
     } catch (err) {
+      console.log(`[Autopilot] Click error:`, err.message);
       results.push({ label: field.label || '?', ok: false, reason: err.message });
     }
   }

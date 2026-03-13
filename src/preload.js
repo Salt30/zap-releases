@@ -19,6 +19,7 @@ contextBridge.exposeInMainWorld('zap', {
   onLoadSettings:   (cb) => ipcRenderer.on('load-settings',   (_, d) => cb(d)),
   onSetMode:        (cb) => ipcRenderer.on('set-mode',         (_, m) => cb(m)),
   onScreenShareStatus: (cb) => ipcRenderer.on('screen-share-status', (_, s) => cb(s)),
+  onAutopilotResult:   (cb) => ipcRenderer.on('autopilot-result', (_, d) => cb(d)),
   onSettingsSaved:  (cb) => ipcRenderer.on('settings-saved',   ()     => cb()),
   onCheckoutCancelled: (cb) => ipcRenderer.on('checkout-cancelled', () => cb()),
 
