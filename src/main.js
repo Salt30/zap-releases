@@ -83,7 +83,7 @@ const STORE_DEFAULTS = {
   subscriptionStatus: 'inactive',
   lastSubscriptionCheck: 0,
   trialStarted: 0,
-  trialDays: 7,
+  trialDays: 3,
   // Usage Analytics
   statsFirstLaunch: 0,
   statsTotalSessions: 0,
@@ -1096,6 +1096,7 @@ ipcMain.handle('create-checkout-session', async (_ev, email) => {
       payment_method_types: ['card'],
       line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
       customer_email: email || undefined,
+      subscription_data: { trial_period_days: 3 },
       success_url: 'https://tryzap.net/checkout/success?session_id={CHECKOUT_SESSION_ID}',
       cancel_url: 'https://tryzap.net/checkout/cancel',
       metadata: { app: 'zap', hostname: require('os').hostname() }
