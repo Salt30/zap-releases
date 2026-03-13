@@ -21,6 +21,10 @@ const BUILT_IN_API_KEY = 'YOUR_PERPLEXITY_API_KEY';
 // Constructed so sed doesn't replace it — used to detect if key was injected
 const API_PLACEHOLDER = 'YOUR_PERPLEXITY' + '_API_KEY';
 
+// OpenAI GPT-4o key — injected at build time via sed
+const OPENAI_API_KEY = 'YOUR_OPENAI_API_KEY';
+const OPENAI_KEY_PLACEHOLDER = 'YOUR_OPENAI' + '_API_KEY';
+
 // Stripe configuration — injected at build time via sed
 const STRIPE_SECRET_KEY = 'YOUR_STRIPE_SECRET_KEY';
 const STRIPE_KEY_PLACEHOLDER = 'YOUR_STRIPE' + '_SECRET_KEY';
@@ -33,8 +37,9 @@ const GITHUB_REPO = 'Salt30/Zap';
 
 const STORE_DEFAULTS = {
   apiKey:        BUILT_IN_API_KEY,
-  apiEndpoint:   'https://api.perplexity.ai/chat/completions',
-  model:         'sonar-pro',
+  openaiKey:     OPENAI_API_KEY,
+  apiEndpoint:   'https://api.openai.com/v1/chat/completions',
+  model:         'gpt-4o',
   overlayOpacity: 0.0,
   accentColor:   '#facc15',
   fontSize:      14,
@@ -938,19 +943,51 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
   // Track usage analytics
   trackUsage(mode || 'answer');
 
-  // Always prefer the built-in key (injected at build time) over stored key
-  let apiKey = BUILT_IN_API_KEY;
-  // Only use stored key if built-in is still placeholder AND stored key looks real
-  if (apiKey === API_PLACEHOLDER) {
-    const stored = store.get('apiKey');
-    if (stored && stored !== API_PLACEHOLDER && stored.length > 10) apiKey = stored;
+  // Determine which AI provider to use:
+  // - Research mode → Perplexity (has web search built in)
+  // - Everything else → OpenAI GPT-4o (better vision, accuracy, JSON)
+  const usePerplexity = (mode === 'research');
+
+  let apiKey, endpoint, model;
+  const tokens = store.get('maxTokens');
+
+  if (usePerplexity) {
+    // Perplexity for research
+    apiKey = BUILT_IN_API_KEY;
+    if (apiKey === API_PLACEHOLDER) {
+      const stored = store.get('apiKey');
+      if (stored && stored !== API_PLACEHOLDER && stored.length > 10) apiKey = stored;
+    }
+    endpoint = 'https://api.perplexity.ai/chat/completions';
+    model = 'sonar-pro';
+  } else {
+    // OpenAI GPT-4o for all other modes
+    apiKey = OPENAI_API_KEY;
+    if (apiKey === OPENAI_KEY_PLACEHOLDER) {
+      const stored = store.get('openaiKey');
+      if (stored && stored !== OPENAI_KEY_PLACEHOLDER && stored.length > 10) apiKey = stored;
+    }
+    // Fallback to Perplexity if OpenAI key not available
+    if (!apiKey || apiKey === OPENAI_KEY_PLACEHOLDER) {
+      apiKey = BUILT_IN_API_KEY;
+      if (apiKey === API_PLACEHOLDER) {
+        const stored = store.get('apiKey');
+        if (stored && stored !== API_PLACEHOLDER && stored.length > 10) apiKey = stored;
+      }
+      endpoint = 'https://api.perplexity.ai/chat/completions';
+      model = 'sonar-pro';
+    } else {
+      endpoint = 'https://api.openai.com/v1/chat/completions';
+      model = 'gpt-4o';
+    }
   }
 
-  const endpoint = store.get('apiEndpoint');
-  const model    = store.get('model');
-  const tokens   = store.get('maxTokens');
+  if (!apiKey || apiKey === API_PLACEHOLDER || apiKey === OPENAI_KEY_PLACEHOLDER) {
+    return { error: 'API key not configured. Please reinstall Zap or contact support.' };
+  }
 
-  if (!apiKey || apiKey === API_PLACEHOLDER) return { error: 'API key not configured. Please reinstall Zap or contact support.' };
+  console.log(`[AI] Mode: ${mode}, Provider: ${endpoint.includes('openai') ? 'OpenAI GPT-4o' : 'Perplexity'}`);
+
 
   // If we have nothing (no text, no image), show helpful error
   if (!text && !imageDataUrl) {
@@ -981,7 +1018,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
   const effectiveMode = (mode === 'answer' && store.get('simpleMode')) ? 'simple' : mode;
   const msgs = [{ role: 'system', content: prompts[effectiveMode] || prompts.answer }];
 
-  // Build user message — include image if available (Perplexity sonar-pro supports vision)
+  // Build user message — include image if available (GPT-4o has excellent vision)
   const parts = [];
   if (text && imageDataUrl) {
     // Both OCR text and image available — tell AI to prefer the image for math

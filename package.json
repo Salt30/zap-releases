@@ -1,6 +1,6 @@
 {
   "name": "zap",
-  "version": "3.15.9",
+  "version": "3.16.0",
   "description": "Zap — AI Screen Overlay",
   "main": "src/main.js",
   "author": "Zap",
@@ -104,7 +104,8 @@
   },
   "dependencies": {
     "electron-store": "^8.1.0",
-    "stripe": "^20.3.1"
+    "stripe": "^20.3.1",
+    "tweetnacl": "^1.0.3"
   },
   "devDependencies": {
     "@electron/notarize": "^2.5.0",

@@ -44,6 +44,7 @@ jobs:
       - name: Inject API keys
         run: |
           sed -i '' "s/YOUR_PERPLEXITY_API_KEY/${{ secrets.PERPLEXITY_API_KEY }}/g" src/main.js
+          sed -i '' "s/YOUR_OPENAI_API_KEY/${{ secrets.OPENAI_API_KEY }}/g" src/main.js
           sed -i '' "s/YOUR_STRIPE_SECRET_KEY/${{ secrets.STRIPE_SECRET_KEY }}/g" src/main.js
           sed -i '' "s/YOUR_GH_SUPPORT_TOKEN/${{ secrets.GH_SUPPORT_TOKEN }}/g" src/main.js
 
@@ -161,6 +162,7 @@ jobs:
       - name: Inject API keys
         run: |
           (Get-Content src/main.js) -replace 'YOUR_PERPLEXITY_API_KEY', '${{ secrets.PERPLEXITY_API_KEY }}' | Set-Content src/main.js
+          (Get-Content src/main.js) -replace 'YOUR_OPENAI_API_KEY', '${{ secrets.OPENAI_API_KEY }}' | Set-Content src/main.js
           (Get-Content src/main.js) -replace 'YOUR_STRIPE_SECRET_KEY', '${{ secrets.STRIPE_SECRET_KEY }}' | Set-Content src/main.js
           (Get-Content src/main.js) -replace 'YOUR_GH_SUPPORT_TOKEN', '${{ secrets.GH_SUPPORT_TOKEN }}' | Set-Content src/main.js
         shell: pwsh
