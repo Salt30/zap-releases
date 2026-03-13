@@ -198,6 +198,20 @@
     currentMode=m;
     modeInd.textContent=labels[m]||m;
     if(m==='driptype') showDT(); else hideDT();
+    // Autopilot: auto-capture full screen immediately — no drag needed
+    if(m==='autopilot'){
+      instr.style.display='none';
+      // Wait for screen capture to arrive, then auto-process
+      var waitCount=0;
+      var waitForCapture=setInterval(function(){
+        waitCount++;
+        if(capture||waitCount>20){
+          clearInterval(waitForCapture);
+          if(capture) processRequest();
+          else{ resPanel.style.display='flex';resPanel.style.flexDirection='column';posPanel();resBody.className='';resBody.innerHTML='<div class="error-msg">No screen capture available. Try again.</div>'; }
+        }
+      },150);
+    }
   }
 
   function showDT(){
@@ -291,7 +305,7 @@
 
   layer.addEventListener('mousedown',function(e){
     if(e.button!==0||textMode)return;
-    if(currentMode==='driptype')return;
+    if(currentMode==='driptype'||currentMode==='autopilot')return;
     if(resPanel.style.display==='flex')return;
     if(settings.lockdownMode)return; // No screen capture in lockdown — drag is disabled
     isSelecting=true;
@@ -460,8 +474,8 @@
     document.getElementById('ap-continue-btn').addEventListener('click',function(){
       autopilotData=null;
       resPanel.style.display='none';resPanel.style.transform='';resetSel();
-      // Re-trigger: capture screen and process again
-      setTimeout(function(){processRequest()},500);
+      // Hide overlay, wait for user to go to next page, then re-trigger
+      window.zap.hideOverlay();
     });
     document.getElementById('ap-finish-btn').addEventListener('click',function(){
       autopilotData=null;
