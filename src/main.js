@@ -43,7 +43,7 @@ const STORE_DEFAULTS = {
   hotkey:          'Alt+3',
   hotkeyAnswer:    'Alt+1',
   hotkeyTranslate: 'Alt+2',
-  hotkeyRewrite:   'Alt+4',
+  hotkeyAutopilot: 'Alt+4',
   hotkeyDripType:  'Alt+5',
   hotkeyStopDrip:  'Alt+0',
   hotkeySimple:    'Alt+6',
@@ -53,6 +53,7 @@ const STORE_DEFAULTS = {
   hotkeyResearch:  'CmdOrCtrl+Alt+1',
   hotkeyEmail:     'CmdOrCtrl+Alt+2',
   hotkeyFlashcards:'CmdOrCtrl+Alt+3',
+  hotkeyRewrite:   'CmdOrCtrl+Alt+4',
   hotkeyApp:       'Alt+M',
   language:      'Spanish',
   theme:         'dark',
@@ -553,6 +554,7 @@ function bindKeys() {
     [store.get('hotkeyResearch'),  () => showWithMode('research')],
     [store.get('hotkeyEmail'),     () => showWithMode('email')],
     [store.get('hotkeyFlashcards'),() => showWithMode('flashcards')],
+    [store.get('hotkeyAutopilot'), () => showWithMode('autopilot')],
     [store.get('hotkeyStopDrip'),  () => { dripTypeCancelled = true; }]
   ];
   for (const [key, fn] of featureKeys) {
@@ -575,6 +577,7 @@ function bindKeys() {
       ['Control+Shift+F',  () => showWithMode('research')],
       ['Control+Shift+W',  () => showWithMode('email')],
       ['Control+Shift+Q',  () => showWithMode('flashcards')],
+      ['Control+Shift+P',  () => showWithMode('autopilot')],
       ['Control+Shift+X',  () => { dripTypeCancelled = true; }]
     ];
     for (const [key, fn] of stealthKeys) {
@@ -751,6 +754,71 @@ ipcMain.handle('paste-to-screen', async () => {
   }
 });
 
+/* ─────────────────── Autopilot Execution ─────────────────── */
+
+function execPromise(cmd, timeout) {
+  return new Promise((resolve, reject) => {
+    exec(cmd, { timeout: timeout || 5000 }, (err, stdout) => {
+      if (err) reject(err); else resolve(stdout);
+    });
+  });
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
+  if (!fields || !fields.length) return { success: false, error: 'No fields to fill' };
+
+  // Hide overlay so we can interact with the underlying app
+  if (overlayWin) { overlayWin.hide(); overlayUp = false; stopLockdownKeepAlive(); stopScreenShareDetection(); }
+  await sleep(400);
+
+  const scale = screen.getPrimaryDisplay().scaleFactor || 1;
+  const results = [];
+
+  for (const field of fields) {
+    if (!field.clickX || !field.clickY) {
+      results.push({ label: field.label || '?', ok: false, reason: 'no coordinates' });
+      continue;
+    }
+
+    // AI returns coordinates in image pixels; divide by scale to get screen points
+    const x = Math.round(field.clickX / scale);
+    const y = Math.round(field.clickY / scale);
+
+    try {
+      // Click at the target coordinates
+      if (process.platform === 'darwin') {
+        await execPromise(`osascript -e 'tell application "System Events" to click at {${x}, ${y}}'`, 5000);
+      } else {
+        await execPromise(`powershell -Command "Add-Type -AssemblyName System.Windows.Forms; Add-Type -MemberDefinition '[DllImport(\\\"user32.dll\\\")]public static extern bool SetCursorPos(int x,int y);[DllImport(\\\"user32.dll\\\")]public static extern void mouse_event(int f,int x,int y,int d,int e);' -Name U -Namespace W; [W.U]::SetCursorPos(${x},${y}); [W.U]::mouse_event(2,0,0,0,0); [W.U]::mouse_event(4,0,0,0,0)"`, 5000);
+      }
+      await sleep(200);
+
+      // If text/select field, type the answer after clicking
+      if ((field.type === 'text' || field.type === 'select') && field.answer) {
+        // Select all existing text first (Cmd+A / Ctrl+A) then type over it
+        if (process.platform === 'darwin') {
+          await execPromise(`osascript -e 'tell application "System Events" to keystroke "a" using command down'`, 3000);
+          await sleep(100);
+          // Type the answer character by character for reliability
+          const escaped = field.answer.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/'/g, "'\\''");
+          await execPromise(`osascript -e 'tell application "System Events" to keystroke "${escaped}"'`, 15000);
+        } else {
+          await execPromise(`powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^a'); Start-Sleep -Milliseconds 100; [System.Windows.Forms.SendKeys]::SendWait('${field.answer.replace(/[+^%~(){}[\]]/g, '{$&}')}')"`, 15000);
+        }
+      }
+
+      results.push({ label: field.label || '?', ok: true });
+      await sleep(250);
+    } catch (err) {
+      results.push({ label: field.label || '?', ok: false, reason: err.message });
+    }
+  }
+
+  return { success: true, results, filled: results.filter(r => r.ok).length, total: results.length };
+});
+
 ipcMain.on('open-settings', () => makeSettings());
 
 ipcMain.on('open-app', () => {
@@ -819,7 +887,8 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
       ? 'You are a research specialist. Provide a thorough analysis using ONLY credible academic and institutional sources (.edu, .org, .gov domains). Do NOT cite .com or commercial sources. Structure: 1) Brief overview, 2) Key findings with data from credible sources only, 3) References — list only .edu/.org/.gov URLs. Be factual and thorough.'
       : 'You are a research specialist. Provide a thorough, well-organized analysis of the topic shown. Structure your response as: 1) Brief overview, 2) Key findings with specific details and data, 3) Sources and references at the end. Use real, credible sources where possible. Be factual and detailed.',
     email:     'You are a professional communication expert. Draft a polished email reply based on the context shown on screen. Match the tone and formality of the original message. Include an appropriate greeting, clear and concise body, and professional closing. Return ONLY the email text — no Subject line, no "To:" field, no metadata.',
-    flashcards:'You are an educational content creator. Generate 5-8 Q&A flashcards from the material shown on screen. Format each as: **Q:** [question] followed by **A:** [concise answer]. Focus on key concepts, definitions, formulas, and important facts. Number each flashcard.'
+    flashcards:'You are an educational content creator. Generate 5-8 Q&A flashcards from the material shown on screen. Format each as: **Q:** [question] followed by **A:** [concise answer]. Focus on key concepts, definitions, formulas, and important facts. Number each flashcard.',
+    autopilot: 'You are a quiz/form auto-fill AI. Analyze the screenshot and identify ALL visible questions and form fields. Return ONLY valid JSON — no markdown, no code fences, no explanation. Format: {"fields":[{"label":"question or field label","type":"radio","answer":"the correct answer","clickX":123,"clickY":456}],"nextBtn":null}. Field types: "radio" for multiple choice (clickX/clickY = center of the correct radio button/option to click), "checkbox" for checkboxes, "text" for text inputs or textareas (clickX/clickY = center of the input field), "select" for dropdowns. Coordinates must be in pixels matching the image dimensions, measured from top-left corner. For multiple choice: identify the CORRECT answer and provide coordinates of that specific option. Answer every question correctly using your knowledge. Be extremely precise with coordinates — they will be used to click.'
   };
 
   // If simpleMode toggle is ON, override 'answer' mode to use 'simple' prompt

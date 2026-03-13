@@ -193,7 +193,7 @@
     }
   });
 
-  var labels={answer:'Answer',simple:'Simple',translate:'Translate',rewrite:'Rewrite',solve:'Solve',essay:'Essay',code:'Code',research:'Research',email:'Email',flashcards:'Flashcards',driptype:'Drip Type'};
+  var labels={answer:'Answer',simple:'Simple',translate:'Translate',rewrite:'Rewrite',solve:'Solve',essay:'Essay',code:'Code',research:'Research',email:'Email',flashcards:'Flashcards',driptype:'Drip Type',autopilot:'Autopilot'};
   function setMode(m){
     currentMode=m;
     modeInd.textContent=labels[m]||m;
@@ -367,6 +367,7 @@
     try{
       var r=await window.zap.aiRequest({mode:currentMode,text:ocr||manual||null,imageDataUrl:img,region:selRect,language:settings.language});
       if(r.error){resBody.className='';resBody.innerHTML='<div class="error-msg">'+esc(r.error)+'</div>';return}
+      if(currentMode==='autopilot'){handleAutopilotResponse(r.result);return}
       resBody.className='';resBody.innerHTML=fmtMd(r.result);
       // Mode-specific enhancements
       if(currentMode==='flashcards'){
@@ -380,6 +381,93 @@
       }
       pasteBtn.textContent=(currentMode==='email')?'Paste Reply':'Paste';
     }catch(err){resBody.className='';resBody.innerHTML='<div class="error-msg">'+esc(err.message)+'</div>'}
+  }
+
+  // ── Autopilot Mode ──
+  var autopilotData=null;
+
+  function handleAutopilotResponse(raw){
+    try{
+      var parsed;
+      try{parsed=JSON.parse(raw)}catch(_){
+        var m=raw.match(/\{[\s\S]*\}/);
+        if(m)parsed=JSON.parse(m[0]); else throw new Error('No JSON found');
+      }
+      if(!parsed.fields||!parsed.fields.length){resBody.className='';resBody.innerHTML='<div class="error-msg">No form fields detected. Try selecting a clearer area.</div>';return}
+      autopilotData=parsed;
+      showAutopilotPreview(parsed);
+    }catch(e){
+      resBody.className='';resBody.innerHTML='<div class="error-msg">Could not parse form data: '+esc(e.message)+'<br>Try selecting a clearer area of the quiz.</div>';
+    }
+  }
+
+  function showAutopilotPreview(data){
+    var html='<div style="margin-bottom:12px;font-size:13px;font-weight:600;color:#facc15">Found '+data.fields.length+' field'+(data.fields.length>1?'s':'')+'</div>';
+    html+='<div style="max-height:280px;overflow-y:auto;margin-bottom:14px">';
+    data.fields.forEach(function(f,i){
+      var badge='';
+      if(f.type==='radio')badge='<span style="background:rgba(96,165,250,0.15);color:#60a5fa;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600">RADIO</span>';
+      else if(f.type==='checkbox')badge='<span style="background:rgba(52,211,153,0.15);color:#34d399;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600">CHECK</span>';
+      else if(f.type==='text')badge='<span style="background:rgba(250,204,21,0.15);color:#facc15;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600">TEXT</span>';
+      else if(f.type==='select')badge='<span style="background:rgba(192,132,252,0.15);color:#c084fc;padding:2px 6px;border-radius:4px;font-size:10px;font-weight:600">SELECT</span>';
+      html+='<div style="padding:8px 10px;border-bottom:1px solid rgba(255,255,255,0.06);display:flex;align-items:flex-start;gap:8px">';
+      html+='<span style="color:rgba(255,255,255,0.3);font-size:11px;min-width:16px">'+(i+1)+'</span>';
+      html+='<div style="flex:1"><div style="font-size:12px;color:rgba(255,255,255,0.7);margin-bottom:3px">'+esc(f.label||'Field '+(i+1))+'</div>';
+      html+='<div style="display:flex;align-items:center;gap:6px">'+badge+'<span style="font-size:12px;color:#facc15;font-weight:500">'+esc(f.answer||'')+'</span></div></div></div>';
+    });
+    html+='</div>';
+    html+='<div style="display:flex;gap:8px">';
+    html+='<button id="ap-execute-btn" style="flex:1;padding:10px 0;background:#facc15;color:#000;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .15s">Execute</button>';
+    html+='<button id="ap-cancel-btn" style="padding:10px 20px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;transition:all .15s">Cancel</button>';
+    html+='</div>';
+    resBody.className='';resBody.innerHTML=html;
+    document.getElementById('ap-execute-btn').addEventListener('click',executeAutopilot);
+    document.getElementById('ap-cancel-btn').addEventListener('click',function(){resPanel.style.display='none';resPanel.style.transform='';resetSel();autopilotData=null});
+  }
+
+  async function executeAutopilot(){
+    if(!autopilotData||!autopilotData.fields)return;
+    var btn=document.getElementById('ap-execute-btn');
+    if(btn){btn.disabled=true;btn.textContent='Filling...'}
+    try{
+      var result=await window.zap.autopilotExecute({fields:autopilotData.fields});
+      showAutopilotResults(result);
+    }catch(err){
+      resBody.className='';resBody.innerHTML='<div class="error-msg">Execution error: '+esc(err.message)+'</div>';
+    }
+  }
+
+  function showAutopilotResults(result){
+    if(!result)return;
+    var filled=result.filled||0, total=result.total||0;
+    var html='<div style="text-align:center;padding:10px 0 14px">';
+    html+='<div style="font-size:32px;margin-bottom:6px">'+(filled===total?'&#9989;':'&#9888;&#65039;')+'</div>';
+    html+='<div style="font-size:15px;font-weight:600;color:'+(filled===total?'#34d399':'#facc15')+'">Filled '+filled+' of '+total+' fields</div>';
+    html+='</div>';
+    if(result.results){
+      html+='<div style="max-height:180px;overflow-y:auto;margin-bottom:14px">';
+      result.results.forEach(function(r){
+        var icon=r.ok?'<span style="color:#34d399">&#10003;</span>':'<span style="color:#ef4444">&#10007;</span>';
+        html+='<div style="padding:5px 10px;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,0.04)">'+icon+'<span style="color:rgba(255,255,255,0.6)">'+esc(r.label)+'</span></div>';
+      });
+      html+='</div>';
+    }
+    html+='<div style="display:flex;gap:8px">';
+    html+='<button id="ap-continue-btn" style="flex:1;padding:10px 0;background:#facc15;color:#000;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .15s">Continue</button>';
+    html+='<button id="ap-finish-btn" style="padding:10px 20px;background:rgba(255,255,255,0.06);color:rgba(255,255,255,0.6);border:1px solid rgba(255,255,255,0.1);border-radius:8px;font-size:13px;cursor:pointer;font-family:inherit;transition:all .15s">Finish</button>';
+    html+='</div>';
+    resBody.className='';resBody.innerHTML=html;
+    document.getElementById('ap-continue-btn').addEventListener('click',function(){
+      autopilotData=null;
+      resPanel.style.display='none';resPanel.style.transform='';resetSel();
+      // Re-trigger: capture screen and process again
+      setTimeout(function(){processRequest()},500);
+    });
+    document.getElementById('ap-finish-btn').addEventListener('click',function(){
+      autopilotData=null;
+      resPanel.style.display='none';resPanel.style.transform='';resetSel();
+      window.zap.hideOverlay();
+    });
   }
 
   function posPanel(){
