@@ -773,11 +773,42 @@ function execPromise(cmd, timeout) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// macOS: click at absolute screen coordinates using compiled Swift helper
-function macClickAt(x, y) {
+// macOS: click at absolute screen coordinates — tries multiple methods
+async function macClickAt(x, y) {
+  const fs = require('fs');
+  const os = require('os');
+
+  // Method 1: Bundled Swift binary
   const clickerPath = path.join(process.resourcesPath, 'helpers', 'zap-clicker');
-  console.log('[Autopilot] macClickAt:', x, y, 'using', clickerPath);
-  return execPromise(`"${clickerPath}" ${x} ${y}`, 5000);
+  if (fs.existsSync(clickerPath)) {
+    try {
+      console.log('[Autopilot] Method 1 (Swift binary):', clickerPath, x, y);
+      await execPromise(`chmod +x "${clickerPath}" && "${clickerPath}" ${x} ${y}`, 5000);
+      return;
+    } catch (e) { console.log('[Autopilot] Swift binary failed:', e.message); }
+  } else {
+    console.log('[Autopilot] Swift binary not found at:', clickerPath);
+  }
+
+  // Method 2: Python3 + Quartz (available on most Macs with Xcode CLI tools)
+  try {
+    console.log('[Autopilot] Method 2 (Python Quartz):', x, y);
+    const pyScript = `import time;from Quartz.CoreGraphics import *;p=(${x},${y});e=CGEventCreateMouseEvent(None,kCGEventMouseMoved,p,0);CGEventPost(kCGHIDEventTap,e);time.sleep(0.03);d=CGEventCreateMouseEvent(None,kCGEventLeftMouseDown,p,kCGMouseButtonLeft);CGEventPost(kCGHIDEventTap,d);time.sleep(0.05);u=CGEventCreateMouseEvent(None,kCGEventLeftMouseUp,p,kCGMouseButtonLeft);CGEventPost(kCGHIDEventTap,u)`;
+    await execPromise(`/usr/bin/python3 -c "${pyScript}"`, 5000);
+    return;
+  } catch (e) { console.log('[Autopilot] Python Quartz failed:', e.message); }
+
+  // Method 3: JXA via temp file (last resort)
+  try {
+    console.log('[Autopilot] Method 3 (JXA temp file):', x, y);
+    const scriptPath = path.join(os.tmpdir(), 'zap_click.js');
+    const script = `ObjC.import("Cocoa");var p=$.CGPointMake(${x},${y});var m=$.CGEventCreateMouseEvent(null,5,p,0);$.CGEventPost(0,m);delay(0.03);var d=$.CGEventCreateMouseEvent(null,1,p,0);$.CGEventPost(0,d);delay(0.05);var u=$.CGEventCreateMouseEvent(null,2,p,0);$.CGEventPost(0,u);`;
+    fs.writeFileSync(scriptPath, script);
+    await execPromise(`osascript -l JavaScript "${scriptPath}"`, 5000);
+    return;
+  } catch (e) { console.log('[Autopilot] JXA failed:', e.message); }
+
+  throw new Error('All click methods failed — check Console.app for details');
 }
 
 // Windows: click at absolute screen coordinates using user32.dll

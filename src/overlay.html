@@ -446,7 +446,8 @@
       html+='<div style="max-height:180px;overflow-y:auto;margin-bottom:14px">';
       result.results.forEach(function(r){
         var icon=r.ok?'<span style="color:#34d399">&#10003;</span>':'<span style="color:#ef4444">&#10007;</span>';
-        html+='<div style="padding:5px 10px;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,0.04)">'+icon+'<span style="color:rgba(255,255,255,0.6)">'+esc(r.label)+'</span></div>';
+        var detail=r.ok?'':' <span style="color:rgba(239,68,68,0.7);font-size:10px">'+esc(r.reason||'failed')+'</span>';
+        html+='<div style="padding:5px 10px;font-size:12px;display:flex;align-items:center;gap:8px;border-bottom:1px solid rgba(255,255,255,0.04)">'+icon+'<span style="color:rgba(255,255,255,0.6)">'+esc(r.label)+detail+'</span></div>';
       });
       html+='</div>';
     }
