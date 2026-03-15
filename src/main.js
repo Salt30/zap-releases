@@ -779,73 +779,74 @@ function execPromise(cmd, timeout) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// macOS: click at absolute screen coordinates — tries multiple methods
+// macOS: click at absolute SCREEN coordinates using CGWarpMouseCursorPosition + CGEvent
+// Key insight: CGWarpMouseCursorPosition physically moves the cursor (like a real mouse),
+// then CGEvent posts click events at kCGSessionEventTap (where apps receive them).
+// Previous attempts failed because:
+// - "System Events click at" uses WINDOW-relative coords (caused random app opening)
+// - CGEventPost to kCGHIDEventTap (0) was silently eaten by the system
+// - kCGSessionEventTap (1) delivers events at the session level where apps actually get them
 async function macClickAt(x, y) {
   const fs = require('fs');
   const os = require('os');
 
-  // Method 1: AppleScript System Events "click at" — same mechanism as Drip Type keystroke
-  // This is the most reliable because it goes through the Accessibility framework
-  try {
-    console.log('[Autopilot] Method 1 (System Events click at):', x, y);
-    const script = `tell application "System Events"\n  set fp to first process whose frontmost is true\n  tell fp\n    click at {${x}, ${y}}\n  end tell\nend tell`;
-    const scriptPath = path.join(os.tmpdir(), 'zap_click.applescript');
-    fs.writeFileSync(scriptPath, script);
-    const result = await execPromise(`osascript "${scriptPath}" 2>&1`, 5000);
-    console.log('[Autopilot] System Events click result:', result.trim());
-    return;
-  } catch (e) {
-    console.log('[Autopilot] System Events click failed:', e.message);
-  }
-
-  // Method 2: Python3 + Quartz CGEvent — low-level mouse event injection
-  try {
-    console.log('[Autopilot] Method 2 (Python Quartz):', x, y);
-    const pyScript = `
-import time
+  const pyScript = `
+import time, sys
 from Quartz.CoreGraphics import *
-p = (${x}, ${y})
-# Move mouse first
-e = CGEventCreateMouseEvent(None, kCGEventMouseMoved, p, 0)
-CGEventPost(kCGHIDEventTap, e)
-time.sleep(0.05)
-# Mouse down
-d = CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, p, kCGMouseButtonLeft)
-CGEventPost(kCGHIDEventTap, d)
+from Quartz import CGWarpMouseCursorPosition, CGAssociateMouseAndMouseCursorPosition
+
+x, y = ${x}, ${y}
+point = (x, y)
+
+# Step 1: Physically warp the mouse cursor to the target position
+# This is what makes it behave like a real mouse move
+CGAssociateMouseAndMouseCursorPosition(False)
+CGWarpMouseCursorPosition(point)
+CGAssociateMouseAndMouseCursorPosition(True)
+time.sleep(0.1)
+
+# Step 2: Send mouse-moved event to kCGSessionEventTap so the OS knows where cursor is
+move = CGEventCreateMouseEvent(None, kCGEventMouseMoved, point, kCGMouseButtonLeft)
+CGEventPost(kCGSessionEventTap, move)
+time.sleep(0.1)
+
+# Step 3: Mouse down at the position — post to SESSION event tap, set click count
+down = CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, point, kCGMouseButtonLeft)
+CGEventSetIntegerValueField(down, kCGMouseEventClickState, 1)
+CGEventPost(kCGSessionEventTap, down)
 time.sleep(0.08)
-# Mouse up
-u = CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, p, kCGMouseButtonLeft)
-CGEventPost(kCGHIDEventTap, u)
-print('click_ok')
+
+# Step 4: Mouse up — same position, same click count
+up = CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, point, kCGMouseButtonLeft)
+CGEventSetIntegerValueField(up, kCGMouseEventClickState, 1)
+CGEventPost(kCGSessionEventTap, up)
+time.sleep(0.05)
+
+print('click_done_at_%d_%d' % (x, y))
 `;
-    const scriptPath = path.join(os.tmpdir(), 'zap_click.py');
-    fs.writeFileSync(scriptPath, pyScript);
-    const result = await execPromise(`/usr/bin/python3 "${scriptPath}" 2>&1`, 5000);
-    console.log('[Autopilot] Python Quartz result:', result.trim());
-    if (result.includes('click_ok')) return;
-  } catch (e) { console.log('[Autopilot] Python Quartz failed:', e.message); }
 
-  // Method 3: Bundled Swift binary
-  const clickerPath = path.join(process.resourcesPath, 'helpers', 'zap-clicker');
-  if (fs.existsSync(clickerPath)) {
-    try {
-      console.log('[Autopilot] Method 3 (Swift binary):', clickerPath, x, y);
-      await execPromise(`chmod +x "${clickerPath}" && "${clickerPath}" ${x} ${y}`, 5000);
-      return;
-    } catch (e) { console.log('[Autopilot] Swift binary failed:', e.message); }
-  }
+  const scriptPath = path.join(os.tmpdir(), 'zap_click.py');
+  fs.writeFileSync(scriptPath, pyScript);
 
-  // Method 4: JXA via temp file (last resort)
   try {
-    console.log('[Autopilot] Method 4 (JXA temp file):', x, y);
-    const jxaPath = path.join(os.tmpdir(), 'zap_click.js');
-    const jxaScript = `ObjC.import("Cocoa");var p=$.CGPointMake(${x},${y});var m=$.CGEventCreateMouseEvent(null,5,p,0);$.CGEventPost(0,m);delay(0.05);var d=$.CGEventCreateMouseEvent(null,1,p,0);$.CGEventPost(0,d);delay(0.08);var u=$.CGEventCreateMouseEvent(null,2,p,0);$.CGEventPost(0,u);`;
-    fs.writeFileSync(jxaPath, jxaScript);
-    await execPromise(`osascript -l JavaScript "${jxaPath}"`, 5000);
-    return;
-  } catch (e) { console.log('[Autopilot] JXA failed:', e.message); }
-
-  throw new Error('All click methods failed — check Console.app for details');
+    console.log('[Autopilot] Clicking at screen (%d, %d) via CGWarp + CGEvent(session)...', x, y);
+    const result = await execPromise(`/usr/bin/python3 "${scriptPath}" 2>&1`, 8000);
+    console.log('[Autopilot] Click result:', result.trim());
+    if (result.includes('click_done')) return;
+    throw new Error('Click script did not confirm success: ' + result.trim());
+  } catch (e) {
+    console.log('[Autopilot] Python click failed:', e.message);
+    // Fallback: try the bundled Swift binary
+    const clickerPath = path.join(process.resourcesPath, 'helpers', 'zap-clicker');
+    if (fs.existsSync(clickerPath)) {
+      try {
+        console.log('[Autopilot] Fallback: Swift binary at', clickerPath);
+        await execPromise(`chmod +x "${clickerPath}" && "${clickerPath}" ${x} ${y}`, 5000);
+        return;
+      } catch (e2) { console.log('[Autopilot] Swift binary also failed:', e2.message); }
+    }
+    throw new Error('Click failed: ' + e.message);
+  }
 }
 
 // Windows: click at absolute screen coordinates using user32.dll
