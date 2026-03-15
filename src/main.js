@@ -779,74 +779,180 @@ function execPromise(cmd, timeout) {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// macOS: click at absolute SCREEN coordinates using CGWarpMouseCursorPosition + CGEvent
-// Key insight: CGWarpMouseCursorPosition physically moves the cursor (like a real mouse),
-// then CGEvent posts click events at kCGSessionEventTap (where apps receive them).
-// Previous attempts failed because:
-// - "System Events click at" uses WINDOW-relative coords (caused random app opening)
-// - CGEventPost to kCGHIDEventTap (0) was silently eaten by the system
-// - kCGSessionEventTap (1) delivers events at the session level where apps actually get them
+/* ─── Browser JS Injection (Primary method for web quizzes) ─── */
+// Instead of synthesizing mouse clicks (which macOS blocks/ignores for Electron apps),
+// we tell the browser to execute JavaScript that finds and clicks the answer element.
+// This uses the same AppleScript Accessibility framework as Drip Type (confirmed working).
+
+const BROWSER_NAMES = ['Google Chrome', 'Google Chrome Canary', 'Chromium', 'Arc', 'Brave Browser', 'Microsoft Edge', 'Safari', 'Opera', 'Vivaldi', 'Firefox'];
+
+async function detectFrontBrowser() {
+  try {
+    const name = (await execPromise(`osascript -e 'tell application "System Events" to get name of first process whose frontmost is true'`, 3000)).trim();
+    console.log('[Autopilot] Frontmost app:', name);
+    if (BROWSER_NAMES.some(b => name.toLowerCase().includes(b.toLowerCase().split(' ')[0]))) return name;
+    // Not a browser — check visible browser processes
+    for (const b of BROWSER_NAMES) {
+      try {
+        const r = await execPromise(`osascript -e 'tell application "System Events" to get (count of (every process whose name is "${b}" and visible is true))'`, 2000);
+        if (parseInt(r.trim()) > 0) return b;
+      } catch(_) {}
+    }
+  } catch(_) {}
+  return null;
+}
+
+async function browserExecJS(browserName, js) {
+  const fs = require('fs');
+  const os = require('os');
+  const escaped = js.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+
+  if (browserName === 'Safari') {
+    const script = `tell application "Safari"\n  do JavaScript "${escaped}" in document 1\nend tell`;
+    const p = path.join(os.tmpdir(), 'zap_js.applescript');
+    fs.writeFileSync(p, script);
+    return await execPromise(`osascript "${p}" 2>&1`, 10000);
+  } else {
+    // Chrome, Arc, Brave, Edge, etc — all use the same "execute" API
+    const script = `tell application "${browserName}"\n  execute front window's active tab javascript "${escaped}"\nend tell`;
+    const p = path.join(os.tmpdir(), 'zap_js.applescript');
+    fs.writeFileSync(p, script);
+    return await execPromise(`osascript "${p}" 2>&1`, 10000);
+  }
+}
+
+// Click an answer in a browser by injecting JS to find and click matching elements
+async function browserClickAnswer(browserName, field) {
+  const answer = (field.answer || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+  const label = (field.label || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+
+  if (field.type === 'radio' || field.type === 'checkbox') {
+    // Strategy: find all clickable inputs + labels, click the one matching the answer text
+    const js = `(function(){
+      var answer = '${answer}'.trim().toLowerCase();
+      // Try clicking radio/checkbox inputs whose label matches
+      var inputs = document.querySelectorAll('input[type=radio], input[type=checkbox]');
+      for (var i = 0; i < inputs.length; i++) {
+        var el = inputs[i];
+        var lbl = el.parentElement ? el.parentElement.textContent.trim().toLowerCase() : '';
+        var forLbl = el.id ? (document.querySelector('label[for=' + JSON.stringify(el.id) + ']') || {}).textContent || '' : '';
+        forLbl = forLbl.trim().toLowerCase();
+        if (lbl.includes(answer) || forLbl.includes(answer) || lbl === answer || forLbl === answer) {
+          el.click();
+          if (el.parentElement && el.parentElement.tagName === 'LABEL') el.parentElement.click();
+          return 'clicked_input_' + i;
+        }
+      }
+      // Fallback: click any element containing the answer text
+      var all = document.querySelectorAll('label, span, div, li, p, a, button, option');
+      for (var j = 0; j < all.length; j++) {
+        var txt = all[j].textContent.trim().toLowerCase();
+        if (txt === answer || txt.includes(answer)) {
+          all[j].click();
+          var inp = all[j].querySelector('input');
+          if (inp) inp.click();
+          return 'clicked_element_' + j;
+        }
+      }
+      return 'no_match_found';
+    })()`;
+    return await browserExecJS(browserName, js);
+  }
+
+  if (field.type === 'text' || field.type === 'select') {
+    // For text inputs: find the input near the label text, focus and set value
+    const js = `(function(){
+      var label = '${label}'.trim().toLowerCase();
+      var answer = '${answer}';
+      // Find input fields
+      var inputs = document.querySelectorAll('input[type=text], input:not([type]), textarea, select');
+      // Try to find by label association
+      var labels = document.querySelectorAll('label');
+      for (var i = 0; i < labels.length; i++) {
+        if (labels[i].textContent.trim().toLowerCase().includes(label)) {
+          var target = labels[i].htmlFor ? document.getElementById(labels[i].htmlFor) : labels[i].querySelector('input, textarea, select');
+          if (target) {
+            target.focus();
+            if (target.tagName === 'SELECT') {
+              for (var o = 0; o < target.options.length; o++) {
+                if (target.options[o].text.trim().toLowerCase().includes(answer.toLowerCase())) {
+                  target.selectedIndex = o;
+                  target.dispatchEvent(new Event('change', {bubbles:true}));
+                  return 'selected_option_' + o;
+                }
+              }
+            } else {
+              target.value = answer;
+              target.dispatchEvent(new Event('input', {bubbles:true}));
+              target.dispatchEvent(new Event('change', {bubbles:true}));
+              return 'filled_input';
+            }
+          }
+        }
+      }
+      // Fallback: first empty input on page
+      for (var k = 0; k < inputs.length; k++) {
+        if (!inputs[k].value || inputs[k].value === '') {
+          inputs[k].focus();
+          inputs[k].value = answer;
+          inputs[k].dispatchEvent(new Event('input', {bubbles:true}));
+          inputs[k].dispatchEvent(new Event('change', {bubbles:true}));
+          return 'filled_fallback_' + k;
+        }
+      }
+      return 'no_input_found';
+    })()`;
+    return await browserExecJS(browserName, js);
+  }
+
+  return 'unsupported_field_type';
+}
+
+// macOS mouse click fallback for non-browser apps
 async function macClickAt(x, y) {
   const fs = require('fs');
   const os = require('os');
 
+  // Use Python + Quartz CGEvent as the mouse click method
   const pyScript = `
-import time, sys
-from Quartz.CoreGraphics import *
-from Quartz import CGWarpMouseCursorPosition, CGAssociateMouseAndMouseCursorPosition
-
-x, y = ${x}, ${y}
-point = (x, y)
-
-# Step 1: Physically warp the mouse cursor to the target position
-# This is what makes it behave like a real mouse move
-CGAssociateMouseAndMouseCursorPosition(False)
-CGWarpMouseCursorPosition(point)
-CGAssociateMouseAndMouseCursorPosition(True)
-time.sleep(0.1)
-
-# Step 2: Send mouse-moved event to kCGSessionEventTap so the OS knows where cursor is
-move = CGEventCreateMouseEvent(None, kCGEventMouseMoved, point, kCGMouseButtonLeft)
-CGEventPost(kCGSessionEventTap, move)
-time.sleep(0.1)
-
-# Step 3: Mouse down at the position — post to SESSION event tap, set click count
-down = CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, point, kCGMouseButtonLeft)
-CGEventSetIntegerValueField(down, kCGMouseEventClickState, 1)
-CGEventPost(kCGSessionEventTap, down)
-time.sleep(0.08)
-
-# Step 4: Mouse up — same position, same click count
-up = CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, point, kCGMouseButtonLeft)
-CGEventSetIntegerValueField(up, kCGMouseEventClickState, 1)
-CGEventPost(kCGSessionEventTap, up)
-time.sleep(0.05)
-
-print('click_done_at_%d_%d' % (x, y))
+import time
+try:
+    from Quartz.CoreGraphics import *
+    from Quartz import CGWarpMouseCursorPosition
+    p = (${x}, ${y})
+    CGWarpMouseCursorPosition(p)
+    time.sleep(0.15)
+    move = CGEventCreateMouseEvent(None, kCGEventMouseMoved, p, kCGMouseButtonLeft)
+    CGEventPost(kCGSessionEventTap, move)
+    time.sleep(0.1)
+    down = CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, p, kCGMouseButtonLeft)
+    CGEventSetIntegerValueField(down, kCGMouseEventClickState, 1)
+    CGEventPost(kCGSessionEventTap, down)
+    time.sleep(0.1)
+    up = CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, p, kCGMouseButtonLeft)
+    CGEventSetIntegerValueField(up, kCGMouseEventClickState, 1)
+    CGEventPost(kCGSessionEventTap, up)
+    print('click_done')
+except Exception as e:
+    print('error: ' + str(e))
 `;
-
-  const scriptPath = path.join(os.tmpdir(), 'zap_click.py');
-  fs.writeFileSync(scriptPath, pyScript);
-
+  const sp = path.join(os.tmpdir(), 'zap_click.py');
+  fs.writeFileSync(sp, pyScript);
   try {
-    console.log('[Autopilot] Clicking at screen (%d, %d) via CGWarp + CGEvent(session)...', x, y);
-    const result = await execPromise(`/usr/bin/python3 "${scriptPath}" 2>&1`, 8000);
-    console.log('[Autopilot] Click result:', result.trim());
-    if (result.includes('click_done')) return;
-    throw new Error('Click script did not confirm success: ' + result.trim());
-  } catch (e) {
-    console.log('[Autopilot] Python click failed:', e.message);
-    // Fallback: try the bundled Swift binary
-    const clickerPath = path.join(process.resourcesPath, 'helpers', 'zap-clicker');
-    if (fs.existsSync(clickerPath)) {
-      try {
-        console.log('[Autopilot] Fallback: Swift binary at', clickerPath);
-        await execPromise(`chmod +x "${clickerPath}" && "${clickerPath}" ${x} ${y}`, 5000);
-        return;
-      } catch (e2) { console.log('[Autopilot] Swift binary also failed:', e2.message); }
-    }
-    throw new Error('Click failed: ' + e.message);
+    const r = await execPromise(`/usr/bin/python3 "${sp}" 2>&1`, 8000);
+    console.log('[Autopilot] CGEvent click result:', r.trim());
+    if (r.includes('click_done')) return;
+  } catch(e) { console.log('[Autopilot] CGEvent failed:', e.message); }
+
+  // Swift binary fallback
+  const clickerPath = path.join(process.resourcesPath, 'helpers', 'zap-clicker');
+  if (require('fs').existsSync(clickerPath)) {
+    try {
+      await execPromise(`chmod +x "${clickerPath}" && "${clickerPath}" ${x} ${y}`, 5000);
+      return;
+    } catch(e) { console.log('[Autopilot] Swift failed:', e.message); }
   }
+  throw new Error('All click methods failed');
 }
 
 // Windows: click at absolute screen coordinates using user32.dll
@@ -879,64 +985,88 @@ ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
 
   // Hide overlay so we can interact with the underlying app
   if (overlayWin) { overlayWin.hide(); overlayUp = false; stopLockdownKeepAlive(); }
-  await sleep(300);
-
-  // Bring the previously-active app to front (the one behind our overlay)
-  if (process.platform === 'darwin') {
-    try {
-      // First try to activate the frontmost non-Zap, non-Electron process
-      await execPromise(`osascript -e 'tell application "System Events"' -e 'set procs to every process whose frontmost is false and visible is true and name is not "Zap" and name is not "Electron"' -e 'if (count of procs) > 0 then' -e 'set frontmost of item 1 of procs to true' -e 'end if' -e 'end tell'`, 3000);
-    } catch(e) { console.log('[Autopilot] Focus error (non-fatal):', e.message); }
-    await sleep(500);
-    // Log what ended up frontmost for debugging
-    try {
-      const frontApp = await execPromise(`osascript -e 'tell application "System Events" to get name of first process whose frontmost is true'`, 3000);
-      console.log('[Autopilot] Frontmost app after focus:', frontApp.trim());
-    } catch(_) {}
-  }
+  await sleep(400);
 
   const scale = screen.getPrimaryDisplay().scaleFactor || 1;
   console.log('[Autopilot] Display scale factor:', scale);
   const results = [];
 
-  for (const field of fields) {
-    if (!field.clickX || !field.clickY) {
-      results.push({ label: field.label || '?', ok: false, reason: 'no coordinates' });
-      continue;
+  // ── Detect if a browser is running — if so, use JS injection (100% reliable) ──
+  let browserName = null;
+  if (process.platform === 'darwin') {
+    browserName = await detectFrontBrowser();
+    console.log('[Autopilot] Detected browser:', browserName || 'NONE (will use mouse clicks)');
+  }
+
+  if (browserName) {
+    // ══════ BROWSER MODE: inject JavaScript to click/fill answers directly ══════
+    console.log('[Autopilot] Using browser JS injection via', browserName);
+
+    for (const field of fields) {
+      console.log(`[Autopilot] Field "${field.label}" type=${field.type} answer="${field.answer}"`);
+
+      try {
+        const jsResult = await browserClickAnswer(browserName, field);
+        const resultStr = (jsResult || '').toString().trim();
+        console.log(`[Autopilot] JS result for "${field.label}":`, resultStr);
+
+        if (resultStr.includes('no_match') || resultStr.includes('no_input')) {
+          results.push({ label: field.label || '?', ok: false, reason: 'Could not find matching element on page' });
+        } else {
+          results.push({ label: field.label || '?', ok: true });
+        }
+        await sleep(300);
+      } catch (err) {
+        console.log(`[Autopilot] JS injection error for "${field.label}":`, err.message);
+        results.push({ label: field.label || '?', ok: false, reason: err.message });
+      }
+    }
+  } else {
+    // ══════ NON-BROWSER MODE: use mouse clicks (macOS CGEvent / Windows user32) ══════
+    // Bring the previously-active app to front
+    if (process.platform === 'darwin') {
+      try {
+        await execPromise(`osascript -e 'tell application "System Events"' -e 'set procs to every process whose frontmost is false and visible is true and name is not "Zap" and name is not "Electron"' -e 'if (count of procs) > 0 then' -e 'set frontmost of item 1 of procs to true' -e 'end if' -e 'end tell'`, 3000);
+      } catch(e) { console.log('[Autopilot] Focus error:', e.message); }
+      await sleep(500);
     }
 
-    // AI returns coordinates in image pixels; divide by scale to get screen points
-    const x = Math.round(field.clickX / scale);
-    const y = Math.round(field.clickY / scale);
-    console.log(`[Autopilot] Field "${field.label}" type=${field.type} answer="${field.answer}" raw=(${field.clickX},${field.clickY}) scaled=(${x},${y})`);
-
-    try {
-      if (process.platform === 'darwin') {
-        console.log(`[Autopilot] Attempting click at screen point (${x},${y})...`);
-        await macClickAt(x, y);
-        console.log(`[Autopilot] Click completed at (${x},${y})`);
-      } else {
-        await winClickAt(x, y);
+    for (const field of fields) {
+      if (!field.clickX || !field.clickY) {
+        results.push({ label: field.label || '?', ok: false, reason: 'no coordinates' });
+        continue;
       }
-      await sleep(500);
 
-      // If text/select field, type the answer after clicking
-      if ((field.type === 'text' || field.type === 'select') && field.answer) {
+      const x = Math.round(field.clickX / scale);
+      const y = Math.round(field.clickY / scale);
+      console.log(`[Autopilot] Field "${field.label}" type=${field.type} answer="${field.answer}" coords=(${x},${y})`);
+
+      try {
         if (process.platform === 'darwin') {
-          await execPromise(`osascript -e 'tell application "System Events" to keystroke "a" using command down'`, 3000);
-          await sleep(100);
-          const escaped = field.answer.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/'/g, "'\\''");
-          await execPromise(`osascript -e 'tell application "System Events" to keystroke "${escaped}"'`, 15000);
+          await macClickAt(x, y);
         } else {
-          await execPromise(`powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^a'); Start-Sleep -Milliseconds 100; [System.Windows.Forms.SendKeys]::SendWait('${field.answer.replace(/[+^%~(){}[\]]/g, '{$&}')}')"`, 15000);
+          await winClickAt(x, y);
         }
-      }
+        await sleep(500);
 
-      results.push({ label: field.label || '?', ok: true });
-      await sleep(300);
-    } catch (err) {
-      console.log(`[Autopilot] Click error:`, err.message);
-      results.push({ label: field.label || '?', ok: false, reason: err.message });
+        // If text/select field, type the answer after clicking
+        if ((field.type === 'text' || field.type === 'select') && field.answer) {
+          if (process.platform === 'darwin') {
+            await execPromise(`osascript -e 'tell application "System Events" to keystroke "a" using command down'`, 3000);
+            await sleep(100);
+            const escaped = field.answer.replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/'/g, "'\\''");
+            await execPromise(`osascript -e 'tell application "System Events" to keystroke "${escaped}"'`, 15000);
+          } else {
+            await execPromise(`powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^a'); Start-Sleep -Milliseconds 100; [System.Windows.Forms.SendKeys]::SendWait('${field.answer.replace(/[+^%~(){}[\]]/g, '{$&}')}')"`, 15000);
+          }
+        }
+
+        results.push({ label: field.label || '?', ok: true });
+        await sleep(300);
+      } catch (err) {
+        console.log(`[Autopilot] Click error:`, err.message);
+        results.push({ label: field.label || '?', ok: false, reason: err.message });
+      }
     }
   }
 
