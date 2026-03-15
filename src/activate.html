@@ -50,6 +50,13 @@
   .status.info{color:var(--text-muted)}
 
   .skip-text{font-size:12px;color:var(--text-dim);margin-top:24px;text-align:center}
+
+  .legal-check{display:flex;align-items:flex-start;gap:10px;margin-top:16px;padding:12px 14px;background:rgba(74,111,165,0.04);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:border-color .15s}
+  .legal-check:hover{border-color:rgba(74,111,165,0.3)}
+  .legal-check input[type="checkbox"]{width:18px;height:18px;margin-top:1px;accent-color:var(--accent);cursor:pointer;flex-shrink:0}
+  .legal-check label{font-size:12px;color:var(--text-muted);line-height:1.6;cursor:pointer}
+  .legal-check label a{color:var(--accent-glow);text-decoration:none;transition:color .15s}
+  .legal-check label a:hover{color:var(--text);text-decoration:underline}
 </style>
 </head>
 <body>
@@ -62,6 +69,10 @@
 <div class="section">
   <div class="section-title">Monthly Subscription</div>
   <input type="email" class="email-input" id="email-input" placeholder="Enter your email address" autocomplete="email" spellcheck="false" />
+  <div class="legal-check" onclick="document.getElementById('legal-agree').click()">
+    <input type="checkbox" id="legal-agree" onclick="event.stopPropagation()" />
+    <label for="legal-agree" onclick="event.stopPropagation()">I agree to the <a href="#" id="link-terms">Terms of Use</a>, <a href="#" id="link-privacy">Privacy Policy</a>, and <a href="#" id="link-aup">Acceptable Use Policy</a>. I accept full liability for how I use this software.</label>
+  </div>
   <button class="subscribe-btn" id="subscribe-btn">
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>
     Subscribe with Stripe
@@ -91,6 +102,7 @@
   var adminWrap = document.getElementById('admin-wrap');
   var adminKey = document.getElementById('admin-key');
   var adminBtn = document.getElementById('admin-btn');
+  var legalCheckbox = document.getElementById('legal-agree');
   var pollTimer = null;
   var subscribeBtnDefault = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Subscribe with Stripe';
 
@@ -155,8 +167,19 @@
 
   adminKey.addEventListener('keydown', function(e) { if (e.key === 'Enter') adminBtn.click(); });
 
+  // Legal links — open in external browser
+  document.getElementById('link-terms').addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); window.zap.openExternal('https://tryzap.net/terms'); });
+  document.getElementById('link-privacy').addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); window.zap.openExternal('https://tryzap.net/privacy'); });
+  document.getElementById('link-aup').addEventListener('click', function(e){ e.preventDefault(); e.stopPropagation(); window.zap.openExternal('https://tryzap.net/acceptable-use'); });
+
   // Stripe Subscribe flow
   subscribeBtn.addEventListener('click', async function() {
+    if (!legalCheckbox.checked) {
+      statusEl.textContent = 'You must agree to the Terms, Privacy Policy, and Acceptable Use Policy.';
+      statusEl.className = 'status error';
+      return;
+    }
+
     var email = emailInput.value.trim();
     if (!email || !email.includes('@')) {
       statusEl.textContent = 'Please enter a valid email address.';

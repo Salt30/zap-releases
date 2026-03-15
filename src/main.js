@@ -992,7 +992,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
   // If we have nothing (no text, no image), show helpful error
   if (!text && !imageDataUrl) {
     if (isLockdown()) {
-      return { error: 'Lockdown Mode is active — screen capture is disabled.\nPress Tab to type your question, then press Enter.' };
+      return { error: 'Stealth Mode is active — screen capture is disabled.\nPress Tab to type your question, then press Enter.' };
     }
     return { error: 'Screen capture failed. Please try:\n1. Open System Settings → Privacy & Security → Screen Recording\n2. Toggle Zap OFF then ON again\n3. Quit Zap completely (right-click tray → Quit) and reopen it' };
   }
@@ -1146,7 +1146,6 @@ ipcMain.handle('create-checkout-session', async (_ev, email) => {
       payment_method_types: ['card'],
       line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
       customer_email: email || undefined,
-      subscription_data: { trial_period_days: 3 },
       success_url: 'https://tryzap.net/checkout/success?session_id={CHECKOUT_SESSION_ID}',
       cancel_url: 'https://tryzap.net/checkout/cancel',
       metadata: { app: 'zap', hostname: require('os').hostname() }
