@@ -805,16 +805,27 @@ async function detectFrontBrowser() {
 async function browserExecJS(browserName, js) {
   const fs = require('fs');
   const os = require('os');
-  const escaped = js.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+
+  // Write JS to a temp file, then have AppleScript read it — avoids all escaping issues
+  const jsPath = path.join(os.tmpdir(), 'zap_inject.js');
+  fs.writeFileSync(jsPath, js);
 
   if (browserName === 'Safari') {
-    const script = `tell application "Safari"\n  do JavaScript "${escaped}" in document 1\nend tell`;
+    const script = `set jsFile to POSIX file "${jsPath}"
+set jsCode to read jsFile as «class utf8»
+tell application "Safari"
+  do JavaScript jsCode in document 1
+end tell`;
     const p = path.join(os.tmpdir(), 'zap_js.applescript');
     fs.writeFileSync(p, script);
     return await execPromise(`osascript "${p}" 2>&1`, 10000);
   } else {
-    // Chrome, Arc, Brave, Edge, etc — all use the same "execute" API
-    const script = `tell application "${browserName}"\n  execute front window's active tab javascript "${escaped}"\nend tell`;
+    // Chrome, Arc, Brave, Edge — use "execute active tab of front window javascript"
+    const script = `set jsFile to POSIX file "${jsPath}"
+set jsCode to read jsFile as «class utf8»
+tell application "${browserName}"
+  execute active tab of front window javascript jsCode
+end tell`;
     const p = path.join(os.tmpdir(), 'zap_js.applescript');
     fs.writeFileSync(p, script);
     return await execPromise(`osascript "${p}" 2>&1`, 10000);
@@ -823,47 +834,77 @@ async function browserExecJS(browserName, js) {
 
 // Click an answer in a browser by injecting JS to find and click matching elements
 async function browserClickAnswer(browserName, field) {
-  const answer = (field.answer || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
-  const label = (field.label || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+  // JSON-encode answer and label to safely embed in JS without escaping issues
+  const answerJSON = JSON.stringify(field.answer || '');
+  const labelJSON = JSON.stringify(field.label || '');
 
   if (field.type === 'radio' || field.type === 'checkbox') {
-    // Strategy: find all clickable inputs + labels, click the one matching the answer text
     const js = `(function(){
-      var answer = '${answer}'.trim().toLowerCase();
-      // Try clicking radio/checkbox inputs whose label matches
+      var answer = ${answerJSON}.trim().toLowerCase();
+      var found = false;
+      // Strategy 1: Find radio/checkbox inputs and check parent/label text
       var inputs = document.querySelectorAll('input[type=radio], input[type=checkbox]');
       for (var i = 0; i < inputs.length; i++) {
         var el = inputs[i];
-        var lbl = el.parentElement ? el.parentElement.textContent.trim().toLowerCase() : '';
-        var forLbl = el.id ? (document.querySelector('label[for=' + JSON.stringify(el.id) + ']') || {}).textContent || '' : '';
-        forLbl = forLbl.trim().toLowerCase();
-        if (lbl.includes(answer) || forLbl.includes(answer) || lbl === answer || forLbl === answer) {
-          el.click();
-          if (el.parentElement && el.parentElement.tagName === 'LABEL') el.parentElement.click();
-          return 'clicked_input_' + i;
+        // Check value attribute
+        if (el.value && el.value.trim().toLowerCase() === answer) {
+          el.click(); el.checked = true; el.dispatchEvent(new Event('change', {bubbles:true}));
+          return 'clicked_by_value_' + i;
+        }
+        // Check parent text content
+        var parent = el.closest('label') || el.parentElement;
+        var parentText = parent ? parent.textContent.trim().toLowerCase() : '';
+        if (parentText === answer || parentText.includes(answer)) {
+          el.click(); el.checked = true; el.dispatchEvent(new Event('change', {bubbles:true}));
+          return 'clicked_by_parent_' + i;
+        }
+        // Check associated label
+        if (el.id) {
+          var assocLabel = document.querySelector('label[for="' + el.id + '"]');
+          if (assocLabel && assocLabel.textContent.trim().toLowerCase().includes(answer)) {
+            el.click(); el.checked = true; el.dispatchEvent(new Event('change', {bubbles:true}));
+            return 'clicked_by_label_' + i;
+          }
         }
       }
-      // Fallback: click any element containing the answer text
-      var all = document.querySelectorAll('label, span, div, li, p, a, button, option');
-      for (var j = 0; j < all.length; j++) {
-        var txt = all[j].textContent.trim().toLowerCase();
-        if (txt === answer || txt.includes(answer)) {
-          all[j].click();
-          var inp = all[j].querySelector('input');
-          if (inp) inp.click();
-          return 'clicked_element_' + j;
+      // Strategy 2: Find any clickable element whose text matches the answer
+      var elems = document.querySelectorAll('label, span, div, li, p, a, button, td, th, option');
+      for (var j = 0; j < elems.length; j++) {
+        var txt = elems[j].textContent.trim().toLowerCase();
+        var directText = elems[j].childNodes.length === 1 && elems[j].childNodes[0].nodeType === 3
+          ? elems[j].childNodes[0].textContent.trim().toLowerCase() : txt;
+        if (directText === answer || txt === answer) {
+          elems[j].click();
+          var inp = elems[j].querySelector('input[type=radio], input[type=checkbox]');
+          if (inp) { inp.click(); inp.checked = true; inp.dispatchEvent(new Event('change', {bubbles:true})); }
+          return 'clicked_text_match_' + j;
         }
       }
-      return 'no_match_found';
+      // Strategy 3: Partial match — answer text is contained
+      for (var k = 0; k < elems.length; k++) {
+        var t = elems[k].textContent.trim().toLowerCase();
+        if (t.includes(answer) && t.length < answer.length * 3) {
+          elems[k].click();
+          var inp2 = elems[k].querySelector('input[type=radio], input[type=checkbox]');
+          if (inp2) { inp2.click(); inp2.checked = true; inp2.dispatchEvent(new Event('change', {bubbles:true})); }
+          return 'clicked_partial_' + k;
+        }
+      }
+      // Debug info: list all radio button texts so we can see what's on the page
+      var debug = [];
+      inputs.forEach(function(inp, idx) {
+        var p = inp.closest('label') || inp.parentElement;
+        debug.push(idx + ':' + (p ? p.textContent.trim().substring(0, 50) : 'no-parent') + '|val=' + inp.value);
+      });
+      return 'no_match_found|answer=' + answer + '|options=' + debug.join(';');
     })()`;
     return await browserExecJS(browserName, js);
   }
 
   if (field.type === 'text' || field.type === 'select') {
-    // For text inputs: find the input near the label text, focus and set value
     const js = `(function(){
-      var label = '${label}'.trim().toLowerCase();
-      var answer = '${answer}';
+      var label = ${labelJSON}.trim().toLowerCase();
+      var answer = ${answerJSON};
       // Find input fields
       var inputs = document.querySelectorAll('input[type=text], input:not([type]), textarea, select');
       // Try to find by label association
