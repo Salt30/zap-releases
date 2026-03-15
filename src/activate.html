@@ -113,12 +113,39 @@
 
   // Check if already licensed
   window.zap.getLicenseStatus().then(function(s) {
-    if (s.licenseValid && s.hasKey) {
+    if (s.licenseValid && s.hasKey && s.licensed) {
+      // Fully licensed + terms accepted
       subscribeBtn.textContent = 'Already Subscribed';
       subscribeBtn.disabled = true;
       emailInput.disabled = true;
       emailInput.value = s.email || '';
       document.getElementById('skip-text').textContent = 'You can close this window.';
+    } else if (s.licenseValid && s.hasKey && !s.licensed) {
+      // Has subscription but hasn't accepted terms yet
+      subscribeBtn.textContent = 'Already Subscribed';
+      subscribeBtn.disabled = true;
+      emailInput.disabled = true;
+      emailInput.value = s.email || '';
+      document.getElementById('skip-text').innerHTML = 'Please accept the terms above to continue using Zap.';
+      // Show a dedicated accept button
+      var acceptBtn = document.createElement('button');
+      acceptBtn.className = 'subscribe-btn';
+      acceptBtn.textContent = 'Accept & Continue';
+      acceptBtn.style.marginTop = '14px';
+      acceptBtn.addEventListener('click', async function() {
+        if (!legalCheckbox.checked) {
+          statusEl.textContent = 'You must agree to the Terms, Privacy Policy, and Acceptable Use Policy.';
+          statusEl.className = 'status error';
+          return;
+        }
+        await window.zap.acceptTerms();
+        statusEl.textContent = 'Terms accepted! Zap is ready.';
+        statusEl.className = 'status success';
+        acceptBtn.textContent = 'Done!';
+        acceptBtn.disabled = true;
+        document.getElementById('skip-text').textContent = 'You can close this window.';
+      });
+      subscribeBtn.parentNode.insertBefore(acceptBtn, subscribeBtn.nextSibling);
     }
   });
 
@@ -144,6 +171,12 @@
 
   // Admin key activation
   adminBtn.addEventListener('click', async function() {
+    if (!legalCheckbox.checked) {
+      statusEl.textContent = 'You must agree to the Terms, Privacy Policy, and Acceptable Use Policy.';
+      statusEl.className = 'status error';
+      return;
+    }
+
     var key = adminKey.value.trim();
     if (!key) { statusEl.textContent = 'Please enter a key.'; statusEl.className = 'status error'; return; }
 
@@ -154,6 +187,7 @@
     var result = await window.zap.validateLicense(key);
 
     if (result.valid) {
+      await window.zap.acceptTerms();
       statusEl.textContent = 'Activated!';
       statusEl.className = 'status success';
       adminBtn.textContent = 'Activated!';
@@ -218,6 +252,7 @@
           var s = await window.zap.getLicenseStatus();
           if (s.licenseValid) {
             clearInterval(pollTimer); pollTimer = null;
+            await window.zap.acceptTerms();
             statusEl.textContent = 'Subscription activated!';
             statusEl.className = 'status success';
             subscribeBtn.innerHTML = 'Activated!';

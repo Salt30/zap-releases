@@ -85,6 +85,7 @@ const STORE_DEFAULTS = {
   licenseEmail: '',
   stripeCustomerId: '',
   stripeSubscriptionId: '',
+  termsAccepted: false,
   subscriptionStatus: 'inactive',
   lastSubscriptionCheck: 0,
   trialStarted: 0,
@@ -845,7 +846,7 @@ ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
   }
 
   // Hide overlay so we can interact with the underlying app
-  if (overlayWin) { overlayWin.hide(); overlayUp = false; stopLockdownKeepAlive(); stopScreenShareDetection(); }
+  if (overlayWin) { overlayWin.hide(); overlayUp = false; stopLockdownKeepAlive(); }
   await sleep(500);
 
   // Bring the previously-active app to front (the one behind our overlay)
@@ -1057,8 +1058,8 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
 let activateWin = null;
 
 function isLicensed() {
-  // Only a valid license key grants access — no trials
-  return !!(store.get('licenseValid') && store.get('licenseKey'));
+  // Only a valid license key + accepted terms grants access
+  return !!(store.get('licenseValid') && store.get('licenseKey') && store.get('termsAccepted'));
 }
 
 function trialDaysLeft() {
@@ -1106,6 +1107,11 @@ function showActivate() {
 ipcMain.on('start-trial', () => {
   // Trial disabled — license key required for access
   // Do nothing — user must enter a license key
+});
+
+ipcMain.handle('accept-terms', () => {
+  store.set('termsAccepted', true);
+  return { ok: true };
 });
 
 // Admin master keys defined at top of file

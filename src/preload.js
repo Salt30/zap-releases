@@ -31,6 +31,7 @@ contextBridge.exposeInMainWorld('zap', {
   replayTour:      () => ipcRenderer.send('replay-tour'),
   getChangelog:    () => ipcRenderer.invoke('get-changelog'),
   startTrial:      () => ipcRenderer.send('start-trial'),
+  acceptTerms:     () => ipcRenderer.invoke('accept-terms'),
   validateLicense: (key) => ipcRenderer.invoke('validate-license', key),
   getLicenseStatus: () => ipcRenderer.invoke('get-license-status'),
   createCheckoutSession: (email) => ipcRenderer.invoke('create-checkout-session', email),
