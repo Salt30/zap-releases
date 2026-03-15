@@ -784,33 +784,64 @@ async function macClickAt(x, y) {
   const fs = require('fs');
   const os = require('os');
 
-  // Method 1: Bundled Swift binary
+  // Method 1: AppleScript System Events "click at" — same mechanism as Drip Type keystroke
+  // This is the most reliable because it goes through the Accessibility framework
+  try {
+    console.log('[Autopilot] Method 1 (System Events click at):', x, y);
+    const script = `tell application "System Events"\n  set fp to first process whose frontmost is true\n  tell fp\n    click at {${x}, ${y}}\n  end tell\nend tell`;
+    const scriptPath = path.join(os.tmpdir(), 'zap_click.applescript');
+    fs.writeFileSync(scriptPath, script);
+    const result = await execPromise(`osascript "${scriptPath}" 2>&1`, 5000);
+    console.log('[Autopilot] System Events click result:', result.trim());
+    return;
+  } catch (e) {
+    console.log('[Autopilot] System Events click failed:', e.message);
+  }
+
+  // Method 2: Python3 + Quartz CGEvent — low-level mouse event injection
+  try {
+    console.log('[Autopilot] Method 2 (Python Quartz):', x, y);
+    const pyScript = `
+import time
+from Quartz.CoreGraphics import *
+p = (${x}, ${y})
+# Move mouse first
+e = CGEventCreateMouseEvent(None, kCGEventMouseMoved, p, 0)
+CGEventPost(kCGHIDEventTap, e)
+time.sleep(0.05)
+# Mouse down
+d = CGEventCreateMouseEvent(None, kCGEventLeftMouseDown, p, kCGMouseButtonLeft)
+CGEventPost(kCGHIDEventTap, d)
+time.sleep(0.08)
+# Mouse up
+u = CGEventCreateMouseEvent(None, kCGEventLeftMouseUp, p, kCGMouseButtonLeft)
+CGEventPost(kCGHIDEventTap, u)
+print('click_ok')
+`;
+    const scriptPath = path.join(os.tmpdir(), 'zap_click.py');
+    fs.writeFileSync(scriptPath, pyScript);
+    const result = await execPromise(`/usr/bin/python3 "${scriptPath}" 2>&1`, 5000);
+    console.log('[Autopilot] Python Quartz result:', result.trim());
+    if (result.includes('click_ok')) return;
+  } catch (e) { console.log('[Autopilot] Python Quartz failed:', e.message); }
+
+  // Method 3: Bundled Swift binary
   const clickerPath = path.join(process.resourcesPath, 'helpers', 'zap-clicker');
   if (fs.existsSync(clickerPath)) {
     try {
-      console.log('[Autopilot] Method 1 (Swift binary):', clickerPath, x, y);
+      console.log('[Autopilot] Method 3 (Swift binary):', clickerPath, x, y);
       await execPromise(`chmod +x "${clickerPath}" && "${clickerPath}" ${x} ${y}`, 5000);
       return;
     } catch (e) { console.log('[Autopilot] Swift binary failed:', e.message); }
-  } else {
-    console.log('[Autopilot] Swift binary not found at:', clickerPath);
   }
 
-  // Method 2: Python3 + Quartz (available on most Macs with Xcode CLI tools)
+  // Method 4: JXA via temp file (last resort)
   try {
-    console.log('[Autopilot] Method 2 (Python Quartz):', x, y);
-    const pyScript = `import time;from Quartz.CoreGraphics import *;p=(${x},${y});e=CGEventCreateMouseEvent(None,kCGEventMouseMoved,p,0);CGEventPost(kCGHIDEventTap,e);time.sleep(0.03);d=CGEventCreateMouseEvent(None,kCGEventLeftMouseDown,p,kCGMouseButtonLeft);CGEventPost(kCGHIDEventTap,d);time.sleep(0.05);u=CGEventCreateMouseEvent(None,kCGEventLeftMouseUp,p,kCGMouseButtonLeft);CGEventPost(kCGHIDEventTap,u)`;
-    await execPromise(`/usr/bin/python3 -c "${pyScript}"`, 5000);
-    return;
-  } catch (e) { console.log('[Autopilot] Python Quartz failed:', e.message); }
-
-  // Method 3: JXA via temp file (last resort)
-  try {
-    console.log('[Autopilot] Method 3 (JXA temp file):', x, y);
-    const scriptPath = path.join(os.tmpdir(), 'zap_click.js');
-    const script = `ObjC.import("Cocoa");var p=$.CGPointMake(${x},${y});var m=$.CGEventCreateMouseEvent(null,5,p,0);$.CGEventPost(0,m);delay(0.03);var d=$.CGEventCreateMouseEvent(null,1,p,0);$.CGEventPost(0,d);delay(0.05);var u=$.CGEventCreateMouseEvent(null,2,p,0);$.CGEventPost(0,u);`;
-    fs.writeFileSync(scriptPath, script);
-    await execPromise(`osascript -l JavaScript "${scriptPath}"`, 5000);
+    console.log('[Autopilot] Method 4 (JXA temp file):', x, y);
+    const jxaPath = path.join(os.tmpdir(), 'zap_click.js');
+    const jxaScript = `ObjC.import("Cocoa");var p=$.CGPointMake(${x},${y});var m=$.CGEventCreateMouseEvent(null,5,p,0);$.CGEventPost(0,m);delay(0.05);var d=$.CGEventCreateMouseEvent(null,1,p,0);$.CGEventPost(0,d);delay(0.08);var u=$.CGEventCreateMouseEvent(null,2,p,0);$.CGEventPost(0,u);`;
+    fs.writeFileSync(jxaPath, jxaScript);
+    await execPromise(`osascript -l JavaScript "${jxaPath}"`, 5000);
     return;
   } catch (e) { console.log('[Autopilot] JXA failed:', e.message); }
 
@@ -847,15 +878,20 @@ ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
 
   // Hide overlay so we can interact with the underlying app
   if (overlayWin) { overlayWin.hide(); overlayUp = false; stopLockdownKeepAlive(); }
-  await sleep(500);
+  await sleep(300);
 
   // Bring the previously-active app to front (the one behind our overlay)
   if (process.platform === 'darwin') {
     try {
-      // Activate the frontmost non-Zap process
-      await execPromise(`osascript -e 'tell application "System Events"' -e 'set procs to every process whose visible is true and name is not "Zap"' -e 'if (count of procs) > 0 then' -e 'set frontmost of item 1 of procs to true' -e 'end if' -e 'end tell'`, 3000);
+      // First try to activate the frontmost non-Zap, non-Electron process
+      await execPromise(`osascript -e 'tell application "System Events"' -e 'set procs to every process whose frontmost is false and visible is true and name is not "Zap" and name is not "Electron"' -e 'if (count of procs) > 0 then' -e 'set frontmost of item 1 of procs to true' -e 'end if' -e 'end tell'`, 3000);
     } catch(e) { console.log('[Autopilot] Focus error (non-fatal):', e.message); }
-    await sleep(300);
+    await sleep(500);
+    // Log what ended up frontmost for debugging
+    try {
+      const frontApp = await execPromise(`osascript -e 'tell application "System Events" to get name of first process whose frontmost is true'`, 3000);
+      console.log('[Autopilot] Frontmost app after focus:', frontApp.trim());
+    } catch(_) {}
   }
 
   const scale = screen.getPrimaryDisplay().scaleFactor || 1;
@@ -875,12 +911,13 @@ ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
 
     try {
       if (process.platform === 'darwin') {
+        console.log(`[Autopilot] Attempting click at screen point (${x},${y})...`);
         await macClickAt(x, y);
-        console.log(`[Autopilot] Click done at (${x},${y})`);
+        console.log(`[Autopilot] Click completed at (${x},${y})`);
       } else {
         await winClickAt(x, y);
       }
-      await sleep(400);
+      await sleep(500);
 
       // If text/select field, type the answer after clicking
       if ((field.type === 'text' || field.type === 'select') && field.answer) {
