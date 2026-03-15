@@ -419,13 +419,19 @@
       return;
     }
 
-    // Show "Filling..." status, then immediately execute
+    // Show brief "Filling..." status while executing
     resBody.className='';
-    resBody.innerHTML='<div style="text-align:center;padding:20px 0"><div style="font-size:28px;margin-bottom:8px">&#128640;</div><div style="font-size:14px;font-weight:600;color:#facc15;margin-bottom:4px">Filling '+parsed.fields.length+' field'+(parsed.fields.length>1?'s':'')+'...</div><div style="font-size:11px;color:rgba(255,255,255,0.4)">Zap is auto-clicking and typing answers</div></div>';
+    resBody.innerHTML='<div style="text-align:center;padding:14px 0"><div style="font-size:14px;font-weight:600;color:#facc15">Filling...</div></div>';
 
     try{
       var result=await window.zap.autopilotExecute({fields:parsed.fields});
-      showAutopilotResults(result);
+      // Only show popup if there's an error — otherwise silently hide
+      if(result && (result.error || (result.filled||0)<(result.total||0))){
+        showAutopilotResults(result);
+      }else{
+        // Success — just hide the panel, no confirmation needed
+        resPanel.style.display='none';
+      }
     }catch(err){
       resBody.className='';resBody.innerHTML='<div class="error-msg">Execution error: '+esc(err.message)+'</div>';
     }
