@@ -88,20 +88,10 @@
   .dt-btn:disabled{opacity:.4;cursor:not-allowed}
   .dt-btn-type{background:var(--accent);color:#000}
   .dt-btn-type:hover:not(:disabled){background:var(--accent-hover)}
-  .dt-btn-humanize{background:linear-gradient(135deg,#a78bfa,#7c3aed);color:#fff}
-  .dt-btn-humanize:hover:not(:disabled){box-shadow:0 2px 16px rgba(167,139,250,.45);transform:translateY(-1px)}
   .dt-btn-secondary{background:rgba(255,255,255,0.06);color:var(--text-muted);border:1px solid var(--border)}
   .dt-btn-secondary:hover:not(:disabled){background:rgba(255,255,255,0.1);color:var(--text)}
   .dt-btns{display:flex;gap:8px;align-items:center}
   .dt-status{font-size:11px;color:var(--text-dim);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .dt-preview-label{font-size:11px;font-weight:600;color:#a78bfa;text-transform:uppercase;letter-spacing:.5px;margin-bottom:8px;display:flex;align-items:center;gap:6px}
-  .dt-preview-label .dot{width:6px;height:6px;border-radius:50%;background:#a78bfa;animation:pulse-dot 1.5s infinite}
-  @keyframes pulse-dot{0%,100%{opacity:.5}50%{opacity:1}}
-  .dt-toggle-row{display:flex;gap:2px;margin-bottom:14px;background:rgba(0,0,0,.2);border-radius:8px;padding:3px;border:1px solid var(--border)}
-  .dt-toggle-row button{flex:1;padding:8px 0;border:none;border-radius:6px;font-family:inherit;font-size:12px;font-weight:600;cursor:pointer;transition:all .15s;background:transparent;color:var(--text-dim)}
-  .dt-toggle-row button.active{background:rgba(255,255,255,.08);color:var(--text)}
-  .dt-toggle-row button:first-child.active{color:var(--accent)}
-  .dt-toggle-row button:last-child.active{color:#a78bfa}
 
   #dt-pencil-btn{padding:9px 16px;border:1px solid var(--glass-border);border-radius:8px;background:rgba(255,255,255,0.06);color:var(--text-muted);font-family:inherit;font-size:12px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:6px}
   #dt-pencil-btn:hover{background:rgba(255,255,255,0.12);color:var(--text);border-color:rgba(255,255,255,0.25)}
@@ -144,23 +134,13 @@
     <button class="dt-close" id="dt-close-btn">Close</button>
   </div>
   <div class="dt-body">
-    <div class="dt-toggle-row">
-      <button id="dt-tab-type" class="active">Drip Type</button>
-      <button id="dt-tab-humanize">Humanize + Type</button>
-    </div>
-    <div id="dt-type-desc" class="dt-desc">Paste text below. Zap types it out character by character with natural speed, typos, and corrections.</div>
-    <div id="dt-humanize-desc" class="dt-desc" style="display:none">Paste AI-generated text below. Zap rewrites it to pass AI detectors, then types it out naturally.</div>
+    <div class="dt-desc">Paste text below. Zap types it out character by character with natural speed, typos, and corrections.</div>
     <textarea id="dt-textarea" placeholder="Paste your text here..."></textarea>
-    <div id="dt-preview-area" style="display:none">
-      <div class="dt-preview-label"><span class="dot"></span> Humanized Preview</div>
-      <textarea id="dt-preview-text" readonly style="height:120px;opacity:.85;background:rgba(167,139,250,.06);border-color:rgba(167,139,250,.2)"></textarea>
-    </div>
   </div>
   <div class="dt-footer">
     <button id="dt-pencil-btn" title="Auto-draft: reads screen and generates a response"><span class="pencil-icon">&#9998;</span> Auto Draft</button>
     <span class="dt-status" id="dt-status"></span>
     <div class="dt-btns">
-      <button class="dt-btn dt-btn-humanize" id="dt-humanize-btn" style="display:none">Humanize</button>
       <button class="dt-btn dt-btn-type" id="dt-start-btn">Start Typing</button>
     </div>
   </div>
@@ -176,11 +156,8 @@
   var resPanel=$('response-panel'), resBody=$('response-body'), resModeText=$('response-mode-text');
   var copyBtn=$('copy-btn'), pasteBtn=$('paste-btn'), closeResBtn=$('close-response-btn');
   var inputBar=$('text-input-bar'), inputEl=$('text-input');
-  var dtPanel=$('drip-type-panel'), dtArea=$('dt-textarea'), dtStart=$('dt-start-btn'), dtClose=$('dt-close-btn'), dtPencil=$('dt-pencil-btn'), dtHumanize=$('dt-humanize-btn');
-  var dtTabType=$('dt-tab-type'), dtTabHuman=$('dt-tab-humanize'), dtTypeDesc=$('dt-type-desc'), dtHumanDesc=$('dt-humanize-desc');
-  var dtPreviewArea=$('dt-preview-area'), dtPreviewText=$('dt-preview-text'), dtStatus=$('dt-status'), dtTitle=$('dt-title');
-  var dtMode='type'; // 'type' or 'humanize'
-  var humanizedText=null;
+  var dtPanel=$('drip-type-panel'), dtArea=$('dt-textarea'), dtStart=$('dt-start-btn'), dtClose=$('dt-close-btn'), dtPencil=$('dt-pencil-btn');
+  var dtStatus=$('dt-status'), dtTitle=$('dt-title');
 
   window.zap.onScreenCaptured(function(u){capture=u});
 
@@ -226,7 +203,7 @@
     }
   });
 
-  var labels={answer:'Answer',simple:'Simple',translate:'Translate',solve:'Solve',essay:'Essay',code:'Code',research:'Research',email:'Email',flashcards:'Flashcards',humanize:'Humanize',driptype:'Drip Type',autopilot:'Autopilot'};
+  var labels={answer:'Answer',simple:'Simple',translate:'Translate',solve:'Solve',essay:'Essay',code:'Code',research:'Research',email:'Email',flashcards:'Flashcards',driptype:'Drip Type',autopilot:'Autopilot'};
   function setMode(m){
     currentMode=m;
     modeInd.textContent=labels[m]||m;
@@ -259,99 +236,22 @@
   function hideDT(){
     dtPanel.style.display='none';
     dtArea.value='';
-    dtPreviewText.value='';
-    humanizedText=null;
     resetDTState();
   }
 
   function resetDTState(){
     dtStart.disabled=false;
-    dtHumanize.disabled=false;
-    dtStart.textContent=(dtMode==='humanize')?'Type Humanized':'Start Typing';
-    dtHumanize.textContent='Humanize';
+    dtStart.textContent='Start Typing';
     dtStatus.textContent='';
-    dtPreviewArea.style.display='none';
-    humanizedText=null;
   }
-
-  function switchDTTab(mode){
-    dtMode=mode;
-    humanizedText=null;
-    dtPreviewArea.style.display='none';
-    dtPreviewText.value='';
-    dtStatus.textContent='';
-    if(mode==='humanize'){
-      dtTabHuman.classList.add('active');dtTabType.classList.remove('active');
-      dtHumanDesc.style.display='';dtTypeDesc.style.display='none';
-      dtHumanize.style.display='';
-      dtStart.textContent='Type Humanized';
-      dtTitle.textContent='Humanize + Type';
-      dtArea.placeholder='Paste AI-generated text here...';
-    }else{
-      dtTabType.classList.add('active');dtTabHuman.classList.remove('active');
-      dtTypeDesc.style.display='';dtHumanDesc.style.display='none';
-      dtHumanize.style.display='none';
-      dtStart.textContent='Start Typing';
-      dtTitle.textContent='Drip Type';
-      dtArea.placeholder='Paste your text here...';
-    }
-  }
-
-  dtTabType.addEventListener('click',function(){switchDTTab('type')});
-  dtTabHuman.addEventListener('click',function(){switchDTTab('humanize')});
 
   dtClose.addEventListener('click',function(){hideDT();setMode('answer');instr.style.display=''});
 
-  // Humanize button — rewrites text, shows preview
-  dtHumanize.addEventListener('click',async function(){
-    var txt=dtArea.value;
-    if(!txt.trim()){dtStatus.textContent='Paste some text first';return}
-    dtHumanize.disabled=true;
-    dtStart.disabled=true;
-    dtPencil.disabled=true;
-    dtHumanize.textContent='Humanizing...';
-    dtStatus.textContent='Rewriting to bypass AI detection...';
-    try{
-      var r=await window.zap.aiRequest({mode:'humanize',text:txt,imageDataUrl:null,region:null,language:settings.language});
-      if(r.error){
-        dtStatus.textContent='Error: '+(r.error||'Failed');
-        dtHumanize.textContent='Retry';
-        dtHumanize.disabled=false;
-        dtStart.disabled=false;
-        dtPencil.disabled=false;
-        return;
-      }
-      humanizedText=cleanForDrip(r.result||txt);
-      dtPreviewText.value=humanizedText;
-      dtPreviewArea.style.display='block';
-      dtStatus.textContent='Humanized! Review below, then click Type.';
-      dtHumanize.textContent='Re-Humanize';
-      dtStart.textContent='Type Humanized';
-      dtStart.disabled=false;
-    }catch(e){
-      dtStatus.textContent='Error: '+e.message;
-      dtHumanize.textContent='Retry';
-    }
-    dtHumanize.disabled=false;
-    dtPencil.disabled=false;
-  });
-
   // Start Typing button
   dtStart.addEventListener('click',async function(){
-    var txt;
-    if(dtMode==='humanize'){
-      // In humanize mode: if not yet humanized, do it first
-      if(!humanizedText){
-        dtHumanize.click();
-        return;
-      }
-      txt=humanizedText;
-    }else{
-      txt=dtArea.value;
-    }
+    var txt=dtArea.value;
     if(!txt||!txt.trim())return;
     dtStart.disabled=true;
-    dtHumanize.disabled=true;
     dtPencil.disabled=true;
     dtStart.textContent='Starting...';
     dtStatus.textContent='Hiding overlay and typing...';
@@ -515,7 +415,7 @@
         fbtn.onclick=function(){window.zap.openFlashcards(resBody.innerText)};
         resBody.appendChild(fbtn);
       }
-      pasteBtn.textContent=(currentMode==='email')?'Paste Reply':(currentMode==='humanize')?'Paste Humanized':'Paste';
+      pasteBtn.textContent=(currentMode==='email')?'Paste Reply':'Paste';
     }catch(err){resBody.className='';resBody.innerHTML='<div class="error-msg">'+esc(err.message)+'</div>'}
   }
 

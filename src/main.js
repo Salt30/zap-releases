@@ -58,7 +58,6 @@ const STORE_DEFAULTS = {
   hotkeyResearch:  'CmdOrCtrl+Alt+1',
   hotkeyEmail:     'CmdOrCtrl+Alt+2',
   hotkeyFlashcards:'CmdOrCtrl+Alt+3',
-  hotkeyHumanize:  'CmdOrCtrl+Alt+4',
   hotkeyApp:       'Alt+M',
   language:      'Spanish',
   theme:         'dark',
@@ -573,7 +572,6 @@ function bindKeys() {
     [store.get('hotkeyResearch'),  () => showWithMode('research')],
     [store.get('hotkeyEmail'),     () => showWithMode('email')],
     [store.get('hotkeyFlashcards'),() => showWithMode('flashcards')],
-    [store.get('hotkeyHumanize'),  () => showWithMode('humanize')],
     [store.get('hotkeyAutopilot'), () => showWithMode('autopilot')],
     [store.get('hotkeyStopDrip'),  () => { dripTypeCancelled = true; }]
   ];
@@ -596,7 +594,6 @@ function bindKeys() {
       ['Control+Shift+F',  () => showWithMode('research')],
       ['Control+Shift+W',  () => showWithMode('email')],
       ['Control+Shift+Q',  () => showWithMode('flashcards')],
-      ['Control+Shift+H',  () => showWithMode('humanize')],
       ['Control+Shift+P',  () => showWithMode('autopilot')],
       ['Control+Shift+X',  () => { dripTypeCancelled = true; }]
     ];
@@ -1329,7 +1326,6 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
       : 'You are a research specialist. Provide a thorough, well-organized analysis of the topic shown. Structure your response as: 1) Brief overview, 2) Key findings with specific details and data, 3) Sources and references at the end. Use real, credible sources where possible. Be factual and detailed.',
     email:     'You are a professional communication expert. Draft a polished email reply based on the context shown on screen. Match the tone and formality of the original message. Include an appropriate greeting, clear and concise body, and professional closing. Return ONLY the email text — no Subject line, no "To:" field, no metadata.',
     flashcards:'You are an educational content creator. Generate 5-8 Q&A flashcards from the material shown on screen. Format each as: **Q:** [question] followed by **A:** [concise answer]. Focus on key concepts, definitions, formulas, and important facts. Number each flashcard.',
-    humanize:  'Rewrite this text so AI detectors score it as human-written. Return ONLY the rewritten text — nothing else.\n\nAI detectors flag three things. You MUST avoid all three:\n\n--- DETECTOR FLAG #1: ARTIFICIAL SIMPLICITY ---\nAI writes sentences that are all clean, complete, and roughly the same length. This is the biggest tell.\nFIX: Make sentence lengths wildly uneven. Like this. Then write one that goes on for a while, maybe with a dash in the middle — something that feels like you\'re thinking out loud and not quite sure where the sentence is going to end up. Then a fragment. Four words max. Then a normal one. Then ask something? The variance has to be extreme or detectors catch it.\nAlso: humans write messy. They start a thought, interrupt themselves, go on tangents. Do that. Add a parenthetical that doesn\'t totally fit. Use a comma splice once or twice, it\'s fine. Start with \"Look,\" or \"Here\'s the thing\" or \"Okay so\".\n\n--- DETECTOR FLAG #2: PROMOTIONAL TONE ---\nAI text sounds like ad copy. It uses words like \"amazing\", \"incredible\", \"remarkable\", \"vital\", \"essential\", \"powerful\". It hypes things up. It makes everything sound impressive.\nFIX: Be blunt and understated instead. Where AI says \"an amazing experience\" you say \"it\'s nice\" or \"it works\" or \"pretty solid honestly\". Humans understate. They say \"not bad\" when they mean great. They say \"I guess\" even when they\'re sure. Strip out ALL hype words. If a sentence sounds like it\'s selling something, rewrite it flat.\nBANNED HYPE WORDS: amazing, incredible, remarkable, vital, essential, powerful, transformative, game-changing, extraordinary, exceptional, stunning, compelling, invaluable, phenomenal, unparalleled, breathtaking, captivating, profound.\n\n--- DETECTOR FLAG #3: CONTRAST PHRASING ---\nAI loves balanced structures. \"Not just X, but Y.\" \"While X, also Y.\" \"Both X and Y.\" \"From X to Y.\" These parallel contrast patterns are a huge red flag.\nFIX: Never use \"not just X but Y\" or \"not only X but also Y\". Never balance two ideas in one sentence. If you need to mention two things, put them in separate sentences with different structures. Break the symmetry. Humans don\'t write in balanced pairs — they ramble toward a point.\n\n--- ADDITIONAL RULES ---\nBANNED AI WORDS: delve, crucial, moreover, furthermore, comprehensive, robust, multifaceted, landscape, realm, foster, leverage, innovative, facilitate, utilize, underscore, pivotal, paramount, nuanced, intricate, groundbreaking, cutting-edge, harnessing, navigating, in today\'s world, it is important to note, plays a crucial role, in conclusion, at the end of the day.\n\nCONTRACTIONS: Always use them. It\'s, don\'t, can\'t, won\'t, they\'re, we\'re, isn\'t, doesn\'t, wouldn\'t, that\'s, here\'s, there\'s. NEVER write \"do not\", \"it is\", \"they are\", \"does not\", \"cannot\".\n\nWORD CHOICE: Pick the second or third word that comes to mind, not the first. The first one is the most predictable — that\'s what AI detectors expect. If you\'d normally write \"demonstrates\" write \"shows\" or \"gets at\". If you\'d write \"significant\" write \"pretty big\" or \"kind of a lot\". Use spoken English, not written English.\n\nHEDGING: Scatter in doubt words like real humans use: \"probably\", \"I think\", \"sort of\", \"kind of\", \"honestly\", \"I mean\", \"basically\", \"pretty much\". Not in every sentence — but enough that it doesn\'t read as authoritative.\n\nPARAGRAPH SHAPE: One paragraph should be a single short sentence. Another should be 5-7 sentences that wander. Never make all paragraphs the same size. Sometimes don\'t even use paragraph breaks where you normally would.\n\nKEEP: Same core meaning, same arguments, roughly similar length. Match the original tone level (formal stays formal-ish, casual stays casual).',
     autopilot: 'You are a quiz/form auto-fill AI. Analyze the screenshot and identify ALL visible questions and form fields. Return ONLY valid JSON — no markdown, no code fences, no explanation. Format: {"fields":[{"label":"question or field label","type":"radio","answer":"the correct answer","clickX":123,"clickY":456}],"nextBtn":null}. Field types: "radio" for multiple choice (clickX/clickY = center of the correct radio button/option to click), "checkbox" for checkboxes, "text" for text inputs or textareas (clickX/clickY = center of the input field), "select" for dropdowns. Coordinates must be in pixels matching the image dimensions, measured from top-left corner. For multiple choice: identify the CORRECT answer and provide coordinates of that specific option. Answer every question correctly using your knowledge. Be extremely precise with coordinates — they will be used to click.'
   };
 
@@ -1361,7 +1357,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
     const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
-      body: JSON.stringify({ model, messages: msgs, max_tokens: tokens, temperature: effectiveMode === 'humanize' ? 1.2 : 0, ...(effectiveMode === 'humanize' ? { top_p: 0.9, frequency_penalty: 0.7, presence_penalty: 0.6 } : {}) })
+      body: JSON.stringify({ model, messages: msgs, max_tokens: tokens, temperature: 0 })
     });
     if (!res.ok) return { error: `API Error (${res.status}): ${await res.text()}` };
     const data = await res.json();
