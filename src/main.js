@@ -845,62 +845,117 @@ async function browserClickAnswer(browserName, field) {
   if (field.type === 'radio' || field.type === 'checkbox') {
     const js = `(function(){
       var answer = ${answerJSON}.trim().toLowerCase();
-      var found = false;
-      // Strategy 1: Find radio/checkbox inputs and check parent/label text
-      var inputs = document.querySelectorAll('input[type=radio], input[type=checkbox]');
+      var label = ${labelJSON}.trim().toLowerCase();
+
+      // ── Helper: normalize text (collapse whitespace, strip special chars for comparison) ──
+      function norm(s) { return (s||'').replace(/\\s+/g,' ').trim().toLowerCase(); }
+      function normLoose(s) { return norm(s).replace(/[^a-z0-9.()=+\\-\\/]/g, ''); }
+
+      // ── Helper: find the question container for a given label ──
+      function findQuestionBlock(lbl) {
+        // Google Forms: each question is in a div with [data-params] or a listitem role
+        var blocks = document.querySelectorAll('[role="listitem"], .freebirdFormviewerViewNumberedItemContainer, [data-params]');
+        for (var i = 0; i < blocks.length; i++) {
+          var blockText = norm(blocks[i].textContent);
+          if (blockText.includes(lbl.substring(0, Math.min(40, lbl.length)).toLowerCase())) return blocks[i];
+        }
+        return null;
+      }
+
+      var questionBlock = label ? findQuestionBlock(label) : null;
+      var searchScope = questionBlock || document;
+
+      // ══════ STRATEGY 1: Google Forms — div[role="radio"] or div[role="checkbox"] with data-value ══════
+      var gRadios = searchScope.querySelectorAll('[role="radio"], [role="checkbox"], [data-value]');
+      for (var i = 0; i < gRadios.length; i++) {
+        var el = gRadios[i];
+        var dv = el.getAttribute('data-value') || '';
+        var ariaLabel = el.getAttribute('aria-label') || '';
+        var elText = norm(el.textContent);
+        if (norm(dv) === answer || norm(ariaLabel) === answer || elText === answer) {
+          el.click(); return 'gform_exact_' + i;
+        }
+      }
+      // Partial match on Google Forms elements
+      for (var i = 0; i < gRadios.length; i++) {
+        var el = gRadios[i];
+        var dv = norm(el.getAttribute('data-value') || '');
+        var ariaLabel = norm(el.getAttribute('aria-label') || '');
+        var elText = norm(el.textContent);
+        if (dv.includes(answer) || answer.includes(dv) || ariaLabel.includes(answer) || answer.includes(ariaLabel) || elText.includes(answer) || answer.includes(elText)) {
+          el.click(); return 'gform_partial_' + i;
+        }
+      }
+      // Loose match (strip special chars — catches math like N(t) = 500 · 2^(t/3))
+      for (var i = 0; i < gRadios.length; i++) {
+        var el = gRadios[i];
+        var dv = normLoose(el.getAttribute('data-value') || '');
+        var elText = normLoose(el.textContent);
+        var answerLoose = normLoose(answer);
+        if (answerLoose && (dv === answerLoose || elText === answerLoose || dv.includes(answerLoose) || answerLoose.includes(dv) || elText.includes(answerLoose) || answerLoose.includes(elText))) {
+          el.click(); return 'gform_loose_' + i;
+        }
+      }
+
+      // ══════ STRATEGY 2: Standard HTML radio/checkbox inputs ══════
+      var inputs = searchScope.querySelectorAll('input[type=radio], input[type=checkbox]');
       for (var i = 0; i < inputs.length; i++) {
         var el = inputs[i];
-        // Check value attribute
-        if (el.value && el.value.trim().toLowerCase() === answer) {
+        if (el.value && norm(el.value) === answer) {
           el.click(); el.checked = true; el.dispatchEvent(new Event('change', {bubbles:true}));
-          return 'clicked_by_value_' + i;
+          return 'input_value_' + i;
         }
-        // Check parent text content
         var parent = el.closest('label') || el.parentElement;
-        var parentText = parent ? parent.textContent.trim().toLowerCase() : '';
+        var parentText = parent ? norm(parent.textContent) : '';
         if (parentText === answer || parentText.includes(answer)) {
           el.click(); el.checked = true; el.dispatchEvent(new Event('change', {bubbles:true}));
-          return 'clicked_by_parent_' + i;
+          return 'input_parent_' + i;
         }
-        // Check associated label
         if (el.id) {
           var assocLabel = document.querySelector('label[for="' + el.id + '"]');
-          if (assocLabel && assocLabel.textContent.trim().toLowerCase().includes(answer)) {
+          if (assocLabel && norm(assocLabel.textContent).includes(answer)) {
             el.click(); el.checked = true; el.dispatchEvent(new Event('change', {bubbles:true}));
-            return 'clicked_by_label_' + i;
+            return 'input_label_' + i;
           }
         }
       }
-      // Strategy 2: Find any clickable element whose text matches the answer
-      var elems = document.querySelectorAll('label, span, div, li, p, a, button, td, th, option');
+
+      // ══════ STRATEGY 3: Text match on any clickable element ══════
+      var elems = searchScope.querySelectorAll('label, span, div, li, p, a, button, td, th, option');
+      // Exact match first
       for (var j = 0; j < elems.length; j++) {
-        var txt = elems[j].textContent.trim().toLowerCase();
-        var directText = elems[j].childNodes.length === 1 && elems[j].childNodes[0].nodeType === 3
-          ? elems[j].childNodes[0].textContent.trim().toLowerCase() : txt;
-        if (directText === answer || txt === answer) {
+        var txt = norm(elems[j].textContent);
+        // Only match leaf-ish elements (not giant containers)
+        if (txt.length > answer.length * 4) continue;
+        if (txt === answer) {
           elems[j].click();
           var inp = elems[j].querySelector('input[type=radio], input[type=checkbox]');
           if (inp) { inp.click(); inp.checked = true; inp.dispatchEvent(new Event('change', {bubbles:true})); }
-          return 'clicked_text_match_' + j;
+          return 'text_exact_' + j;
         }
       }
-      // Strategy 3: Partial match — answer text is contained
+      // Partial / contains match
       for (var k = 0; k < elems.length; k++) {
-        var t = elems[k].textContent.trim().toLowerCase();
-        if (t.includes(answer) && t.length < answer.length * 3) {
+        var t = norm(elems[k].textContent);
+        if (t.length > answer.length * 4) continue;
+        if (t.includes(answer) || answer.includes(t)) {
           elems[k].click();
           var inp2 = elems[k].querySelector('input[type=radio], input[type=checkbox]');
           if (inp2) { inp2.click(); inp2.checked = true; inp2.dispatchEvent(new Event('change', {bubbles:true})); }
-          return 'clicked_partial_' + k;
+          return 'text_partial_' + k;
         }
       }
-      // Debug info: list all radio button texts so we can see what's on the page
+
+      // ══════ Debug info ══════
       var debug = [];
+      gRadios.forEach(function(el, idx) {
+        debug.push('g' + idx + ':dv=' + (el.getAttribute('data-value')||'').substring(0,60) + '|txt=' + norm(el.textContent).substring(0,60));
+      });
       inputs.forEach(function(inp, idx) {
         var p = inp.closest('label') || inp.parentElement;
-        debug.push(idx + ':' + (p ? p.textContent.trim().substring(0, 50) : 'no-parent') + '|val=' + inp.value);
+        debug.push('i' + idx + ':' + (p ? norm(p.textContent).substring(0,60) : 'no-parent') + '|val=' + inp.value);
       });
-      return 'no_match_found|answer=' + answer + '|options=' + debug.join(';');
+      return 'no_match_found|answer=' + answer + '|label=' + label.substring(0,40) + '|options=' + debug.join(';');
     })()`;
     return await browserExecJS(browserName, js);
   }
