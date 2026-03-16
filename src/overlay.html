@@ -73,25 +73,21 @@
   #text-input-bar input:focus{border-color:var(--accent);box-shadow:0 8px 32px rgba(0,0,0,0.25),0 0 0 3px rgba(250,204,21,0.12),inset 0 1px 0 var(--glass-glow)}
   #text-input-bar input::placeholder{color:var(--text-dim)}
 
-  #drip-type-panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:300;display:none;width:560px;background:var(--glass);backdrop-filter:blur(60px) saturate(200%);-webkit-backdrop-filter:blur(60px) saturate(200%);border:1px solid var(--glass-border);border-radius:var(--radius);box-shadow:0 24px 80px rgba(0,0,0,.45),inset 0 1px 0 var(--glass-glow);animation:panelIn .3s cubic-bezier(.16,1,.3,1);overflow:hidden}
+  #drip-type-panel{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:300;display:none;width:520px;background:var(--glass);backdrop-filter:blur(60px) saturate(200%);-webkit-backdrop-filter:blur(60px) saturate(200%);border:1px solid var(--glass-border);border-radius:var(--radius);box-shadow:0 24px 80px rgba(0,0,0,.45),inset 0 1px 0 var(--glass-glow);animation:panelIn .3s cubic-bezier(.16,1,.3,1);overflow:hidden}
   #drip-type-panel .dt-header{display:flex;align-items:center;justify-content:space-between;padding:14px 18px;border-bottom:1px solid var(--border)}
   #drip-type-panel .dt-header h3{font-size:14px;font-weight:600;color:var(--accent);margin:0}
   #drip-type-panel .dt-header .dt-close{background:transparent;border:1px solid var(--border);color:var(--text-muted);padding:3px 8px;border-radius:5px;font-size:11px;font-family:inherit;cursor:pointer;transition:all .12s}
   #drip-type-panel .dt-header .dt-close:hover{background:rgba(255,255,255,0.06);color:var(--text)}
   #drip-type-panel .dt-body{padding:18px}
   #drip-type-panel .dt-desc{font-size:12px;color:var(--text-dim);margin-bottom:14px;line-height:1.5}
-  #drip-type-panel textarea{width:100%;height:160px;padding:12px 14px;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:13px;outline:none;resize:vertical;line-height:1.6;transition:border-color .15s}
+  #drip-type-panel textarea{width:100%;height:160px;padding:12px 14px;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:none;resize:vertical;line-height:1.6;transition:border-color .15s}
   #drip-type-panel textarea:focus{border-color:var(--accent)}
   #drip-type-panel textarea::placeholder{color:var(--text-dim)}
-  #drip-type-panel .dt-footer{padding:14px 18px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;gap:10px}
-  .dt-btn{padding:10px 20px;border:none;border-radius:8px;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:all .15s;flex-shrink:0}
-  .dt-btn:disabled{opacity:.4;cursor:not-allowed}
-  .dt-btn-type{background:var(--accent);color:#000}
-  .dt-btn-type:hover:not(:disabled){background:var(--accent-hover)}
-  .dt-btn-secondary{background:rgba(255,255,255,0.06);color:var(--text-muted);border:1px solid var(--border)}
-  .dt-btn-secondary:hover:not(:disabled){background:rgba(255,255,255,0.1);color:var(--text)}
-  .dt-btns{display:flex;gap:8px;align-items:center}
-  .dt-status{font-size:11px;color:var(--text-dim);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  #drip-type-panel .dt-footer{padding:14px 18px;border-top:1px solid var(--border);display:flex;align-items:center;justify-content:space-between}
+  #drip-type-panel .dt-footer .dt-hint{font-size:11px;color:var(--text-dim)}
+  #drip-type-panel .dt-footer .dt-start{padding:9px 22px;border:none;border-radius:8px;background:var(--accent);color:#000;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:all .12s}
+  #drip-type-panel .dt-footer .dt-start:hover{background:var(--accent-hover)}
+  #drip-type-panel .dt-footer .dt-start:disabled{opacity:.4;cursor:not-allowed}
 
   #dt-pencil-btn{padding:9px 16px;border:1px solid var(--glass-border);border-radius:8px;background:rgba(255,255,255,0.06);color:var(--text-muted);font-family:inherit;font-size:12px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:6px}
   #dt-pencil-btn:hover{background:rgba(255,255,255,0.12);color:var(--text);border-color:rgba(255,255,255,0.25)}
@@ -130,19 +126,17 @@
 
 <div id="drip-type-panel">
   <div class="dt-header">
-    <h3 id="dt-title">Drip Type</h3>
+    <h3>Drip Type</h3>
     <button class="dt-close" id="dt-close-btn">Close</button>
   </div>
   <div class="dt-body">
-    <div class="dt-desc">Paste text below. Zap types it out character by character with natural speed, typos, and corrections.</div>
-    <textarea id="dt-textarea" placeholder="Paste your text here..."></textarea>
+    <div class="dt-desc">Paste the text you want typed below. Zap will hide, switch to your previous app, and type it out character by character — like a real human, complete with natural speed variation and occasional typos that get corrected.</div>
+    <textarea id="dt-textarea" placeholder="Paste or type your text here..."></textarea>
   </div>
   <div class="dt-footer">
-    <button id="dt-pencil-btn" title="Auto-draft: reads screen and generates a response"><span class="pencil-icon">&#9998;</span> Auto Draft</button>
-    <span class="dt-status" id="dt-status"></span>
-    <div class="dt-btns">
-      <button class="dt-btn dt-btn-type" id="dt-start-btn">Start Typing</button>
-    </div>
+    <button id="dt-pencil-btn" title="Auto-draft: reads your screen and generates a response"><span class="pencil-icon">&#9998;</span> Auto Draft</button>
+    <span class="dt-hint">Overlay will hide &amp; typing starts</span>
+    <button class="dt-start" id="dt-start-btn">Start Typing</button>
   </div>
 </div>
 
@@ -157,7 +151,6 @@
   var copyBtn=$('copy-btn'), pasteBtn=$('paste-btn'), closeResBtn=$('close-response-btn');
   var inputBar=$('text-input-bar'), inputEl=$('text-input');
   var dtPanel=$('drip-type-panel'), dtArea=$('dt-textarea'), dtStart=$('dt-start-btn'), dtClose=$('dt-close-btn'), dtPencil=$('dt-pencil-btn');
-  var dtStatus=$('dt-status'), dtTitle=$('dt-title');
 
   window.zap.onScreenCaptured(function(u){capture=u});
 
@@ -233,31 +226,20 @@
     setTimeout(function(){dtArea.focus()},100);
   }
 
-  function hideDT(){
-    dtPanel.style.display='none';
-    dtArea.value='';
-    resetDTState();
-  }
-
-  function resetDTState(){
-    dtStart.disabled=false;
-    dtStart.textContent='Start Typing';
-    dtStatus.textContent='';
-  }
+  function hideDT(){dtPanel.style.display='none';dtArea.value=''}
 
   dtClose.addEventListener('click',function(){hideDT();setMode('answer');instr.style.display=''});
 
-  // Start Typing button
   dtStart.addEventListener('click',async function(){
     var txt=dtArea.value;
-    if(!txt||!txt.trim())return;
+    if(!txt.trim())return;
     dtStart.disabled=true;
-    dtPencil.disabled=true;
     dtStart.textContent='Starting...';
-    dtStatus.textContent='Hiding overlay and typing...';
-    await new Promise(function(r){setTimeout(r,400)});
+    await new Promise(function(r){setTimeout(r,500)});
     hideDT();
     await window.zap.dripType(txt);
+    dtStart.disabled=false;
+    dtStart.textContent='Start Typing';
   });
 
   // Strip markdown formatting so drip-typed text looks like natural human writing
