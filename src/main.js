@@ -1310,7 +1310,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
       : 'You are a research specialist. Provide a thorough, well-organized analysis of the topic shown. Structure your response as: 1) Brief overview, 2) Key findings with specific details and data, 3) Sources and references at the end. Use real, credible sources where possible. Be factual and detailed.',
     email:     'You are a professional communication expert. Draft a polished email reply based on the context shown on screen. Match the tone and formality of the original message. Include an appropriate greeting, clear and concise body, and professional closing. Return ONLY the email text — no Subject line, no "To:" field, no metadata.',
     flashcards:'You are an educational content creator. Generate 5-8 Q&A flashcards from the material shown on screen. Format each as: **Q:** [question] followed by **A:** [concise answer]. Focus on key concepts, definitions, formulas, and important facts. Number each flashcard.',
-    humanize:  'You are an expert at rewriting AI-generated text so it passes ALL AI detection tools (GPTZero, Turnitin, Originality.ai, ZeroGPT, Copyleaks) as human-written. Your ONLY job: rewrite the text to score 70%+ human on every detector. Return ONLY the rewritten text — no notes, no disclaimers, no explanations.\n\nCRITICAL RULES FOR BEATING AI DETECTORS:\n1. PERPLEXITY: AI text is predictable. Make yours unpredictable. Use unexpected word choices, uncommon synonyms, and surprising phrasing. Do not pick the obvious next word.\n2. BURSTINESS: AI writes uniform sentences. Humans do not. Mix very short sentences (3-5 words) with long complex ones (25+ words). Some paragraphs should be 1-2 sentences, others 5-6.\n3. BANNED AI WORDS — never use these: delve, crucial, moreover, furthermore, comprehensive, robust, multifaceted, landscape, realm, foster, leverage, innovative, cutting-edge, groundbreaking, pivotal, paramount, underscore, facilitate, utilize, elucidate, intricate, nuanced, in conclusion, it is important to note, it is worth noting, in today\'s world, in the realm of, plays a crucial role.\n4. CONTRACTIONS: Always use them — don\'t not do not, it\'s not it is, they\'re not they are, won\'t not will not.\n5. SENTENCE STARTERS: Start some sentences with And, But, So, Look, Thing is, Honestly, The way I see it. Never start 2 consecutive sentences the same way.\n6. IMPERFECTIONS: Add human-like qualities — rhetorical questions, mild hedging (I think, probably, kind of), tangential thoughts, em dashes for asides.\n7. SPECIFIC > GENERIC: Replace vague claims with concrete details. Instead of many studies show say a 2023 Stanford study found. Instead of significant impact say a 23% drop.\n8. PARAGRAPH VARIETY: No uniform paragraph structure. Some should be just one punchy sentence. Others should ramble a bit.\n9. NATURAL FLOW: Do not use perfect parallel structure everywhere. Let ideas flow unevenly like real thinking — start a thought, add a caveat, come back to it.\n10. MATCH TONE: If the original is academic, keep it academic but with a student\'s natural voice. If casual, make it genuinely casual. Keep the same approximate length and all the same points/arguments.',
+    humanize:  'Rewrite this text so it reads as 100% human-written. Return ONLY the rewritten text.\n\nYou MUST follow these rules or AI detectors will flag it:\n\nSENTENCE STRUCTURE: This is the #1 signal. AI writes sentences that are all roughly the same length and complexity. You need wild variation. Write a 4-word sentence. Then a 35-word one with multiple clauses. Then a medium one. Then a fragment. Then a question. Never let 3 sentences in a row be similar length.\n\nWORD CHOICE: AI always picks the statistically most likely next word. Don\'t. Use unexpected words. Instead of \"significant\" say \"pretty big\" or \"hard to ignore\". Instead of \"utilize\" say \"use\" or \"lean on\". Instead of \"demonstrate\" say \"show\" or \"make clear\". Write like you talk.\n\nBANNED — these words scream AI. Never use: delve, crucial, moreover, furthermore, comprehensive, robust, multifaceted, landscape, realm, foster, leverage, innovative, facilitate, utilize, underscore, pivotal, paramount, nuanced, intricate, groundbreaking, cutting-edge, plays a crucial role, it is important to note, in today\'s world, in conclusion.\n\nCONTRACTIONS: Always. It\'s, don\'t, can\'t, won\'t, they\'re, we\'re, isn\'t, doesn\'t, wouldn\'t. Never write \"do not\" or \"it is\" or \"they are\".\n\nIMPERFECTIONS: Real humans do these things — start sentences with \"And\" or \"But\" or \"So\". Use em dashes mid-thought. Ask rhetorical questions. Hedge with \"I think\", \"probably\", \"kind of\", \"sort of\". Throw in a parenthetical aside. Occasionally trail off with an ellipsis.\n\nPARAGRAPH SHAPE: Don\'t make every paragraph 3-5 sentences. One paragraph should be a single line. Another should be 6-7 sentences that kind of meander. Break the rhythm.\n\nFLOW: Don\'t use perfect transitions between every paragraph. Sometimes just jump to the next point. Sometimes connect two ideas awkwardly like a real person would. Don\'t telegraph your structure.\n\nKEEP: Same meaning, same arguments, same approximate length. Match the original tone (academic stays academic, casual stays casual).',
     autopilot: 'You are a quiz/form auto-fill AI. Analyze the screenshot and identify ALL visible questions and form fields. Return ONLY valid JSON — no markdown, no code fences, no explanation. Format: {"fields":[{"label":"question or field label","type":"radio","answer":"the correct answer","clickX":123,"clickY":456}],"nextBtn":null}. Field types: "radio" for multiple choice (clickX/clickY = center of the correct radio button/option to click), "checkbox" for checkboxes, "text" for text inputs or textareas (clickX/clickY = center of the input field), "select" for dropdowns. Coordinates must be in pixels matching the image dimensions, measured from top-left corner. For multiple choice: identify the CORRECT answer and provide coordinates of that specific option. Answer every question correctly using your knowledge. Be extremely precise with coordinates — they will be used to click.'
   };
 
@@ -1342,11 +1342,34 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
     const res = await fetch(endpoint, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
-      body: JSON.stringify({ model, messages: msgs, max_tokens: tokens, temperature: 0 })
+      body: JSON.stringify({ model, messages: msgs, max_tokens: tokens, temperature: effectiveMode === 'humanize' ? 0.9 : 0 })
     });
     if (!res.ok) return { error: `API Error (${res.status}): ${await res.text()}` };
     const data = await res.json();
-    return { result: data.choices?.[0]?.message?.content || 'No response received.', usage: data.usage };
+    let result = data.choices?.[0]?.message?.content || 'No response received.';
+
+    // ── HUMANIZE: Second pass — review and further de-AI the text ──
+    if (effectiveMode === 'humanize' && result && result.length > 20) {
+      console.log('[AI] Humanize pass 2: polishing...');
+      const pass2Msgs = [
+        { role: 'system', content: 'You are a final-pass editor. The text below was already humanized once but may still trigger AI detectors. Your job: make ONE MORE editing pass. Focus on: 1) Replace any remaining AI-sounding phrases. 2) Break up any sentences that are too uniformly structured. 3) Add 1-2 minor imperfections — a sentence fragment, a parenthetical aside, a rhetorical question. 4) Make sure no two consecutive sentences start the same way. 5) Ensure contractions are used everywhere. Return ONLY the final text — nothing else.' },
+        { role: 'user', content: result }
+      ];
+      try {
+        const res2 = await fetch(endpoint, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
+          body: JSON.stringify({ model, messages: pass2Msgs, max_tokens: tokens, temperature: 1.0 })
+        });
+        if (res2.ok) {
+          const data2 = await res2.json();
+          const pass2Result = data2.choices?.[0]?.message?.content;
+          if (pass2Result && pass2Result.length > 20) result = pass2Result;
+        }
+      } catch (_) { /* pass 2 failed, keep pass 1 result */ }
+    }
+
+    return { result, usage: data.usage };
   } catch (err) {
     return { error: 'Request failed: ' + err.message };
   }
