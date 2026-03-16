@@ -88,6 +88,10 @@
   #drip-type-panel .dt-footer .dt-start{padding:9px 22px;border:none;border-radius:8px;background:var(--accent);color:#000;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:all .12s}
   #drip-type-panel .dt-footer .dt-start:hover{background:var(--accent-hover)}
   #drip-type-panel .dt-footer .dt-start:disabled{opacity:.4;cursor:not-allowed}
+  #drip-type-panel .dt-footer .dt-humanize{padding:9px 18px;border:none;border-radius:8px;background:linear-gradient(135deg,#a78bfa,#7c3aed);color:#fff;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer;transition:all .12s}
+  #drip-type-panel .dt-footer .dt-humanize:hover{box-shadow:0 2px 12px rgba(167,139,250,.4)}
+  #drip-type-panel .dt-footer .dt-humanize:disabled{opacity:.4;cursor:not-allowed}
+  .dt-btns{display:flex;gap:8px;align-items:center}
 
   #dt-pencil-btn{padding:9px 16px;border:1px solid var(--glass-border);border-radius:8px;background:rgba(255,255,255,0.06);color:var(--text-muted);font-family:inherit;font-size:12px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:6px}
   #dt-pencil-btn:hover{background:rgba(255,255,255,0.12);color:var(--text);border-color:rgba(255,255,255,0.25)}
@@ -136,7 +140,10 @@
   <div class="dt-footer">
     <button id="dt-pencil-btn" title="Auto-draft: reads your screen and generates a response"><span class="pencil-icon">&#9998;</span> Auto Draft</button>
     <span class="dt-hint">Overlay will hide &amp; typing starts</span>
-    <button class="dt-start" id="dt-start-btn">Start Typing</button>
+    <div class="dt-btns">
+      <button class="dt-humanize" id="dt-humanize-btn" title="Humanize the text first, then drip type it">Humanize + Type</button>
+      <button class="dt-start" id="dt-start-btn">Start Typing</button>
+    </div>
   </div>
 </div>
 
@@ -150,7 +157,7 @@
   var resPanel=$('response-panel'), resBody=$('response-body'), resModeText=$('response-mode-text');
   var copyBtn=$('copy-btn'), pasteBtn=$('paste-btn'), closeResBtn=$('close-response-btn');
   var inputBar=$('text-input-bar'), inputEl=$('text-input');
-  var dtPanel=$('drip-type-panel'), dtArea=$('dt-textarea'), dtStart=$('dt-start-btn'), dtClose=$('dt-close-btn'), dtPencil=$('dt-pencil-btn');
+  var dtPanel=$('drip-type-panel'), dtArea=$('dt-textarea'), dtStart=$('dt-start-btn'), dtClose=$('dt-close-btn'), dtPencil=$('dt-pencil-btn'), dtHumanize=$('dt-humanize-btn');
 
   window.zap.onScreenCaptured(function(u){capture=u});
 
@@ -238,6 +245,37 @@
     hideDT();
     await window.zap.dripType(txt);
     dtStart.disabled=false;
+    dtStart.textContent='Start Typing';
+  });
+
+  // Humanize + Drip Type: send text to humanize AI, then drip type the result
+  dtHumanize.addEventListener('click',async function(){
+    var txt=dtArea.value;
+    if(!txt.trim())return;
+    dtHumanize.disabled=true;
+    dtStart.disabled=true;
+    dtHumanize.textContent='Humanizing...';
+    try{
+      var r=await window.zap.aiRequest({mode:'humanize',text:txt,imageDataUrl:null,region:null,language:settings.language});
+      if(r.error){
+        dtHumanize.textContent='Error — try again';
+        dtHumanize.disabled=false;
+        dtStart.disabled=false;
+        return;
+      }
+      var humanized=cleanForDrip(r.result||txt);
+      // Show humanized text briefly so user can see it
+      dtArea.value=humanized;
+      dtHumanize.textContent='Typing...';
+      await new Promise(function(r){setTimeout(r,600)});
+      hideDT();
+      await window.zap.dripType(humanized);
+    }catch(e){
+      dtArea.value=txt;
+    }
+    dtHumanize.disabled=false;
+    dtStart.disabled=false;
+    dtHumanize.textContent='Humanize + Type';
     dtStart.textContent='Start Typing';
   });
 
