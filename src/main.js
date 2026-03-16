@@ -74,6 +74,10 @@ const STORE_DEFAULTS = {
   dripPauseChance: 0.03,
   dripBurstChance: 0.08,
   invisibleOverlay: true,
+  autopilotDelay:     800,
+  autopilotDelayRandom: 500,
+  autopilotHumanize:  true,
+  autopilotScrollTo:  true,
   lockdownMode: false,
   authDone: false,
   authName: '',
@@ -1032,6 +1036,20 @@ ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
   console.log('[Autopilot] Display scale factor:', scale);
   const results = [];
 
+  // ── Autopilot settings for human-like behavior ──
+  const apDelay      = store.get('autopilotDelay') || 800;
+  const apDelayRand  = store.get('autopilotDelayRandom') || 500;
+  const apHumanize   = store.get('autopilotHumanize') !== false;
+  const apScrollTo   = store.get('autopilotScrollTo') !== false;
+
+  function humanDelay() {
+    const base = apDelay;
+    const rand = apHumanize ? Math.floor(Math.random() * apDelayRand) : 0;
+    // Occasional longer pause to mimic reading/thinking
+    const thinkPause = apHumanize && Math.random() < 0.15 ? Math.floor(Math.random() * 600) : 0;
+    return base + rand + thinkPause;
+  }
+
   // ── Detect if a browser is running — if so, use JS injection (100% reliable) ──
   let browserName = null;
   if (process.platform === 'darwin') {
@@ -1043,8 +1061,18 @@ ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
     // ══════ BROWSER MODE: inject JavaScript to click/fill answers directly ══════
     console.log('[Autopilot] Using browser JS injection via', browserName);
 
-    for (const field of fields) {
+    for (let fi = 0; fi < fields.length; fi++) {
+      const field = fields[fi];
       console.log(`[Autopilot] Field "${field.label}" type=${field.type} answer="${field.answer}"`);
+
+      // Scroll element into view if enabled
+      if (apScrollTo) {
+        try {
+          const scrollJS = `(function(){var el=document.querySelector('[value="${(field.answer||'').replace(/"/g,'\\"')}"]');if(el)el.scrollIntoView({behavior:'smooth',block:'center'});'scrolled'})()`;
+          await browserExecJS(browserName, scrollJS);
+          await sleep(200);
+        } catch(_){}
+      }
 
       try {
         const jsResult = await browserClickAnswer(browserName, field);
@@ -1056,7 +1084,8 @@ ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
         } else {
           results.push({ label: field.label || '?', ok: true });
         }
-        await sleep(300);
+        // Human-like delay between questions
+        if (fi < fields.length - 1) await sleep(humanDelay());
       } catch (err) {
         console.log(`[Autopilot] JS injection error for "${field.label}":`, err.message);
         results.push({ label: field.label || '?', ok: false, reason: err.message });
@@ -1072,7 +1101,8 @@ ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
       await sleep(500);
     }
 
-    for (const field of fields) {
+    for (let fi = 0; fi < fields.length; fi++) {
+      const field = fields[fi];
       if (!field.clickX || !field.clickY) {
         results.push({ label: field.label || '?', ok: false, reason: 'no coordinates' });
         continue;
@@ -1088,7 +1118,7 @@ ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
         } else {
           await winClickAt(x, y);
         }
-        await sleep(500);
+        await sleep(300);
 
         // If text/select field, type the answer after clicking
         if ((field.type === 'text' || field.type === 'select') && field.answer) {
@@ -1103,7 +1133,8 @@ ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
         }
 
         results.push({ label: field.label || '?', ok: true });
-        await sleep(300);
+        // Human-like delay between questions
+        if (fi < fields.length - 1) await sleep(humanDelay());
       } catch (err) {
         console.log(`[Autopilot] Click error:`, err.message);
         results.push({ label: field.label || '?', ok: false, reason: err.message });

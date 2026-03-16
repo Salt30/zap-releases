@@ -226,6 +226,40 @@
       </div>
     </div>
 
+    <div class="card">
+      <div class="card-title">Autopilot Settings</div>
+      <div class="field">
+        <label>Delay Between Questions</label>
+        <div class="slider-row">
+          <input type="range" id="autopilotDelay" min="200" max="3000" step="100" value="800">
+          <span class="slider-value" id="autopilotDelay-val">800ms</span>
+        </div>
+        <div class="hint">Base delay (ms) between filling each question. Higher = slower and more human-like.</div>
+      </div>
+      <div class="field">
+        <label>Random Variation</label>
+        <div class="slider-row">
+          <input type="range" id="autopilotDelayRandom" min="0" max="2000" step="100" value="500">
+          <span class="slider-value" id="autopilotDelayRandom-val">500ms</span>
+        </div>
+        <div class="hint">Random time added on top of the base delay. Makes timing unpredictable and natural.</div>
+      </div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-label">Humanize Behavior</div>
+          <div class="toggle-desc">Adds occasional longer pauses that mimic reading and thinking between questions</div>
+        </div>
+        <div class="toggle" id="toggle-apHumanize" data-key="autopilotHumanize"><div class="thumb"></div></div>
+      </div>
+      <div class="toggle-row" style="border-bottom:none">
+        <div class="toggle-info">
+          <div class="toggle-label">Auto-Scroll to Question</div>
+          <div class="toggle-desc">Scrolls each question into view before answering it — useful for long forms</div>
+        </div>
+        <div class="toggle" id="toggle-apScrollTo" data-key="autopilotScrollTo"><div class="thumb"></div></div>
+      </div>
+    </div>
+
     <div class="card" style="border-color:rgba(239,68,68,0.2)">
       <div class="card-title" style="color:#f87171">Stealth Mode</div>
       <div class="toggle-row" style="border-bottom:none">
@@ -626,6 +660,11 @@
       var el=document.getElementById('setting-'+f);
       if(el&&s[f]!==undefined)el.value=s[f];
     });
+    // Autopilot sliders (no 'setting-' prefix)
+    ['autopilotDelay','autopilotDelayRandom'].forEach(function(f){
+      var el=document.getElementById(f);
+      if(el&&s[f]!==undefined)el.value=s[f];
+    });
     ['hotkey','hotkeyAnswer','hotkeySimple','hotkeyTranslate','hotkeyAutopilot','hotkeyDripType','hotkeyStopDrip','hotkeySolve','hotkeyEssay','hotkeyCode','hotkeyResearch','hotkeyEmail','hotkeyFlashcards','hotkeyApp'].forEach(function(f){
       var el=document.getElementById('hk-'+f);
       if(el&&s[f])el.value=s[f];
@@ -658,9 +697,14 @@
     if(dd&&ddv)ddv.textContent=dd.value+'s';
     if(dp&&dpv)dpv.textContent=Math.round(parseFloat(dp.value)*100)+'%';
     if(db&&dbv)dbv.textContent=Math.round(parseFloat(db.value)*100)+'%';
+    // Autopilot sliders
+    var apd=document.getElementById('autopilotDelay'),apdv=document.getElementById('autopilotDelay-val');
+    var apr=document.getElementById('autopilotDelayRandom'),aprv=document.getElementById('autopilotDelayRandom-val');
+    if(apd&&apdv)apdv.textContent=apd.value+'ms';
+    if(apr&&aprv)aprv.textContent=apr.value+'ms';
   }
 
-  ['setting-fontSize','setting-borderRadius','setting-overlayOpacity','setting-accentColor','setting-typoRate','setting-dripWPM','setting-dripDelay','setting-dripPauseChance','setting-dripBurstChance'].forEach(function(id){
+  ['setting-fontSize','setting-borderRadius','setting-overlayOpacity','setting-accentColor','setting-typoRate','setting-dripWPM','setting-dripDelay','setting-dripPauseChance','setting-dripBurstChance','autopilotDelay','autopilotDelayRandom'].forEach(function(id){
     var el=document.getElementById(id);
     if(el)el.addEventListener('input',updateVals);
   });
@@ -706,6 +750,10 @@
       simpleMode:document.getElementById('toggle-simple').classList.contains('active'),
       credibleSourcesOnly:document.getElementById('toggle-credible').classList.contains('active'),
       startAtLogin:document.getElementById('toggle-startup').classList.contains('active'),
+      autopilotDelay:parseInt(document.getElementById('autopilotDelay').value)||800,
+      autopilotDelayRandom:parseInt(document.getElementById('autopilotDelayRandom').value)||500,
+      autopilotHumanize:document.getElementById('toggle-apHumanize').classList.contains('active'),
+      autopilotScrollTo:document.getElementById('toggle-apScrollTo').classList.contains('active'),
       language:document.getElementById('setting-language').value,
       accentColor:document.getElementById('setting-accentColor').value,
       fontSize:parseInt(document.getElementById('setting-fontSize').value),
