@@ -196,7 +196,7 @@
     }
   });
 
-  var labels={answer:'Answer',simple:'Simple',translate:'Translate',solve:'Solve',essay:'Essay',code:'Code',research:'Research',email:'Email',flashcards:'Flashcards',driptype:'Drip Type',autopilot:'Autopilot'};
+  var labels={answer:'Answer',simple:'Simple',translate:'Translate',solve:'Solve',essay:'Essay',code:'Code',research:'Research',email:'Email',flashcards:'Flashcards',humanize:'Humanize',driptype:'Drip Type',autopilot:'Autopilot'};
   function setMode(m){
     currentMode=m;
     modeInd.textContent=labels[m]||m;
@@ -396,7 +396,7 @@
         fbtn.onclick=function(){window.zap.openFlashcards(resBody.innerText)};
         resBody.appendChild(fbtn);
       }
-      pasteBtn.textContent=(currentMode==='email')?'Paste Reply':'Paste';
+      pasteBtn.textContent=(currentMode==='email')?'Paste Reply':(currentMode==='humanize')?'Paste Humanized':'Paste';
     }catch(err){resBody.className='';resBody.innerHTML='<div class="error-msg">'+esc(err.message)+'</div>'}
   }
 

@@ -58,6 +58,7 @@ const STORE_DEFAULTS = {
   hotkeyResearch:  'CmdOrCtrl+Alt+1',
   hotkeyEmail:     'CmdOrCtrl+Alt+2',
   hotkeyFlashcards:'CmdOrCtrl+Alt+3',
+  hotkeyHumanize:  'CmdOrCtrl+Alt+4',
   hotkeyApp:       'Alt+M',
   language:      'Spanish',
   theme:         'dark',
@@ -572,6 +573,7 @@ function bindKeys() {
     [store.get('hotkeyResearch'),  () => showWithMode('research')],
     [store.get('hotkeyEmail'),     () => showWithMode('email')],
     [store.get('hotkeyFlashcards'),() => showWithMode('flashcards')],
+    [store.get('hotkeyHumanize'),  () => showWithMode('humanize')],
     [store.get('hotkeyAutopilot'), () => showWithMode('autopilot')],
     [store.get('hotkeyStopDrip'),  () => { dripTypeCancelled = true; }]
   ];
@@ -594,6 +596,7 @@ function bindKeys() {
       ['Control+Shift+F',  () => showWithMode('research')],
       ['Control+Shift+W',  () => showWithMode('email')],
       ['Control+Shift+Q',  () => showWithMode('flashcards')],
+      ['Control+Shift+H',  () => showWithMode('humanize')],
       ['Control+Shift+P',  () => showWithMode('autopilot')],
       ['Control+Shift+X',  () => { dripTypeCancelled = true; }]
     ];
@@ -1307,6 +1310,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
       : 'You are a research specialist. Provide a thorough, well-organized analysis of the topic shown. Structure your response as: 1) Brief overview, 2) Key findings with specific details and data, 3) Sources and references at the end. Use real, credible sources where possible. Be factual and detailed.',
     email:     'You are a professional communication expert. Draft a polished email reply based on the context shown on screen. Match the tone and formality of the original message. Include an appropriate greeting, clear and concise body, and professional closing. Return ONLY the email text — no Subject line, no "To:" field, no metadata.',
     flashcards:'You are an educational content creator. Generate 5-8 Q&A flashcards from the material shown on screen. Format each as: **Q:** [question] followed by **A:** [concise answer]. Focus on key concepts, definitions, formulas, and important facts. Number each flashcard.',
+    humanize:  'You are a human writing style expert. Your job is to rewrite the provided text so it reads as naturally human-written as possible while keeping the same meaning, length, and tone. Rules: 1) Vary sentence length — mix short punchy sentences with longer ones. 2) Use natural transitions and conversational connectors (e.g. "that said", "the thing is", "interestingly"). 3) Add subtle imperfections humans naturally make — occasional informal phrasing, starting sentences with "And" or "But", using contractions. 4) Avoid AI-typical patterns: no "delve", "crucial", "Furthermore", "In conclusion", "It is important to note", "landscape", "multifaceted", "comprehensive", "robust". 5) Use concrete examples and specific details instead of vague generalizations. 6) Vary paragraph length. 7) Write like a real student or professional would — not perfectly polished, but clear and authentic. 8) Keep the same approximate word count. 9) Do NOT add disclaimers, notes, or explanations — return ONLY the rewritten text. 10) Match the original formality level — if casual, stay casual; if academic, stay academic but still human.',
     autopilot: 'You are a quiz/form auto-fill AI. Analyze the screenshot and identify ALL visible questions and form fields. Return ONLY valid JSON — no markdown, no code fences, no explanation. Format: {"fields":[{"label":"question or field label","type":"radio","answer":"the correct answer","clickX":123,"clickY":456}],"nextBtn":null}. Field types: "radio" for multiple choice (clickX/clickY = center of the correct radio button/option to click), "checkbox" for checkboxes, "text" for text inputs or textareas (clickX/clickY = center of the input field), "select" for dropdowns. Coordinates must be in pixels matching the image dimensions, measured from top-left corner. For multiple choice: identify the CORRECT answer and provide coordinates of that specific option. Answer every question correctly using your knowledge. Be extremely precise with coordinates — they will be used to click.'
   };
 
