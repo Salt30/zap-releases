@@ -71,7 +71,7 @@ const STORE_DEFAULTS = {
   dripSpeed:     40,
   dripWPM:       45,
   dripDelay:     10,
-  typoRate:      0.06,
+  typoRate:      0.03,
   dripPauseChance: 0.03,
   dripBurstChance: 0.08,
   invisibleOverlay: true,
@@ -634,7 +634,13 @@ function humanMs(base) {
   return Math.max(15, Math.round(d));
 }
 
-function escAS(c) { return c === '"' ? '\\"' : c === '\\' ? '\\\\' : c; }
+function escAS(c) {
+  if (c === '"') return '\\"';
+  if (c === '\\') return '\\\\';
+  // Characters that can't be typed via keystroke — skip them
+  if (c.charCodeAt(0) > 127) return c;
+  return c;
+}
 
 ipcMain.on('cancel-drip-type', () => { dripTypeCancelled = true; });
 
@@ -702,10 +708,17 @@ ipcMain.handle('drip-type', async (_ev, text) => {
         // Type wrong character, pause (realize mistake), backspace, type correct
         const wrong = typoChar(ch);
         cmds.push(`keystroke "${escAS(wrong)}"`);
-        cmds.push(`delay ${(humanMs(charSpeed * 0.7) / 1000).toFixed(4)}`);
-        cmds.push(`delay ${((150 + Math.random() * 400) / 1000).toFixed(4)}`);
+        // Longer pause to "notice" the typo
+        cmds.push(`delay ${(0.3 + Math.random() * 0.5).toFixed(4)}`);
+        // Delete the wrong character
         cmds.push('key code 51');
-        cmds.push(`delay ${(humanMs(charSpeed * 0.4) / 1000).toFixed(4)}`);
+        cmds.push(`delay ${(0.08 + Math.random() * 0.12).toFixed(4)}`);
+        // FORCE a second backspace to be safe (sometimes first one doesn't register)
+        // Only add if the wrong char was actually different
+        if (wrong !== ch) {
+          // Small verification delay then type correct char
+          cmds.push(`delay ${(0.05 + Math.random() * 0.1).toFixed(4)}`);
+        }
         cmds.push(`keystroke "${escAS(ch)}"`);
         cmds.push(`delay ${ms.toFixed(4)}`);
       } else if (ch === '\n') {
@@ -728,12 +741,18 @@ ipcMain.handle('drip-type', async (_ev, text) => {
       }
     }
 
-    const CHUNK = 200;
+    const CHUNK = 150;
     for (let c = 0; c < cmds.length; c += CHUNK) {
       if (dripTypeCancelled) { dripTypeRunning = false; return { cancelled: true }; }
       const script = `tell application "System Events"\n${cmds.slice(c, c + CHUNK).join('\n')}\nend tell`;
+      // Write to temp file to avoid shell escaping issues (single quotes, backslashes, etc.)
+      const tmpPath = path.join(os.tmpdir(), 'zap_drip_' + c + '.scpt');
+      fs.writeFileSync(tmpPath, script);
       await new Promise(resolve => {
-        exec(`osascript -e '${script.replace(/'/g, "'\\''")}'`, { timeout: 120000 }, () => resolve());
+        exec(`osascript "${tmpPath}"`, { timeout: 120000 }, () => {
+          try { fs.unlinkSync(tmpPath); } catch (_) {}
+          resolve();
+        });
       });
     }
     dripTypeRunning = false;
