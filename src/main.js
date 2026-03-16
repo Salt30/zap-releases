@@ -11,6 +11,8 @@ const {
   clipboard
 } = require('electron');
 const path = require('path');
+const fs = require('fs');
+const os = require('os');
 const { exec } = require('child_process');
 const Store = require('electron-store');
 
