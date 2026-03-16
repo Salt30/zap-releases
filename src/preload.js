@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, clipboard } = require('electron');
 
 contextBridge.exposeInMainWorld('zap', {
   hideOverlay:    ()       => ipcRenderer.send('hide-overlay'),
@@ -43,7 +43,6 @@ contextBridge.exposeInMainWorld('zap', {
   createBillingPortal:   () => ipcRenderer.invoke('create-billing-portal'),
 
   copyToClipboard: (text) => {
-    const { clipboard } = require('electron');
     clipboard.writeText(text);
   },
 
