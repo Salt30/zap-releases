@@ -1470,6 +1470,7 @@ ipcMain.handle('create-checkout-session', async (_ev, email) => {
       payment_method_types: ['card'],
       line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
       customer_email: email || undefined,
+      allow_promotion_codes: true,
       success_url: 'https://tryzap.net/checkout/success?session_id={CHECKOUT_SESSION_ID}',
       cancel_url: 'https://tryzap.net/checkout/cancel',
       metadata: { app: 'zap', hostname: require('os').hostname() }
