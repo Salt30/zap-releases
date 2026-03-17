@@ -199,7 +199,7 @@
   var labels={answer:'Answer',simple:'Simple',translate:'Translate',solve:'Solve',essay:'Essay',code:'Code',research:'Research',email:'Email',flashcards:'Flashcards',driptype:'Drip Type',autopilot:'Autopilot'};
   function setMode(m){
     currentMode=m;
-    modeInd.textContent=labels[m]||m;
+    if(m!=='autopilot') modeInd.textContent=labels[m]||m;
     if(m==='driptype') showDT(); else hideDT();
     // Autopilot: auto-capture full screen immediately — no drag needed
     if(m==='autopilot'){
@@ -210,7 +210,7 @@
         waitCount++;
         if(capture||waitCount>20){
           clearInterval(waitForCapture);
-          if(capture) processRequest();
+          if(capture) runAutopilotSilent();
           else{ resPanel.style.display='flex';resPanel.style.flexDirection='column';posPanel();resBody.className='';resBody.innerHTML='<div class="error-msg">No screen capture available. Try again.</div>'; }
         }
       },150);
@@ -342,7 +342,7 @@
   function resetSel(){sel.style.display='none';selRect=null;instr.style.display=''}
 
   document.addEventListener('keydown',function(e){
-    if(e.target===dtArea)return;
+    if(e.target===dtArea&&e.key!=='Escape')return;
     if(e.key==='Tab'){
       e.preventDefault();
       if(currentMode==='driptype')return;
@@ -459,6 +459,46 @@
     }
     html+='<div style="font-size:11px;color:rgba(255,255,255,0.35);text-align:center;margin-top:8px">Press <kbd style="padding:1px 5px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:3px;font-size:10px">Esc</kbd> to dismiss &middot; <kbd style="padding:1px 5px;background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:3px;font-size:10px">Alt+4</kbd> for next page</div>';
     resBody.className='';resBody.innerHTML=html;
+  }
+
+  // Autopilot runs completely invisibly — hide overlay, do AI + fill, auto-return
+  async function runAutopilotSilent(){
+    // Hide overlay immediately so user sees nothing
+    window.zap.hideOverlay();
+
+    // Get screen capture and send to AI
+    var img=null;
+    if(capture) img=await compressImg(capture);
+    try{
+      var r=await window.zap.aiRequest({mode:'autopilot',text:null,imageDataUrl:img,region:null,language:settings.language});
+      if(r.error){
+        // Show error — bring overlay back
+        resPanel.style.display='flex';resPanel.style.flexDirection='column';
+        resPanel.style.left='50%';resPanel.style.top='50%';resPanel.style.transform='translate(-50%,-50%)';
+        resBody.className='';resBody.innerHTML='<div class="error-msg">'+esc(r.error)+'</div>';
+        return;
+      }
+      // Parse AI response
+      var parsed;
+      try{
+        try{parsed=JSON.parse(r.result)}catch(_){
+          var m2=r.result.match(/\{[\s\S]*\}/);
+          if(m2)parsed=JSON.parse(m2[0]); else throw new Error('No JSON found');
+        }
+        if(!parsed.fields||!parsed.fields.length){return}
+      }catch(e){return}
+
+      // Execute fills silently
+      var result=await window.zap.autopilotExecute({fields:parsed.fields});
+      // Only show UI if there was an error
+      if(result && (result.error || (result.filled||0)<(result.total||0))){
+        showAutopilotResults(result);
+      }
+      // Done — overlay stays hidden, user is back to normal screen
+    }catch(err){}
+    // Reset mode so next hotkey press works fresh
+    currentMode='answer';
+    modeInd.textContent='Answer';
   }
 
   function posPanel(){
