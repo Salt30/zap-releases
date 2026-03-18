@@ -196,11 +196,17 @@ let lockdownKeepAlive = null;
 
 function startLockdownKeepAlive() {
   if (lockdownKeepAlive) return;
+  // On Windows, lockdown browsers aggressively fight for z-order — use a fast timer
+  const interval = process.platform === 'win32' ? 200 : 800;
   lockdownKeepAlive = setInterval(() => {
     if (!overlayWin || overlayWin.isDestroyed()) return;
     if (!overlayUp) return;
     applyOverlayLevel();
-  }, 800);
+    // On Windows, also force focus to reclaim z-order from lockdown browsers
+    if (process.platform === 'win32') {
+      try { overlayWin.moveTop(); } catch (_) {}
+    }
+  }, interval);
 }
 
 function stopLockdownKeepAlive() {
@@ -342,6 +348,10 @@ function applyOverlayLevel() {
   try { overlayWin.setAlwaysOnTop(true, 'screen-saver', 1); } catch (_) { overlayWin.setAlwaysOnTop(true); }
   if (process.platform === 'darwin') {
     try { overlayWin.setWindowButtonVisibility(false); } catch (_) {}
+  }
+  // 4. On Windows, moveTop() forces window to top of z-order (fights lockdown browsers)
+  if (process.platform === 'win32') {
+    try { overlayWin.moveTop(); } catch (_) {}
   }
   // 4. If screen is being captured, keep opacity at 0
   if (screenBeingCaptured) {
@@ -494,8 +504,10 @@ function showWithMode(mode) {
     // Re-enforce content protection AFTER show — critical for panel windows
     enforceContentProtection(overlayWin);
     overlayUp = true;
-    // In lockdown mode, start the keep-alive timer to stay above lockdown browsers
-    if (isLockdown()) startLockdownKeepAlive();
+    // Start keep-alive to stay above lockdown browsers
+    // On Windows, always run it (lockdown browsers aggressively fight z-order)
+    // On macOS, only in lockdown mode (NSPanel handles z-order natively)
+    if (isLockdown() || process.platform === 'win32') startLockdownKeepAlive();
   };
 
   // In lockdown mode, skip desktopCapturer entirely — it will be blocked by lockdown browsers
