@@ -5,3 +5,4 @@ build/output/
 *.dmg
 .env
 admin/
+artifacts/

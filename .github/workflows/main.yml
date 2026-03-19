@@ -78,7 +78,7 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           CSC_LINK: ${{ secrets.CERTIFICATE_BASE64 }}
           CSC_KEY_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
-        run: npx electron-builder --mac dmg zip --publish never
+        run: npx electron-builder --mac dmg zip --arm64 --x64 --publish never
 
       - name: Verify code signature
         run: |
@@ -133,6 +133,10 @@ jobs:
             echo "Notarization and stapling complete for $DMG!"
           done
 
+      - name: List dist output
+        if: always()
+        run: ls -la dist/
+
       - name: Upload ARM64 DMG
         if: always()
         uses: actions/upload-artifact@v4
@@ -147,19 +151,25 @@ jobs:
           name: Zap-ZIP
           path: dist/*arm64*.zip
 
-      - name: Upload x64 DMG (Intel)
+      - name: Upload Intel DMG
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Zap-DMG-x64
-          path: dist/*x64*.dmg
+          name: Zap-DMG-Intel
+          path: |
+            dist/*.dmg
+            !dist/*arm64*.dmg
+            !dist/*.blockmap
 
-      - name: Upload x64 ZIP (Intel)
+      - name: Upload Intel ZIP
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Zap-ZIP-x64
-          path: dist/*x64*.zip
+          name: Zap-ZIP-Intel
+          path: |
+            dist/*mac.zip
+            dist/*x64*.zip
+            !dist/*arm64*.zip
 
   build-win:
     runs-on: windows-latest
