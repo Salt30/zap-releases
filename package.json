@@ -1,6 +1,6 @@
 {
   "name": "zap",
-  "version": "3.18.10",
+  "version": "3.18.11",
   "description": "Zap — AI Screen Overlay",
   "main": "src/main.js",
   "author": "Zap",
@@ -39,13 +39,15 @@
         {
           "target": "dmg",
           "arch": [
-            "arm64"
+            "arm64",
+            "x64"
           ]
         },
         {
           "target": "zip",
           "arch": [
-            "arm64"
+            "arm64",
+            "x64"
           ]
         }
       ],

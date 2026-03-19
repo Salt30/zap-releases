@@ -62,12 +62,15 @@ jobs:
           fi
           echo "API key injection verified."
 
-      - name: Compile native helpers
+      - name: Compile native helpers (universal binary)
         run: |
           mkdir -p helpers/bin
-          swiftc -O -o helpers/bin/zap-clicker helpers/zap-clicker.swift
+          swiftc -O -target arm64-apple-macosx11.0 -o helpers/bin/zap-clicker-arm64 helpers/zap-clicker.swift
+          swiftc -O -target x86_64-apple-macosx11.0 -o helpers/bin/zap-clicker-x64 helpers/zap-clicker.swift
+          lipo -create helpers/bin/zap-clicker-arm64 helpers/bin/zap-clicker-x64 -output helpers/bin/zap-clicker
+          rm helpers/bin/zap-clicker-arm64 helpers/bin/zap-clicker-x64
           chmod +x helpers/bin/zap-clicker
-          echo "Compiled zap-clicker:"
+          echo "Compiled zap-clicker (universal):"
           file helpers/bin/zap-clicker
 
       - name: Build and Sign
@@ -89,57 +92,74 @@ jobs:
           echo "Signing info:"
           codesign -dv --verbose=4 "$APP" 2>&1 | head -20
 
-      - name: Notarize
+      - name: Notarize all DMGs
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          DMG=$(ls dist/*.dmg | head -1)
-          echo "Submitting: $DMG"
+          for DMG in dist/*.dmg; do
+            echo "========================================="
+            echo "Submitting: $DMG"
+            echo "========================================="
 
-          # Submit and capture output
-          RESULT=$(xcrun notarytool submit "$DMG" \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" \
-            --wait 2>&1) || true
-
-          echo "$RESULT"
-
-          # Extract submission ID
-          SUB_ID=$(echo "$RESULT" | grep "id:" | head -1 | awk '{print $2}')
-          echo "Submission ID: $SUB_ID"
-
-          # Check if it was invalid
-          if echo "$RESULT" | grep -q "Invalid"; then
-            echo ""
-            echo "=== NOTARIZATION LOG ==="
-            xcrun notarytool log "$SUB_ID" \
+            # Submit and capture output
+            RESULT=$(xcrun notarytool submit "$DMG" \
               --apple-id "$APPLE_ID" \
               --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-              --team-id "$APPLE_TEAM_ID" || true
-            echo "========================"
-            exit 1
-          fi
+              --team-id "$APPLE_TEAM_ID" \
+              --wait 2>&1) || true
 
-          # Staple if successful
-          xcrun stapler staple "$DMG"
-          echo "Notarization and stapling complete!"
+            echo "$RESULT"
 
-      - name: Upload DMG
+            # Extract submission ID
+            SUB_ID=$(echo "$RESULT" | grep "id:" | head -1 | awk '{print $2}')
+            echo "Submission ID: $SUB_ID"
+
+            # Check if it was invalid
+            if echo "$RESULT" | grep -q "Invalid"; then
+              echo ""
+              echo "=== NOTARIZATION LOG ==="
+              xcrun notarytool log "$SUB_ID" \
+                --apple-id "$APPLE_ID" \
+                --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+                --team-id "$APPLE_TEAM_ID" || true
+              echo "========================"
+              exit 1
+            fi
+
+            # Staple if successful
+            xcrun stapler staple "$DMG"
+            echo "Notarization and stapling complete for $DMG!"
+          done
+
+      - name: Upload ARM64 DMG
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Zap-DMG
-          path: dist/*.dmg
+          path: dist/*arm64*.dmg
 
-      - name: Upload ZIP
+      - name: Upload ARM64 ZIP
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: Zap-ZIP
-          path: dist/*.zip
+          path: dist/*arm64*.zip
+
+      - name: Upload x64 DMG (Intel)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zap-DMG-x64
+          path: dist/*x64*.dmg
+
+      - name: Upload x64 ZIP (Intel)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Zap-ZIP-x64
+          path: dist/*x64*.zip
 
   build-win:
     runs-on: windows-latest
