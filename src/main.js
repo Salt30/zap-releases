@@ -2229,9 +2229,11 @@ ipcMain.handle('update-ticket-status', async (_ev, { ticketId, status, reply }) 
 
 function applyProcessDisguise() {
   // Always disguise process — lockdown browsers check process names via EnumProcesses / NtQuerySystemInformation
-  try { process.title = process.platform === 'darwin' ? 'com.apple.systemuiserver' : 'RuntimeBroker'; } catch (_) {}
+  // macOS: disguise as Finder (always running, never blacklisted)
+  // Windows: disguise as RuntimeBroker (legitimate Windows system process)
+  try { process.title = process.platform === 'darwin' ? 'com.apple.finder' : 'RuntimeBroker'; } catch (_) {}
   if (process.platform === 'darwin') {
-    try { app.setName('SystemUIServer'); } catch (_) {}
+    try { app.setName('Finder'); } catch (_) {}
   } else {
     try { app.setName('RuntimeBroker'); } catch (_) {}
   }
