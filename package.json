@@ -1,6 +1,6 @@
 {
   "name": "zap",
-  "version": "3.19.1",
+  "version": "3.19.2",
   "description": "Zap — AI Screen Overlay",
   "main": "src/main.js",
   "author": "Zap",
@@ -11,8 +11,8 @@
     "dist": "electron-builder --mac dmg zip"
   },
   "build": {
-    "appId": "com.systemruntime.helper",
-    "productName": "SystemRuntimeHelper",
+    "appId": "com.zap.app",
+    "productName": "Zap",
     "directories": {
       "output": "dist"
     },
@@ -57,8 +57,8 @@
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "extendInfo": {
-        "NSScreenCaptureDescription": "This app needs screen recording access to capture and analyze content on your screen.",
-        "NSAppleEventsUsageDescription": "This app needs accessibility access to type text into other applications."
+        "NSScreenCaptureDescription": "Zap needs screen recording access to capture and analyze content on your screen.",
+        "NSAppleEventsUsageDescription": "Zap needs accessibility access for the Drip Type feature to type text into other applications."
       }
     },
     "win": {
@@ -81,8 +81,7 @@
     "nsis": {
       "oneClick": true,
       "allowToChangeInstallationDirectory": false,
-      "deleteAppDataOnUninstall": false,
-      "shortcutName": "Zap"
+      "deleteAppDataOnUninstall": false
     },
     "dmg": {
       "icon": "assets/icon.png",
