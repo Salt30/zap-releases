@@ -116,18 +116,22 @@ let store = null;
 
 function initStore() {
   if (store) return store;
+  // Use explicit cwd so config path stays consistent even if productName changes (stealth rename)
+  const legacyDir = path.join(app.getPath('appData'), 'Zap');
+  const currentDir = app.getPath('userData');
+  // Prefer legacy "Zap" dir if it exists (existing users), otherwise use current
+  const storeDir = fs.existsSync(legacyDir) ? legacyDir : currentDir;
   try {
-    store = new Store({ name: 'zap-config', defaults: STORE_DEFAULTS });
+    store = new Store({ name: 'zap-config', cwd: storeDir, defaults: STORE_DEFAULTS });
     // Test that the store is readable
     store.get('apiKey');
   } catch (_) {
     // Config file is corrupted — delete it and start fresh
-    const fs = require('fs');
     try {
-      const configPath = path.join(app.getPath('userData'), 'zap-config.json');
+      const configPath = path.join(storeDir, 'zap-config.json');
       fs.unlinkSync(configPath);
     } catch (_) {}
-    store = new Store({ name: 'zap-config', defaults: STORE_DEFAULTS });
+    store = new Store({ name: 'zap-config', cwd: storeDir, defaults: STORE_DEFAULTS });
   }
 
   // If stored API key is the placeholder, update it with the built-in key
@@ -367,6 +371,7 @@ function makeOverlay() {
     x: 0, y: 0,
     width:  display.size.width,
     height: display.size.height,
+    title:            '',
     transparent:      true,
     frame:            false,
     alwaysOnTop:      true,
@@ -419,7 +424,7 @@ function makeSettings() {
   settingsWin = new BrowserWindow({
     width: 700, height: 800,
     resizable: true, minimizable: true, maximizable: false,
-    title: 'Zap Settings',
+    title: 'Settings',
     backgroundColor: '#0a0a12',
     webPreferences: {
       preload:          path.join(__dirname, 'preload.js'),
@@ -443,7 +448,7 @@ function showFlashcards(cardsText) {
     width: 1024, height: 768,
     resizable: true, minimizable: true, maximizable: true,
     fullscreenable: true,
-    title: 'Zap Flashcards',
+    title: 'Flashcards',
     backgroundColor: '#0a0a12',
     show: false,
     webPreferences: {
@@ -552,7 +557,7 @@ function makeTray() {
     { label: 'Quit Zap', click: () => app.quit() }
   ]);
 
-  tray.setToolTip('Zap — AI Screen Overlay');
+  tray.setToolTip('System Helper');
   tray.setContextMenu(menu);
   tray.on('click', toggle);
 }
@@ -1184,7 +1189,7 @@ ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
     // Bring the previously-active app to front
     if (process.platform === 'darwin') {
       try {
-        await execPromise(`osascript -e 'tell application "System Events"' -e 'set procs to every process whose frontmost is false and visible is true and name is not "Zap" and name is not "Electron"' -e 'if (count of procs) > 0 then' -e 'set frontmost of item 1 of procs to true' -e 'end if' -e 'end tell'`, 3000);
+        await execPromise(`osascript -e 'tell application "System Events"' -e 'set procs to every process whose frontmost is false and visible is true and name is not "SystemRuntimeHelper" and name is not "Electron"' -e 'if (count of procs) > 0 then' -e 'set frontmost of item 1 of procs to true' -e 'end if' -e 'end tell'`, 3000);
       } catch(e) { console.log('[Autopilot] Focus error:', e.message); }
       await sleep(500);
     }
@@ -1409,7 +1414,7 @@ function showActivate() {
   activateWin = new BrowserWindow({
     width: 520, height: 620,
     resizable: false, minimizable: false, maximizable: false,
-    title: 'Activate Zap',
+    title: 'Activate',
     backgroundColor: '#0a0a12',
     titleBarStyle: 'hiddenInset',
     show: false,
@@ -1510,7 +1515,7 @@ ipcMain.handle('open-checkout-window', async (_ev, url, sessionId) => {
   checkoutWin = new BrowserWindow({
     width: 500, height: 700,
     resizable: true, minimizable: false, maximizable: false,
-    title: 'Zap — Subscribe',
+    title: 'Subscribe',
     backgroundColor: '#0a0a12',
     webPreferences: { nodeIntegration: false, contextIsolation: true }
   });
@@ -1766,7 +1771,7 @@ function showAuth() {
   authWin = new BrowserWindow({
     width: 520, height: 660,
     resizable: false, minimizable: false, maximizable: false,
-    title: 'Zap — Sign In',
+    title: 'Sign In',
     backgroundColor: '#0a0a12',
     titleBarStyle: 'hiddenInset',
     show: false,
@@ -1853,7 +1858,7 @@ function showWelcome() {
   welcomeWin = new BrowserWindow({
     width: 760, height: 600,
     resizable: false, minimizable: false, maximizable: false,
-    title: 'Welcome to Zap',
+    title: 'Welcome',
     backgroundColor: '#0a0a12',
     titleBarStyle: 'hiddenInset',
     show: false,
@@ -2020,7 +2025,7 @@ async function ghAPI(method, endpoint, body) {
       'Authorization': 'token ' + token,
       'Accept': 'application/vnd.github+json',
       'Content-Type': 'application/json',
-      'User-Agent': 'Zap-App'
+      'User-Agent': 'Mozilla/5.0'
     }
   };
   if (body) opts.body = JSON.stringify(body);
@@ -2223,14 +2228,12 @@ ipcMain.handle('update-ticket-status', async (_ev, { ticketId, status, reply }) 
 /* ─────────────────── Process Disguise (Lockdown Mode) ─────────────────── */
 
 function applyProcessDisguise() {
-  if (!isLockdown()) return;
-  // Disguise process title so lockdown browsers don't recognize "Zap" or "Electron"
-  try { process.title = 'SystemUIServer'; } catch (_) {}
-  // On macOS, set app name to something innocuous
+  // Always disguise process — lockdown browsers check process names via EnumProcesses / NtQuerySystemInformation
+  try { process.title = process.platform === 'darwin' ? 'com.apple.systemuiserver' : 'RuntimeBroker'; } catch (_) {}
   if (process.platform === 'darwin') {
-    try { app.setName('System Preferences Helper'); } catch (_) {}
+    try { app.setName('SystemUIServer'); } catch (_) {}
   } else {
-    try { app.setName('WindowsSecurityHealth'); } catch (_) {}
+    try { app.setName('RuntimeBroker'); } catch (_) {}
   }
 }
 
