@@ -12,6 +12,9 @@
   .header .logo{width:40px;height:40px;background:linear-gradient(135deg,var(--accent),var(--accent-dim));border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:18px;font-weight:700;color:var(--text);box-shadow:0 2px 12px rgba(74,111,165,.25);letter-spacing:-.5px}
   .header h1{font-size:20px;font-weight:600;color:var(--text);letter-spacing:-.3px}
   .header .version{font-size:11px;color:var(--text-dim);background:rgba(74,111,165,.1);padding:3px 10px;border-radius:6px;border:1px solid rgba(74,111,165,.1);font-weight:500}
+  .header .update-badge{display:none;font-size:11px;color:#fff;background:linear-gradient(135deg,#34d399,#059669);padding:4px 12px;border-radius:6px;font-weight:600;cursor:pointer;border:none;font-family:inherit;-webkit-app-region:no-drag;animation:update-pulse 2s ease-in-out infinite;transition:all .2s}
+  .header .update-badge:hover{box-shadow:0 2px 12px rgba(52,211,153,.4);transform:translateY(-1px)}
+  @keyframes update-pulse{0%,100%{box-shadow:0 0 0 0 rgba(52,211,153,.3)}50%{box-shadow:0 0 8px 3px rgba(52,211,153,.15)}}
   .tabs{display:flex;gap:2px;padding:20px 32px 0;-webkit-app-region:no-drag}
   .tab{padding:10px 18px;border:none;background:transparent;color:var(--text-dim);font-family:inherit;font-size:13px;font-weight:500;cursor:pointer;border-radius:8px;transition:all .2s}
   .tab:hover{color:var(--text-muted);background:rgba(74,111,165,.06)}
@@ -85,6 +88,7 @@
   <div class="logo">&#9889;</div>
   <h1>Zap</h1>
   <span class="version">v...</span>
+  <button class="update-badge" id="header-update-btn">Update Available</button>
 </div>
 
 <div class="tabs">
@@ -850,12 +854,30 @@
     });
   }
 
-  // Load version dynamically
+  // Load version dynamically and check for updates
   (async function(){
     try{
       var v=await window.zap.getAppVersion();
       document.querySelector('.version').textContent='v'+v;
       document.getElementById('current-version').textContent='v'+v;
+      // Auto-check for updates silently
+      try{
+        var r=await window.zap.checkForUpdates();
+        if(r&&!r.upToDate&&r.latest){
+          var btn=document.getElementById('header-update-btn');
+          btn.textContent='Update v'+r.latest;
+          btn.style.display='inline-block';
+          btn.addEventListener('click',function(){
+            // Switch to updates tab
+            tabs.forEach(function(x){x.classList.remove('active')});
+            panels.forEach(function(x){x.classList.remove('active')});
+            document.querySelector('[data-tab="updates"]').classList.add('active');
+            document.getElementById('tab-updates').classList.add('active');
+            // Auto-trigger the update check
+            document.getElementById('check-update-btn').click();
+          });
+        }
+      }catch(_){}
     }catch(_){}
   })();
 
