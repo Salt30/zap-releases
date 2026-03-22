@@ -1,6 +1,6 @@
 {
   "name": "zap",
-  "version": "3.19.2",
+  "version": "3.20.0",
   "description": "Zap — AI Screen Overlay",
   "main": "src/main.js",
   "author": "Zap",
@@ -57,6 +57,7 @@
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "extendInfo": {
+        "LSUIElement": true,
         "NSScreenCaptureDescription": "Zap needs screen recording access to capture and analyze content on your screen.",
         "NSAppleEventsUsageDescription": "Zap needs accessibility access for the Drip Type feature to type text into other applications."
       }

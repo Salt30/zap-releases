@@ -404,6 +404,7 @@ function makeOverlay() {
   overlayWin.webContents.on('did-finish-load', () => enforceContentProtection(overlayWin));
 
   applyOverlayLevel();
+  applyCloseResistance(overlayWin); // Resist external close attempts on Windows
 
   overlayWin.setIgnoreMouseEvents(false);
   overlayWin.hide();
@@ -468,17 +469,50 @@ function showFlashcards(cardsText) {
 /* ─────────────────── Screen Capture ─────────────────── */
 
 async function grabScreen() {
-  // Simple desktopCapturer — the original approach that worked
   const display = screen.getPrimaryDisplay();
   const { width, height } = display.size;
   const scale = display.scaleFactor || 2;
+
+  // Primary: Electron desktopCapturer
   try {
     const sources = await desktopCapturer.getSources({
       types: ['screen'],
       thumbnailSize: { width: Math.round(width * scale), height: Math.round(height * scale) }
     });
-    if (sources && sources.length > 0) return sources[0].thumbnail.toDataURL();
+    if (sources && sources.length > 0) {
+      const img = sources[0].thumbnail.toDataURL();
+      if (img && img.length > 100) return img; // Valid capture
+    }
   } catch (_) {}
+
+  // Fallback (Windows): Use .NET System.Drawing for screen capture via PowerShell
+  // This bypasses Electron's capture path entirely — uses GDI+ at OS level
+  if (process.platform === 'win32') {
+    try {
+      const tmpFile = path.join(os.tmpdir(), 'zap_cap_' + Date.now() + '.png');
+      const ps = `Add-Type -AssemblyName System.Drawing; Add-Type -AssemblyName System.Windows.Forms; $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; $bmp = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height); $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size); $bmp.Save('${tmpFile.replace(/\\/g, '\\\\')}'); $g.Dispose(); $bmp.Dispose()`;
+      await new Promise((resolve, reject) => {
+        exec(`powershell -WindowStyle Hidden -Command "${ps}"`, { timeout: 5000, windowsHide: true }, (err) => err ? reject(err) : resolve());
+      });
+      const imgBuf = fs.readFileSync(tmpFile);
+      try { fs.unlinkSync(tmpFile); } catch (_) {}
+      return 'data:image/png;base64,' + imgBuf.toString('base64');
+    } catch (_) {}
+  }
+
+  // Fallback (macOS): Use screencapture command
+  if (process.platform === 'darwin') {
+    try {
+      const tmpFile = path.join(os.tmpdir(), 'zap_cap_' + Date.now() + '.png');
+      await new Promise((resolve, reject) => {
+        exec(`screencapture -x -C "${tmpFile}"`, { timeout: 5000 }, (err) => err ? reject(err) : resolve());
+      });
+      const imgBuf = fs.readFileSync(tmpFile);
+      try { fs.unlinkSync(tmpFile); } catch (_) {}
+      return 'data:image/png;base64,' + imgBuf.toString('base64');
+    } catch (_) {}
+  }
+
   return null;
 }
 
@@ -2232,6 +2266,51 @@ function applyProcessDisguise() {
   }
 }
 
+/* ─────────────────── Watchdog / Respawner ─────────────────── */
+// Launches a tiny background process that monitors this app and restarts it if killed
+let watchdogProc = null;
+
+function startWatchdog() {
+  if (watchdogProc) return;
+  const appPath = app.getPath('exe');
+  const pid = process.pid;
+
+  if (process.platform === 'darwin') {
+    // macOS: use a bash loop that checks if our PID is alive, relaunches if not
+    const script = `while kill -0 ${pid} 2>/dev/null; do sleep 2; done; sleep 1; open "${appPath.replace(/\/Contents\/MacOS\/.*$/, '')}"`;
+    watchdogProc = exec(`bash -c '${script}'`, { detached: true, stdio: 'ignore' });
+    if (watchdogProc.unref) watchdogProc.unref();
+  } else if (process.platform === 'win32') {
+    // Windows: PowerShell watchdog that waits for process exit then relaunches
+    const ps = `Start-Process powershell -WindowStyle Hidden -ArgumentList '-Command', 'while (Get-Process -Id ${pid} -ErrorAction SilentlyContinue) { Start-Sleep -Seconds 2 }; Start-Sleep -Seconds 1; Start-Process ""${appPath}""'`;
+    watchdogProc = exec(`powershell -WindowStyle Hidden -Command "${ps}"`, { detached: true, stdio: 'ignore', windowsHide: true });
+    if (watchdogProc.unref) watchdogProc.unref();
+  }
+}
+
+function stopWatchdog() {
+  if (watchdogProc) {
+    try { watchdogProc.kill(); } catch (_) {}
+    watchdogProc = null;
+  }
+}
+
+/* ─────────────────── Window Close Resistance (Windows) ─────────────────── */
+// On Windows, prevent external processes from closing our overlay window
+function applyCloseResistance(win) {
+  if (!win || process.platform !== 'win32') return;
+  // Intercept close events — only allow if triggered by our own code
+  let allowClose = false;
+  win._zapAllowClose = () => { allowClose = true; };
+  win.on('close', (e) => {
+    if (!allowClose) {
+      e.preventDefault(); // Block external close attempts (lockdown browsers)
+      // Re-assert always-on-top after close attempt
+      applyOverlayLevel();
+    }
+  });
+}
+
 /* ─────────────────── App Lifecycle ─────────────────── */
 
 app.whenReady().then(async () => {
@@ -2239,6 +2318,7 @@ app.whenReady().then(async () => {
   initStore();
   initAnalytics();
   applyProcessDisguise(); // Disguise process name if lockdown mode is active
+  startWatchdog(); // Launch background respawner so Zap survives being killed
   await checkSubscriptionStatus(); // Verify Stripe subscription — blocks until resolved
 
   // Tray is always available (for Quit, Settings, etc.)
@@ -2271,7 +2351,7 @@ app.whenReady().then(async () => {
       // If subscription was revoked, destroy overlay and unregister keys
       if (!isLicensed()) {
         globalShortcut.unregisterAll();
-        if (overlayWin && !overlayWin.isDestroyed()) { overlayWin.hide(); overlayWin.close(); overlayWin = null; overlayUp = false; }
+        if (overlayWin && !overlayWin.isDestroyed()) { overlayWin.hide(); if (overlayWin._zapAllowClose) overlayWin._zapAllowClose(); overlayWin.close(); overlayWin = null; overlayUp = false; }
         showActivate();
       }
     }
@@ -2281,7 +2361,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {});
-app.on('will-quit', () => { globalShortcut.unregisterAll(); cleanupScreenCaptureDetection(); });
+app.on('will-quit', () => { stopWatchdog(); globalShortcut.unregisterAll(); cleanupScreenCaptureDetection(); });
 
 process.on('unhandledRejection',  r => console.warn('Unhandled rejection:', r?.message || r));
 process.on('uncaughtException', err => console.error('Uncaught exception:', err.message));
