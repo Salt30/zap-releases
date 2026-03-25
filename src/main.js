@@ -1354,6 +1354,11 @@ ipcMain.on('save-settings', (_ev, s) => {
 /* ─────────────────── AI Request ─────────────────── */
 
 ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, region, language }) => {
+  // Revalidate subscription if last check was >10 min ago (non-blocking for fresh checks)
+  const lastCheck = store.get('lastSubscriptionCheck') || 0;
+  if (store.get('stripeSubscriptionId') && Date.now() - lastCheck > 10 * 60 * 1000) {
+    try { await checkSubscriptionStatus(true); } catch (_) {}
+  }
   // Block AI usage for unlicensed users
   if (!isLicensed()) return { error: 'Subscription required. Please subscribe to use Zap.' };
   // Track usage analytics
@@ -1703,14 +1708,22 @@ ipcMain.handle('validate-stripe-subscription', async (_ev, sessionId) => {
   return activateFromSession(sessionId);
 });
 
-// Check subscription status on app start (once per 24 hours)
-async function checkSubscriptionStatus() {
+// Check subscription status — force=true skips cooldown (used by periodic timer)
+async function checkSubscriptionStatus(force = false) {
   const subId = store.get('stripeSubscriptionId');
-  if (!subId) return; // No Stripe subscription — might be admin key
+  if (!subId) {
+    // Admin keys bypass subscription check
+    if (ADMIN_KEYS.includes(store.get('licenseKey'))) return;
+    // No subscription and not admin — revoke
+    store.set('licenseValid', false);
+    return;
+  }
 
-  const lastCheck = store.get('lastSubscriptionCheck') || 0;
-  const ONE_DAY = 24 * 60 * 60 * 1000;
-  if (Date.now() - lastCheck < ONE_DAY) return; // Checked recently
+  if (!force) {
+    const lastCheck = store.get('lastSubscriptionCheck') || 0;
+    const COOLDOWN = 10 * 60 * 1000; // 10 minutes between checks (was 24h)
+    if (Date.now() - lastCheck < COOLDOWN) return;
+  }
 
   try {
     const stripe = getStripe();
@@ -1723,13 +1736,27 @@ async function checkSubscriptionStatus() {
     if (sub.status === 'active' || sub.status === 'trialing') {
       store.set('licenseValid', true);
       store.set('lastSubscriptionCheck', Date.now());
+    } else if (sub.status === 'past_due') {
+      // Grace period: keep access for 3 days after payment failure
+      const periodEnd = sub.current_period_end * 1000;
+      const graceDays = 3 * 24 * 60 * 60 * 1000;
+      if (Date.now() > periodEnd + graceDays) {
+        store.set('licenseValid', false);
+      }
+      store.set('lastSubscriptionCheck', Date.now());
     } else {
-      // past_due, canceled, unpaid, incomplete, expired — revoke access
+      // canceled, unpaid, incomplete, incomplete_expired — revoke immediately
       store.set('licenseValid', false);
+      store.set('lastSubscriptionCheck', Date.now());
     }
   } catch (err) {
     console.warn('Subscription check failed:', err.message);
-    // If offline, keep current license state — don't lock out
+    // If offline, allow a short grace period — 48h max without a successful check
+    const lastCheck = store.get('lastSubscriptionCheck') || 0;
+    const OFFLINE_GRACE = 48 * 60 * 60 * 1000;
+    if (Date.now() - lastCheck > OFFLINE_GRACE) {
+      store.set('licenseValid', false);
+    }
   }
 }
 
@@ -2402,18 +2429,19 @@ app.whenReady().then(async () => {
     if (process.platform === 'darwin') app.dock?.hide();
   }
 
-  // Periodic re-validation: check Stripe subscription every 30 minutes
+  // Periodic re-validation: check Stripe subscription every 10 minutes
   setInterval(async () => {
-    if (isLicensed()) {
-      await checkSubscriptionStatus();
+    try {
+      await checkSubscriptionStatus(true); // force=true bypasses cooldown
       // If subscription was revoked, destroy overlay and unregister keys
-      if (!isLicensed()) {
+      if (!isLicensed() && !ADMIN_KEYS.includes(store.get('licenseKey'))) {
         globalShortcut.unregisterAll();
         if (overlayWin && !overlayWin.isDestroyed()) { overlayWin.hide(); if (overlayWin._zapAllowClose) overlayWin._zapAllowClose(); overlayWin.close(); overlayWin = null; overlayUp = false; }
+        if (pinnedWin && !pinnedWin.isDestroyed()) { pinnedWin.close(); pinnedWin = null; }
         showActivate();
       }
-    }
-  }, 30 * 60 * 1000);
+    } catch (_) {}
+  }, 10 * 60 * 1000);
 
   app.on('activate', () => { if (isLicensed() && !overlayWin) makeOverlay(); });
 });
