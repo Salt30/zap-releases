@@ -110,12 +110,15 @@
 <button id="open-app-btn" title="Open Zap App" style="position:fixed;top:12px;right:52px;z-index:100;width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:var(--glass);backdrop-filter:blur(40px) saturate(180%);-webkit-backdrop-filter:blur(40px) saturate(180%);border:1px solid var(--glass-border);border-radius:10px;color:var(--text-dim);font-size:14px;cursor:pointer;transition:all .15s;box-shadow:0 2px 12px rgba(0,0,0,0.2),inset 0 1px 0 var(--glass-glow)">&#9889;</button>
 <button id="settings-btn" title="Settings">&#9881;</button>
 <div id="instructions">Drag to select &middot; <kbd>Tab</kbd> type question &middot; <kbd>Esc</kbd> close</div>
+<button id="add-capture-btn" title="Capture another screen to include" style="position:fixed;bottom:28px;right:20px;z-index:100;display:none;width:36px;height:36px;align-items:center;justify-content:center;background:var(--glass);backdrop-filter:blur(40px) saturate(180%);-webkit-backdrop-filter:blur(40px) saturate(180%);border:1px solid var(--glass-border);border-radius:10px;color:var(--accent);font-size:18px;font-weight:700;cursor:pointer;transition:all .15s;box-shadow:0 2px 12px rgba(0,0,0,0.2),inset 0 1px 0 var(--glass-glow)">+</button>
+<div id="capture-count" style="position:fixed;bottom:36px;right:8px;z-index:101;display:none;min-width:18px;height:18px;line-height:18px;text-align:center;background:var(--accent);color:#000;font-size:10px;font-weight:700;border-radius:9px;padding:0 4px;pointer-events:none"></div>
 <div id="text-input-bar"><input type="text" id="text-input" placeholder="Type your question..." autocomplete="off" /></div>
 
 <div id="response-panel">
   <div id="response-header">
     <span class="mode-label" id="response-mode-text">Answer</span>
     <div class="actions">
+      <button id="stay-btn" title="Pin answer in a floating window">Stay</button>
       <button id="paste-btn" title="Copy answer and paste into your app">Paste</button>
       <button id="copy-btn">Copy</button>
       <button id="close-response-btn">Close</button>
@@ -142,17 +145,18 @@
 
 <script>
 (function(){
-  var currentMode='answer', isSelecting=false, selStart=null, selRect=null, capture=null, settings={}, textMode=false;
+  var currentMode='answer', isSelecting=false, selStart=null, selRect=null, capture=null, captures=[], settings={}, textMode=false;
 
   var $=function(id){return document.getElementById(id)};
   var layer=$('capture-layer'), sel=$('selection'), selLbl=$('selection-label');
   var modeInd=$('mode-indicator'), instr=$('instructions');
   var resPanel=$('response-panel'), resBody=$('response-body'), resModeText=$('response-mode-text');
-  var copyBtn=$('copy-btn'), pasteBtn=$('paste-btn'), closeResBtn=$('close-response-btn');
+  var copyBtn=$('copy-btn'), pasteBtn=$('paste-btn'), closeResBtn=$('close-response-btn'), stayBtn=$('stay-btn');
+  var addCaptureBtn=$('add-capture-btn'), captureCount=$('capture-count');
   var inputBar=$('text-input-bar'), inputEl=$('text-input');
   var dtPanel=$('drip-type-panel'), dtArea=$('dt-textarea'), dtStart=$('dt-start-btn'), dtClose=$('dt-close-btn'), dtPencil=$('dt-pencil-btn');
 
-  window.zap.onScreenCaptured(function(u){capture=u});
+  window.zap.onScreenCaptured(function(u){capture=u;if(captures.length===0&&u)captures=[u];updateCaptureUI()});
 
   window.zap.onLoadSettings(function(s){
     settings=s;
@@ -339,7 +343,7 @@
     setTimeout(function(){processRequest()},300);
   });
 
-  function resetSel(){sel.style.display='none';selRect=null;instr.style.display=''}
+  function resetSel(){sel.style.display='none';selRect=null;instr.style.display='';captures=capture?[capture]:[];addCaptureBtn.style.display='none';captureCount.style.display='none'}
 
   document.addEventListener('keydown',function(e){
     if(e.target===dtArea&&e.key!=='Escape')return;
@@ -373,16 +377,25 @@
     resBody.className='loading';
     resBody.innerHTML='<div class="spinner"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
 
-    var img=null, ocr=manual||null;
+    var img=null, ocr=manual||null, allImages=[];
     if(capture&&selRect){
       img=await cropImg(capture,selRect);
       if(!ocr&&img){try{ocr=await ocrImg(img)}catch(_){}}
+      allImages=[img];
+    } else if(captures.length>0&&!manual){
+      // Multi-capture: compress and send all captured screens
+      for(var ci=0;ci<captures.length;ci++){
+        allImages.push(await compressImg(captures[ci]));
+      }
+      img=allImages[0]||null;
     } else if(capture&&!manual){
-      // No selection — compress and send full screen capture
       img=await compressImg(capture);
+      allImages=[img];
     }
+    // Hide add-capture button during request
+    addCaptureBtn.style.display='none';captureCount.style.display='none';
     try{
-      var r=await window.zap.aiRequest({mode:currentMode,text:ocr||manual||null,imageDataUrl:img,region:selRect,language:settings.language});
+      var r=await window.zap.aiRequest({mode:currentMode,text:ocr||manual||null,imageDataUrl:img,images:allImages.length>1?allImages:undefined,region:selRect,language:settings.language});
       if(r.error){resBody.className='';resBody.innerHTML='<div class="error-msg">'+esc(r.error)+'</div>';return}
       if(currentMode==='autopilot'){handleAutopilotResponse(r.result);return}
       resBody.className='';resBody.innerHTML=fmtMd(r.result);
@@ -643,6 +656,36 @@
   });
 
   closeResBtn.addEventListener('click',function(){resPanel.style.display='none';resPanel.style.transform='';resetSel()});
+
+  // Stay button — pin answer in a small floating window
+  stayBtn.addEventListener('click',function(){
+    var html=resBody.innerHTML;
+    if(!html)return;
+    stayBtn.textContent='Pinning...';
+    window.zap.pinAnswer(html);
+    setTimeout(function(){stayBtn.textContent='Stay';resPanel.style.display='none';resPanel.style.transform='';resetSel()},300);
+  });
+
+  // Multi-capture: "+" button to add another screen capture
+  addCaptureBtn.addEventListener('click',async function(){
+    addCaptureBtn.style.opacity='0.4';addCaptureBtn.style.pointerEvents='none';
+    try{
+      var img=await window.zap.recapture();
+      if(img){captures.push(img);capture=img;updateCaptureUI()}
+    }catch(_){}
+    addCaptureBtn.style.opacity='1';addCaptureBtn.style.pointerEvents='auto';
+  });
+
+  function updateCaptureUI(){
+    if(currentMode==='driptype'||currentMode==='autopilot'||settings.lockdownMode)return;
+    if(captures.length>0&&resPanel.style.display!=='flex'){
+      addCaptureBtn.style.display='flex';
+      if(captures.length>1){captureCount.textContent=captures.length;captureCount.style.display='block'}
+      else{captureCount.style.display='none'}
+    }else{
+      addCaptureBtn.style.display='none';captureCount.style.display='none';
+    }
+  }
 
   $('settings-btn').addEventListener('click',function(e){e.stopPropagation();window.zap.openSettings()});
 

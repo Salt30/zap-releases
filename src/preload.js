@@ -11,6 +11,8 @@ contextBridge.exposeInMainWorld('zap', {
   cancelDripType: ()       => ipcRenderer.send('cancel-drip-type'),
   autopilotExecute: (data) => ipcRenderer.invoke('autopilot-execute', data),
   pasteToScreen:  ()       => ipcRenderer.invoke('paste-to-screen'),
+  pinAnswer:      (html)   => ipcRenderer.invoke('pin-answer', html),
+  recapture:      ()       => ipcRenderer.invoke('recapture-screen'),
   openFlashcards: (cards)  => ipcRenderer.send('open-flashcards', cards),
   checkForUpdates:()       => ipcRenderer.invoke('check-for-updates'),
 

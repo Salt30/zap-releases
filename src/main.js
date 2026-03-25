@@ -218,6 +218,7 @@ function stopLockdownKeepAlive() {
 let overlayWin     = null;
 let settingsWin    = null;
 let flashcardsWin  = null;
+let pinnedWin      = null;
 let tray           = null;
 let overlayUp      = false;
 
@@ -1274,12 +1275,66 @@ ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
 
 ipcMain.on('open-settings', () => makeSettings());
 
+// Pinned answer window — small floating window that shows the answer after closing overlay
+ipcMain.handle('pin-answer', (_ev, html) => {
+  if (pinnedWin && !pinnedWin.isDestroyed()) { pinnedWin.close(); pinnedWin = null; }
+  const display = screen.getPrimaryDisplay();
+  const w = 340, h = 260;
+  pinnedWin = new BrowserWindow({
+    x: display.size.width - w - 20,
+    y: 60,
+    width: w, height: h,
+    frame: false,
+    transparent: true,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    resizable: true,
+    movable: true,
+    hasShadow: true,
+    webPreferences: { contextIsolation: true, nodeIntegration: false }
+  });
+  try { pinnedWin.setContentProtection(true); } catch (_) {}
+  try { pinnedWin.setAlwaysOnTop(true, 'screen-saver', 1); } catch (_) { pinnedWin.setAlwaysOnTop(true); }
+  if (process.platform === 'darwin') { try { pinnedWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (_) {} }
+  const page = `<!DOCTYPE html><html><head><meta charset="UTF-8"><style>
+    *{margin:0;padding:0;box-sizing:border-box}
+    html,body{background:transparent;overflow:hidden;font-family:'SF Pro Display',system-ui,-apple-system,'Segoe UI',sans-serif}
+    .wrap{background:rgba(12,12,24,0.92);backdrop-filter:blur(40px);-webkit-backdrop-filter:blur(40px);border:1px solid rgba(74,111,165,0.2);border-radius:14px;color:#f5f0e8;font-size:13px;line-height:1.5;display:flex;flex-direction:column;height:100vh;overflow:hidden}
+    .bar{display:flex;align-items:center;justify-content:space-between;padding:8px 12px;-webkit-app-region:drag;border-bottom:1px solid rgba(255,255,255,0.06);flex-shrink:0}
+    .bar span{font-size:11px;color:#b8b0a0;font-weight:600}
+    .bar button{-webkit-app-region:no-drag;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.2);color:#ef4444;font-size:10px;padding:3px 10px;border-radius:6px;cursor:pointer;font-family:inherit;font-weight:600}
+    .bar button:hover{background:rgba(239,68,68,0.25)}
+    .body{padding:12px;overflow-y:auto;flex:1;font-size:13px;line-height:1.6;color:#e8e0d8}
+    .body strong{color:#fff} .body code{background:rgba(74,111,165,0.15);padding:1px 5px;border-radius:4px;font-size:12px}
+    .body pre{background:rgba(10,10,22,0.8);padding:10px;border-radius:8px;overflow-x:auto;font-size:12px;margin:8px 0}
+  </style></head><body><div class="wrap">
+    <div class="bar"><span>Pinned Answer</span><button onclick="window.close()">Close</button></div>
+    <div class="body">${html.replace(/`/g, '\\`').replace(/\$/g, '\\$')}</div>
+  </div></body></html>`;
+  pinnedWin.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(page));
+  pinnedWin.on('closed', () => { pinnedWin = null; });
+  // Close the overlay after pinning
+  if (overlayWin && !overlayWin.isDestroyed()) { overlayWin.hide(); overlayUp = false; stopLockdownKeepAlive(); }
+  return { ok: true };
+});
+
 ipcMain.on('open-app', () => {
   // Show the settings window as the "main app"
   makeSettings();
 });
 
 ipcMain.handle('get-settings', () => store.store);
+
+// Recapture screen — hide overlay briefly, grab new screenshot, send back
+ipcMain.handle('recapture-screen', async () => {
+  if (!overlayWin || overlayWin.isDestroyed()) return null;
+  overlayWin.hide();
+  await new Promise(r => setTimeout(r, 300));
+  const img = await grabScreen();
+  overlayWin.show();
+  applyOverlayLevel();
+  return img;
+});
 
 ipcMain.on('save-settings', (_ev, s) => {
   // Block renderer from modifying license/auth fields
@@ -1298,7 +1353,7 @@ ipcMain.on('save-settings', (_ev, s) => {
 
 /* ─────────────────── AI Request ─────────────────── */
 
-ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, language }) => {
+ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, region, language }) => {
   // Block AI usage for unlicensed users
   if (!isLicensed()) return { error: 'Subscription required. Please subscribe to use Zap.' };
   // Track usage analytics
@@ -1379,18 +1434,21 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, region, lan
   const effectiveMode = (mode === 'answer' && store.get('simpleMode')) ? 'simple' : mode;
   const msgs = [{ role: 'system', content: prompts[effectiveMode] || prompts.answer }];
 
-  // Build user message — include image if available (GPT-4o has excellent vision)
+  // Build user message — include image(s) if available (GPT-4o has excellent vision)
+  // Support multiple images via the `images` array
+  const allImages = images && images.length > 0 ? images : (imageDataUrl ? [imageDataUrl] : []);
   const parts = [];
-  if (text && imageDataUrl) {
-    // Both OCR text and image available — tell AI to prefer the image for math
-    parts.push({ type: 'text', text: text + '\n\n[NOTE: The above text was extracted via OCR and may contain errors, especially with math notation like exponents, fractions, and symbols. ALWAYS rely on the attached image for the exact notation — the image is the ground truth.]' });
+  if (text && allImages.length > 0) {
+    parts.push({ type: 'text', text: text + '\n\n[NOTE: The above text was extracted via OCR and may contain errors, especially with math notation like exponents, fractions, and symbols. ALWAYS rely on the attached image(s) for the exact notation — the images are the ground truth.' + (allImages.length > 1 ? ' Multiple screen captures are provided — analyze ALL of them together.' : '') + ']' });
   } else if (text) {
     parts.push({ type: 'text', text: text });
   } else {
-    parts.push({ type: 'text', text: 'Analyze the selected screen region shown in the image. Read any visible text carefully and respond accordingly. Pay extra attention to mathematical notation — exponents, fractions, integrals, subscripts, and special symbols.' });
+    parts.push({ type: 'text', text: allImages.length > 1
+      ? 'Analyze ALL the screen captures shown in the images. Read any visible text carefully and respond to whatever questions or prompts are visible across all images.'
+      : 'Analyze the selected screen region shown in the image. Read any visible text carefully and respond accordingly. Pay extra attention to mathematical notation — exponents, fractions, integrals, subscripts, and special symbols.' });
   }
-  if (imageDataUrl) {
-    parts.push({ type: 'image_url', image_url: { url: imageDataUrl } });
+  for (const img of allImages) {
+    parts.push({ type: 'image_url', image_url: { url: img } });
   }
   // If we only have text (no image), send as simple string for compatibility
   if (parts.length === 1 && parts[0].type === 'text') {
