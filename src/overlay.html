@@ -369,10 +369,32 @@
     }
   });
 
+  function applyGhostMode(){
+    var ghost=settings.ghostAnswer;
+    var hdr=$('response-header');
+    if(ghost){
+      resPanel.style.background='transparent';
+      resPanel.style.backdropFilter='none';
+      resPanel.style.webkitBackdropFilter='none';
+      resPanel.style.border='none';
+      resPanel.style.boxShadow='none';
+      resPanel.style.maxHeight='80vh';
+      resBody.style.textShadow='0 1px 6px rgba(0,0,0,0.9),0 0 2px rgba(0,0,0,0.7)';
+      resBody.style.maxHeight='calc(80vh)';
+      if(hdr)hdr.style.display='none';
+    }else{
+      resPanel.style.background='';resPanel.style.backdropFilter='';resPanel.style.webkitBackdropFilter='';
+      resPanel.style.border='';resPanel.style.boxShadow='';resPanel.style.maxHeight='';
+      resBody.style.textShadow='';resBody.style.maxHeight='';
+      if(hdr)hdr.style.display='';
+    }
+  }
+
   async function processRequest(manual){
     resModeText.textContent=currentMode.charAt(0).toUpperCase()+currentMode.slice(1);
     resPanel.style.display='flex';
     resPanel.style.flexDirection='column';
+    applyGhostMode();
     posPanel();
     resBody.className='loading';
     resBody.innerHTML='<div class="spinner"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
@@ -691,6 +713,12 @@
 
   var dragging=false,dragOff=null;
   $('response-header').addEventListener('mousedown',function(e){
+    dragging=true;dragOff={x:e.clientX-resPanel.offsetLeft,y:e.clientY-resPanel.offsetTop};
+    resPanel.style.transform='';e.preventDefault();
+  });
+  // Ghost mode: drag by response body when header is hidden
+  resBody.addEventListener('mousedown',function(e){
+    if(!settings.ghostAnswer)return;
     dragging=true;dragOff={x:e.clientX-resPanel.offsetLeft,y:e.clientY-resPanel.offsetTop};
     resPanel.style.transform='';e.preventDefault();
   });

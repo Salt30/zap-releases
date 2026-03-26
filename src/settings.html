@@ -398,6 +398,13 @@
         <div class="slider-row"><input type="range" id="setting-overlayOpacity" min="0" max="10" step="1" /><span class="slider-value" id="opacity-value">0</span></div>
         <div class="hint">0 = invisible, 10 = fully darkened overlay</div>
       </div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-label">Ghost Answer</div>
+          <div class="toggle-desc">Show answer text only — no background, no box, no border. Maximum stealth.</div>
+        </div>
+        <div class="toggle" id="toggle-ghostAnswer" data-key="ghostAnswer"><div class="thumb"></div></div>
+      </div>
       <div class="field">
         <label>Font Family</label>
         <select id="setting-fontFamily">
@@ -768,6 +775,7 @@
       fontSize:parseInt(document.getElementById('setting-fontSize').value),
       borderRadius:parseInt(document.getElementById('setting-borderRadius').value),
       overlayOpacity:parseInt(document.getElementById('setting-overlayOpacity').value)||0,
+      ghostAnswer:document.getElementById('toggle-ghostAnswer').classList.contains('active'),
       fontFamily:document.getElementById('setting-fontFamily').value,
       dripSpeed:40,
       dripWPM:parseInt(document.getElementById('setting-dripWPM').value)||45,

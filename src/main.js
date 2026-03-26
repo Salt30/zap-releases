@@ -81,6 +81,7 @@ const STORE_DEFAULTS = {
   autopilotHumanize:  true,
   autopilotScrollTo:  true,
   lockdownMode: false,
+  ghostAnswer: false,
   authDone: false,
   authName: '',
   authEmail: '',
