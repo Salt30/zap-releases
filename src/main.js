@@ -423,7 +423,10 @@ function makeOverlay() {
 /* ─────────────────── Settings Window ─────────────────── */
 
 function makeSettings() {
-  if (settingsWin) { settingsWin.focus(); return; }
+  // Guard: if settings window already exists and isn't destroyed, just focus it
+  if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.focus(); return; }
+  // Clean up stale reference
+  settingsWin = null;
 
   settingsWin = new BrowserWindow({
     width: 700, height: 800,
