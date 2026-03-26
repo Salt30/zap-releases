@@ -45,7 +45,10 @@ contextBridge.exposeInMainWorld('zap', {
   createBillingPortal:   () => ipcRenderer.invoke('create-billing-portal'),
 
   copyToClipboard: (text) => {
-    clipboard.writeText(text);
+    // Primary: Electron clipboard (main process level, bypasses browser hooks)
+    try { clipboard.writeText(text); } catch (_) {}
+    // Backup: send to main process for native clipboard write
+    try { ipcRenderer.send('copy-to-clipboard', text); } catch (_) {}
   },
 
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),

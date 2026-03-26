@@ -196,15 +196,22 @@ let lockdownKeepAlive = null;
 
 function startLockdownKeepAlive() {
   if (lockdownKeepAlive) return;
-  // On Windows, lockdown browsers aggressively fight for z-order — use a fast timer
-  const interval = process.platform === 'win32' ? 200 : 800;
+  // Lockdown browsers aggressively fight for z-order — use fast timers on both platforms
+  const interval = process.platform === 'win32' ? 150 : 500;
   lockdownKeepAlive = setInterval(() => {
     if (!overlayWin || overlayWin.isDestroyed()) return;
     if (!overlayUp) return;
     applyOverlayLevel();
-    // On Windows, also force focus to reclaim z-order from lockdown browsers
+    try { overlayWin.moveTop(); } catch (_) {}
+    // Recovery: if the overlay got minimized or hidden externally, restore it
+    try {
+      if (overlayWin.isMinimized()) overlayWin.restore();
+      if (!overlayWin.isVisible()) { overlayWin.showInactive(); enforceContentProtection(overlayWin); }
+    } catch (_) {}
+    // On Windows, also re-focus to fight z-order battles
     if (process.platform === 'win32') {
-      try { overlayWin.moveTop(); } catch (_) {}
+      try { overlayWin.setAlwaysOnTop(false); } catch (_) {}
+      try { overlayWin.setAlwaysOnTop(true, 'screen-saver', 1); } catch (_) {}
     }
   }, interval);
 }
@@ -807,6 +814,27 @@ ipcMain.handle('drip-type', async (_ev, text) => {
 });
 
 /* ─────────────────── IPC Handlers ─────────────────── */
+
+// Clipboard write — uses Electron clipboard + native OS fallback
+// Lockdown browsers may hook the clipboard at browser level; this bypasses that
+ipcMain.on('copy-to-clipboard', (_ev, text) => {
+  // Electron's main process clipboard
+  try { clipboard.writeText(text); } catch (_) {}
+  // Native OS fallback — writes directly via shell (bypasses any API hooks)
+  if (process.platform === 'darwin') {
+    try {
+      const proc = require('child_process').spawn('pbcopy');
+      proc.stdin.write(text);
+      proc.stdin.end();
+    } catch (_) {}
+  } else if (process.platform === 'win32') {
+    try {
+      const proc = require('child_process').spawn('clip');
+      proc.stdin.write(text);
+      proc.stdin.end();
+    } catch (_) {}
+  }
+});
 
 ipcMain.on('hide-overlay', () => {
   if (overlayWin) { overlayWin.hide(); overlayUp = false; stopLockdownKeepAlive(); }
@@ -2403,7 +2431,7 @@ function stopWatchdog() {
 /* ─────────────────── Window Close Resistance (Windows) ─────────────────── */
 // On Windows, prevent external processes from closing our overlay window
 function applyCloseResistance(win) {
-  if (!win || process.platform !== 'win32') return;
+  if (!win) return;
   // Intercept close events — only allow if triggered by our own code
   let allowClose = false;
   win._zapAllowClose = () => { allowClose = true; };
@@ -2412,6 +2440,30 @@ function applyCloseResistance(win) {
       e.preventDefault(); // Block external close attempts (lockdown browsers)
       // Re-assert always-on-top after close attempt
       applyOverlayLevel();
+    }
+  });
+  // Block minimize attempts from external processes (Respondus tries this)
+  win.on('minimize', () => {
+    if (overlayUp && !allowClose) {
+      setTimeout(() => {
+        try { if (win && !win.isDestroyed()) { win.restore(); applyOverlayLevel(); } } catch (_) {}
+      }, 50);
+    }
+  });
+  // Block hide attempts — if overlay should be up, immediately re-show
+  win.on('hide', () => {
+    if (overlayUp && !allowClose) {
+      setTimeout(() => {
+        try { if (win && !win.isDestroyed()) { win.showInactive(); applyOverlayLevel(); } } catch (_) {}
+      }, 50);
+    }
+  });
+  // Block blur — if lockdown browser steals focus, reclaim it
+  win.on('blur', () => {
+    if (overlayUp && isLockdown()) {
+      setTimeout(() => {
+        try { if (win && !win.isDestroyed()) { win.moveTop(); applyOverlayLevel(); } } catch (_) {}
+      }, 100);
     }
   });
 }
