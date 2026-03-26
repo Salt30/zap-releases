@@ -635,6 +635,11 @@
         <a id="dl-release-link" href="#" style="font-size:11px;color:var(--text-dim);text-decoration:underline;cursor:pointer">View release notes on GitHub</a>
       </div>
     </div>
+    <div class="card" style="border:1px solid rgba(239,68,68,0.2);background:rgba(239,68,68,0.04)">
+      <div class="card-title" style="color:#ef4444">Force Close</div>
+      <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.5">Immediately kills Zap and all related processes (overlay, watchdog, pinned windows). Useful before installing an update or if something gets stuck.</div>
+      <button class="btn" id="force-close-btn" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#ef4444;font-weight:600;width:100%;padding:10px;font-size:13px;cursor:pointer;border-radius:8px;transition:all .15s" onmouseover="this.style.background='rgba(239,68,68,0.22)'" onmouseout="this.style.background='rgba(239,68,68,0.12)'">Force Close Zap</button>
+    </div>
   </div>
 </div>
 
@@ -890,6 +895,15 @@
     panels.forEach(function(x){x.classList.remove('active')});
     document.querySelector('[data-tab="general"]').classList.add('active');
     document.getElementById('tab-general').classList.add('active');
+  });
+
+  // Force Close button
+  var forceCloseBtn=document.getElementById('force-close-btn');
+  if(forceCloseBtn)forceCloseBtn.addEventListener('click',function(){
+    forceCloseBtn.textContent='Closing...';
+    forceCloseBtn.style.opacity='0.5';
+    forceCloseBtn.disabled=true;
+    window.zap.forceClose();
   });
 
   // Changelog loading

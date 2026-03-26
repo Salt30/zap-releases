@@ -1323,6 +1323,26 @@ ipcMain.on('open-app', () => {
   makeSettings();
 });
 
+// Force Close — kill everything: overlay, pinned window, watchdog, tray, then quit
+ipcMain.on('force-close', () => {
+  try { stopWatchdog(); } catch (_) {}
+  try { globalShortcut.unregisterAll(); } catch (_) {}
+  try { if (lockdownKeepAlive) { clearInterval(lockdownKeepAlive); lockdownKeepAlive = null; } } catch (_) {}
+  // Allow close on all windows (bypass close resistance)
+  const allWins = BrowserWindow.getAllWindows();
+  for (const w of allWins) {
+    try { if (w._zapAllowClose) w._zapAllowClose(); } catch (_) {}
+  }
+  // Destroy each window
+  try { if (pinnedWin && !pinnedWin.isDestroyed()) { pinnedWin.destroy(); pinnedWin = null; } } catch (_) {}
+  try { if (overlayWin && !overlayWin.isDestroyed()) { overlayWin.destroy(); overlayWin = null; overlayUp = false; } } catch (_) {}
+  try { if (flashcardsWin && !flashcardsWin.isDestroyed()) { flashcardsWin.destroy(); flashcardsWin = null; } } catch (_) {}
+  try { if (settingsWin && !settingsWin.isDestroyed()) { settingsWin.destroy(); settingsWin = null; } } catch (_) {}
+  try { if (tray) { tray.destroy(); tray = null; } } catch (_) {}
+  // Force quit the app
+  app.exit(0);
+});
+
 ipcMain.handle('get-settings', () => store.store);
 
 // Recapture screen — hide overlay briefly, grab new screenshot, send back

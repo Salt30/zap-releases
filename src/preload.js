@@ -50,6 +50,7 @@ contextBridge.exposeInMainWorld('zap', {
 
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   openExternal:  (url) => ipcRenderer.invoke('open-external', url),
+  forceClose:    ()    => ipcRenderer.send('force-close'),
 
   // Admin & Support
   isAdmin:          ()     => ipcRenderer.invoke('is-admin'),
