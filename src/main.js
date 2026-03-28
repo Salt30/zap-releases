@@ -82,6 +82,7 @@ const STORE_DEFAULTS = {
   autopilotScrollTo:  true,
   lockdownMode: false,
   ghostAnswer: false,
+  aiContext: '',
   authDone: false,
   authName: '',
   authEmail: '',
@@ -1500,7 +1501,13 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
 
   // If simpleMode toggle is ON, override 'answer' mode to use 'simple' prompt
   const effectiveMode = (mode === 'answer' && store.get('simpleMode')) ? 'simple' : mode;
-  const msgs = [{ role: 'system', content: prompts[effectiveMode] || prompts.answer }];
+  let systemPrompt = prompts[effectiveMode] || prompts.answer;
+  // Prepend user's custom AI context if set
+  const aiContext = (store.get('aiContext') || '').trim();
+  if (aiContext) {
+    systemPrompt = 'IMPORTANT USER CONTEXT — follow these instructions for every response:\n' + aiContext + '\n\n' + systemPrompt;
+  }
+  const msgs = [{ role: 'system', content: systemPrompt }];
 
   // Build user message — include image(s) if available (GPT-4o has excellent vision)
   // Support multiple images via the `images` array
