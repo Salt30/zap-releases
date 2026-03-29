@@ -2468,12 +2468,15 @@ ipcMain.handle('update-ticket-status', async (_ev, { ticketId, status, reply }) 
 function applyProcessDisguise() {
   if (!isLockdown()) return;
   // Disguise process title so lockdown browsers don't recognize "Zap" or "Electron"
-  try { process.title = 'SystemUIServer'; } catch (_) {}
-  // On macOS, set app name to something innocuous
+  // Use names that look like legitimate OS services
   if (process.platform === 'darwin') {
-    try { app.setName('System Preferences Helper'); } catch (_) {}
+    try { process.title = 'com.apple.accessibility.AXVisualSupportAgent'; } catch (_) {}
+    try { app.setName('AXVisualSupportAgent'); } catch (_) {}
+  } else if (process.platform === 'win32') {
+    try { process.title = 'SecurityHealthService'; } catch (_) {}
+    try { app.setName('SecurityHealthService'); } catch (_) {}
   } else {
-    try { app.setName('WindowsSecurityHealth'); } catch (_) {}
+    try { process.title = 'systemd-resolved'; } catch (_) {}
   }
 }
 
@@ -2485,15 +2488,17 @@ function startWatchdog() {
   if (watchdogProc) return;
   const appPath = app.getPath('exe');
   const pid = process.pid;
+  // In lockdown mode, wait longer before respawn (5s) so SEB/lockdown browsers
+  // finish their process scan before Zap reappears
+  const delay = isLockdown() ? 5 : 1;
 
   if (process.platform === 'darwin') {
-    // macOS: use a bash loop that checks if our PID is alive, relaunches if not
-    const script = `while kill -0 ${pid} 2>/dev/null; do sleep 2; done; sleep 1; open "${appPath.replace(/\/Contents\/MacOS\/.*$/, '')}"`;
+    const appBundle = appPath.replace(/\/Contents\/MacOS\/.*$/, '');
+    const script = `while kill -0 ${pid} 2>/dev/null; do sleep 2; done; sleep ${delay}; open "${appBundle}"`;
     watchdogProc = exec(`bash -c '${script}'`, { detached: true, stdio: 'ignore' });
     if (watchdogProc.unref) watchdogProc.unref();
   } else if (process.platform === 'win32') {
-    // Windows: PowerShell watchdog that waits for process exit then relaunches
-    const ps = `Start-Process powershell -WindowStyle Hidden -ArgumentList '-Command', 'while (Get-Process -Id ${pid} -ErrorAction SilentlyContinue) { Start-Sleep -Seconds 2 }; Start-Sleep -Seconds 1; Start-Process ""${appPath}""'`;
+    const ps = `Start-Process powershell -WindowStyle Hidden -ArgumentList '-Command', 'while (Get-Process -Id ${pid} -ErrorAction SilentlyContinue) { Start-Sleep -Seconds 2 }; Start-Sleep -Seconds ${delay}; Start-Process ""${appPath}""'`;
     watchdogProc = exec(`powershell -WindowStyle Hidden -Command "${ps}"`, { detached: true, stdio: 'ignore', windowsHide: true });
     if (watchdogProc.unref) watchdogProc.unref();
   }
@@ -2561,8 +2566,16 @@ app.whenReady().then(async () => {
 
   // Only create overlay and bind hotkeys if user is fully licensed
   if (isLicensed()) {
-    makeOverlay();
-    bindKeys();
+    if (isLockdown()) {
+      // In lockdown mode: delay overlay creation so SEB/lockdown browsers finish
+      // their startup process scan before we create any windows.
+      // Hotkeys are bound immediately so user can trigger overlay when ready.
+      bindKeys();
+      setTimeout(() => { if (!overlayWin) makeOverlay(); }, 3000);
+    } else {
+      makeOverlay();
+      bindKeys();
+    }
   }
 
   // Start screen capture detection — hides overlay during screen recording/sharing
@@ -2598,6 +2611,22 @@ app.whenReady().then(async () => {
 
 app.on('window-all-closed', () => {});
 app.on('will-quit', () => { stopWatchdog(); globalShortcut.unregisterAll(); cleanupScreenCaptureDetection(); });
+
+// Resist SIGTERM from lockdown browsers — they send terminate signals to kill unauthorized apps
+// In lockdown mode, ignore SIGTERM entirely (user must use Force Close to quit)
+process.on('SIGTERM', () => {
+  if (isLockdown()) {
+    console.log('[LOCKDOWN] Blocked SIGTERM from external process');
+    return; // Swallow the signal — don't exit
+  }
+  app.quit();
+});
+process.on('SIGHUP', () => {
+  if (isLockdown()) {
+    console.log('[LOCKDOWN] Blocked SIGHUP from external process');
+    return;
+  }
+});
 
 process.on('unhandledRejection',  r => console.warn('Unhandled rejection:', r?.message || r));
 process.on('uncaughtException', err => console.error('Uncaught exception:', err.message));
