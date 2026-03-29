@@ -198,8 +198,8 @@ let lockdownKeepAlive = null;
 
 function startLockdownKeepAlive() {
   if (lockdownKeepAlive) return;
-  // Lockdown browsers aggressively fight for z-order — use fast timers on both platforms
-  const interval = process.platform === 'win32' ? 150 : 500;
+  // 100ms on BOTH platforms — SEB and Respondus aggressively fight for z-order
+  const interval = 100;
   lockdownKeepAlive = setInterval(() => {
     if (!overlayWin || overlayWin.isDestroyed()) return;
     if (!overlayUp) return;
@@ -210,11 +210,9 @@ function startLockdownKeepAlive() {
       if (overlayWin.isMinimized()) overlayWin.restore();
       if (!overlayWin.isVisible()) { overlayWin.showInactive(); enforceContentProtection(overlayWin); }
     } catch (_) {}
-    // On Windows, also re-focus to fight z-order battles
-    if (process.platform === 'win32') {
-      try { overlayWin.setAlwaysOnTop(false); } catch (_) {}
-      try { overlayWin.setAlwaysOnTop(true, 'screen-saver', 1); } catch (_) {}
-    }
+    // Toggle alwaysOnTop off/on to force OS to recalculate z-order (fights SEB/Respondus)
+    try { overlayWin.setAlwaysOnTop(false); } catch (_) {}
+    try { overlayWin.setAlwaysOnTop(true, 'screen-saver', 99); } catch (_) {}
   }, interval);
 }
 
@@ -355,7 +353,9 @@ function applyOverlayLevel() {
   // 2. Visible on all workspaces INCLUDING fullscreen spaces
   try { overlayWin.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true }); } catch (_) {}
   // 3. Highest window level — screen-saver renders above everything
-  try { overlayWin.setAlwaysOnTop(true, 'screen-saver', 1); } catch (_) { overlayWin.setAlwaysOnTop(true); }
+  // In lockdown mode, use max relative level (99) to beat SEB/Respondus z-order
+  const relLevel = isLockdown() ? 99 : 1;
+  try { overlayWin.setAlwaysOnTop(true, 'screen-saver', relLevel); } catch (_) { overlayWin.setAlwaysOnTop(true); }
   if (process.platform === 'darwin') {
     try { overlayWin.setWindowButtonVisibility(false); } catch (_) {}
   }
@@ -481,6 +481,45 @@ function showFlashcards(cardsText) {
 
 /* ─────────────────── Screen Capture ─────────────────── */
 
+/**
+ * Native OS-level screen capture — bypasses Electron's desktopCapturer entirely.
+ * Works through Safe Exam Browser, Respondus, and other lockdown browsers that
+ * hook/block Chromium's capture API but can't block OS-level tools.
+ * Uses screencapture (macOS) and GDI+ via PowerShell (Windows).
+ */
+async function grabScreenNative() {
+  if (process.platform === 'darwin') {
+    try {
+      const tmpFile = path.join(os.tmpdir(), 'zap_nat_' + Date.now() + '.png');
+      await new Promise((resolve, reject) => {
+        exec(`screencapture -x -C "${tmpFile}"`, { timeout: 8000 }, (err) => err ? reject(err) : resolve());
+      });
+      if (!fs.existsSync(tmpFile)) return null;
+      const imgBuf = fs.readFileSync(tmpFile);
+      try { fs.unlinkSync(tmpFile); } catch (_) {}
+      if (imgBuf.length < 500) return null; // Too small = failed capture
+      return 'data:image/png;base64,' + imgBuf.toString('base64');
+    } catch (_) {}
+  }
+
+  if (process.platform === 'win32') {
+    try {
+      const tmpFile = path.join(os.tmpdir(), 'zap_nat_' + Date.now() + '.png');
+      const ps = `Add-Type -AssemblyName System.Drawing; Add-Type -AssemblyName System.Windows.Forms; $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; $bmp = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height); $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size); $bmp.Save('${tmpFile.replace(/\\/g, '\\\\')}'); $g.Dispose(); $bmp.Dispose()`;
+      await new Promise((resolve, reject) => {
+        exec(`powershell -WindowStyle Hidden -Command "${ps}"`, { timeout: 8000, windowsHide: true }, (err) => err ? reject(err) : resolve());
+      });
+      if (!fs.existsSync(tmpFile)) return null;
+      const imgBuf = fs.readFileSync(tmpFile);
+      try { fs.unlinkSync(tmpFile); } catch (_) {}
+      if (imgBuf.length < 500) return null;
+      return 'data:image/png;base64,' + imgBuf.toString('base64');
+    } catch (_) {}
+  }
+
+  return null;
+}
+
 async function grabScreen() {
   const display = screen.getPrimaryDisplay();
   const { width, height } = display.size;
@@ -555,9 +594,17 @@ function showWithMode(mode) {
     if (isLockdown()) startLockdownKeepAlive();
   };
 
-  // In lockdown mode, skip desktopCapturer entirely — it will be blocked by lockdown browsers
+  // In lockdown mode, use native OS capture (bypasses lockdown browser's Chromium hooks)
+  // Safe Exam Browser / Respondus block desktopCapturer but can't block screencapture/GDI+
   if (isLockdown()) {
-    finishShow(null);
+    // Use opacity trick: make overlay invisible without hiding it (SEB may block re-show)
+    try { if (overlayWin && !overlayWin.isDestroyed()) overlayWin.setOpacity(0); } catch (_) {}
+    setTimeout(async () => {
+      let img = null;
+      try { img = await grabScreenNative(); } catch (_) {}
+      try { if (overlayWin && !overlayWin.isDestroyed()) overlayWin.setOpacity(1); } catch (_) {}
+      finishShow(img); // img may be null if native capture also fails — falls back to type-only
+    }, 150);
     return;
   }
 
@@ -1392,6 +1439,15 @@ ipcMain.handle('get-settings', () => store.store);
 // Recapture screen — hide overlay briefly, grab new screenshot, send back
 ipcMain.handle('recapture-screen', async () => {
   if (!overlayWin || overlayWin.isDestroyed()) return null;
+  if (isLockdown()) {
+    // Lockdown mode: use opacity trick instead of hide/show (SEB may block re-show)
+    try { overlayWin.setOpacity(0); } catch (_) {}
+    await new Promise(r => setTimeout(r, 150));
+    const img = await grabScreenNative();
+    try { overlayWin.setOpacity(1); } catch (_) {}
+    applyOverlayLevel();
+    return img;
+  }
   overlayWin.hide();
   await new Promise(r => setTimeout(r, 300));
   const img = await grabScreen();
@@ -1477,7 +1533,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
   // If we have nothing (no text, no image), show helpful error
   if (!text && !imageDataUrl) {
     if (isLockdown()) {
-      return { error: 'Stealth Mode is active — screen capture is disabled.\nPress Tab to type your question, then press Enter.' };
+      return { error: 'Screen capture failed in Stealth Mode.\nPress Tab to type your question manually, then press Enter.\nIf on macOS, grant Screen Recording permission in System Settings → Privacy.' };
     }
     return { error: 'Screen capture failed. Please try:\n1. Open System Settings → Privacy & Security → Screen Recording\n2. Toggle Zap OFF then ON again\n3. Quit Zap completely (right-click tray → Quit) and reopen it' };
   }
