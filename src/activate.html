@@ -51,6 +51,18 @@
 
   .skip-text{font-size:12px;color:var(--text-dim);margin-top:24px;text-align:center}
 
+  .plan-toggle{display:flex;background:var(--bg-input);border:1px solid var(--border);border-radius:12px;overflow:hidden;margin-bottom:16px;position:relative}
+  .plan-option{flex:1;padding:14px 10px;text-align:center;cursor:pointer;transition:all .2s;position:relative;z-index:1}
+  .plan-option.active{color:var(--text)}
+  .plan-option:not(.active){color:var(--text-dim)}
+  .plan-option:not(.active):hover{color:var(--text-muted)}
+  .plan-name{font-size:14px;font-weight:600;margin-bottom:2px}
+  .plan-price{font-size:20px;font-weight:700;letter-spacing:-.3px}
+  .plan-price small{font-size:12px;font-weight:400;color:var(--text-muted)}
+  .plan-detail{font-size:11px;color:var(--text-muted);margin-top:2px}
+  .plan-badge{display:inline-block;background:rgba(110,200,122,.15);color:var(--green);font-size:10px;font-weight:700;padding:2px 7px;border-radius:4px;margin-top:4px;letter-spacing:.3px}
+  .plan-slider{position:absolute;top:4px;bottom:4px;border-radius:9px;background:rgba(74,111,165,.15);border:1px solid rgba(74,111,165,.25);transition:all .3s cubic-bezier(.4,0,.2,1);z-index:0}
+
   .legal-check{display:flex;align-items:flex-start;gap:10px;margin-top:16px;padding:12px 14px;background:rgba(74,111,165,0.04);border:1px solid var(--border);border-radius:10px;cursor:pointer;transition:border-color .15s}
   .legal-check:hover{border-color:rgba(74,111,165,0.3)}
   .legal-check input[type="checkbox"]{width:18px;height:18px;margin-top:1px;accent-color:var(--accent);cursor:pointer;flex-shrink:0}
@@ -67,7 +79,19 @@
 <div style="font-size:14px;color:var(--text-dim);margin:14px 0 28px;text-align:center">Subscribe to unlock full access</div>
 
 <div class="section">
-  <div class="section-title">Monthly Subscription</div>
+  <div class="section-title">Choose Your Plan</div>
+  <div class="plan-toggle" id="plan-toggle">
+    <div class="plan-slider" id="plan-slider"></div>
+    <div class="plan-option active" id="plan-monthly" data-plan="monthly">
+      <div class="plan-name">Monthly</div>
+      <div class="plan-price">$25<small>/mo</small></div>
+    </div>
+    <div class="plan-option" id="plan-annual" data-plan="annual">
+      <div class="plan-name">Annual</div>
+      <div class="plan-price">$20<small>/mo</small></div>
+      <div class="plan-badge">SAVE 20%</div>
+    </div>
+  </div>
   <input type="email" class="email-input" id="email-input" placeholder="Enter your email address" autocomplete="email" spellcheck="false" />
   <div class="legal-check" onclick="document.getElementById('legal-agree').click()">
     <input type="checkbox" id="legal-agree" onclick="event.stopPropagation()" />
@@ -104,7 +128,31 @@
   var adminBtn = document.getElementById('admin-btn');
   var legalCheckbox = document.getElementById('legal-agree');
   var pollTimer = null;
+  var selectedPlan = 'monthly';
   var subscribeBtnDefault = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Subscribe with Stripe';
+
+  // Plan toggle logic
+  var planMonthly = document.getElementById('plan-monthly');
+  var planAnnual = document.getElementById('plan-annual');
+  var planSlider = document.getElementById('plan-slider');
+
+  function updatePlanSlider() {
+    var active = document.querySelector('.plan-option.active');
+    if (active && planSlider) {
+      planSlider.style.left = active.offsetLeft + 'px';
+      planSlider.style.width = active.offsetWidth + 'px';
+    }
+  }
+  setTimeout(updatePlanSlider, 50);
+
+  function selectPlan(plan) {
+    selectedPlan = plan;
+    planMonthly.classList.toggle('active', plan === 'monthly');
+    planAnnual.classList.toggle('active', plan === 'annual');
+    updatePlanSlider();
+  }
+  planMonthly.addEventListener('click', function() { selectPlan('monthly'); });
+  planAnnual.addEventListener('click', function() { selectPlan('annual'); });
 
   // Pre-fill email from auth if available
   window.zap.getSettings().then(function(s) {
@@ -227,8 +275,8 @@
     statusEl.textContent = '';
 
     try {
-      // Create Stripe Checkout Session
-      var session = await window.zap.createCheckoutSession(email);
+      // Create Stripe Checkout Session with selected plan
+      var session = await window.zap.createCheckoutSession(email, selectedPlan);
 
       if (session.error) {
         statusEl.textContent = session.error;

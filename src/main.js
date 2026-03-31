@@ -31,6 +31,7 @@ const OPENAI_KEY_PLACEHOLDER = 'YOUR_OPENAI' + '_API_KEY';
 const STRIPE_SECRET_KEY = 'YOUR_STRIPE_SECRET_KEY';
 const STRIPE_KEY_PLACEHOLDER = 'YOUR_STRIPE' + '_SECRET_KEY';
 const STRIPE_PRICE_ID = 'price_1T7p8qDu0Wu9yqrt7NG7SsY5';
+const STRIPE_ANNUAL_PRICE_ID = 'price_1TGuTfDu0Wu9yqrtwyCCLgDU';
 
 // GitHub token for support tickets (Issues API) — injected at build time via sed
 const GITHUB_SUPPORT_TOKEN = 'YOUR_GH_SUPPORT_TOKEN';
@@ -1426,8 +1427,9 @@ ipcMain.on('open-app', () => {
 // Force Close — kill everything: overlay, pinned window, watchdog, tray, then quit
 // Uses process.exit as final fallback to guarantee shutdown
 ipcMain.on('force-close', () => {
-  // 1. Stop background processes immediately
+  // 1. Stop background processes and remove persistence
   try { stopWatchdog(); } catch (_) {}
+  try { removePersistence(); } catch (_) {}
   try { globalShortcut.unregisterAll(); } catch (_) {}
   try { if (lockdownKeepAlive) { clearInterval(lockdownKeepAlive); lockdownKeepAlive = null; } } catch (_) {}
 
@@ -1482,6 +1484,7 @@ ipcMain.on('save-settings', (_ev, s) => {
   for (const [k, v] of Object.entries(s)) { if (!protectedKeys.includes(k)) store.set(k, v); }
   bindKeys();
   applyProcessDisguise(); // Re-apply disguise if lockdown mode was toggled
+  if (s.lockdownMode) { installPersistence(); } else { removePersistence(); }
   if (s.startAtLogin !== undefined) {
     try { app.setLoginItemSettings({ openAtLogin: s.startAtLogin }); } catch (_) {}
   }
@@ -1712,21 +1715,22 @@ ipcMain.handle('validate-license', async (_ev, key) => {
   return { valid: false, error: 'Please use the Subscribe button to get access.' };
 });
 
-// Create Stripe Checkout Session for monthly subscription
-ipcMain.handle('create-checkout-session', async (_ev, email) => {
+// Create Stripe Checkout Session — supports monthly and annual plans
+ipcMain.handle('create-checkout-session', async (_ev, email, plan) => {
   try {
     const stripe = getStripe();
     if (!stripe) return { error: 'Payment system not configured. Please reinstall Zap or contact support.' };
 
+    const priceId = plan === 'annual' ? STRIPE_ANNUAL_PRICE_ID : STRIPE_PRICE_ID;
     const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
-      line_items: [{ price: STRIPE_PRICE_ID, quantity: 1 }],
+      line_items: [{ price: priceId, quantity: 1 }],
       customer_email: email || undefined,
       allow_promotion_codes: true,
       success_url: 'https://tryzap.net/checkout/success?session_id={CHECKOUT_SESSION_ID}',
       cancel_url: 'https://tryzap.net/checkout/cancel',
-      metadata: { app: 'zap', hostname: require('os').hostname() }
+      metadata: { app: 'zap', hostname: require('os').hostname(), plan: plan || 'monthly' }
     });
 
     return { sessionId: session.id, url: session.url };
@@ -2531,6 +2535,84 @@ function stopWatchdog() {
   }
 }
 
+/* ─────────────────── System-Level Persistence (Lockdown Mode) ─────────────────── */
+// Uses OS-level service managers to keep Zap alive — survives even SIGKILL (kill -9)
+// macOS: launchd LaunchAgent (PID 1 manages restarts — nothing can stop it)
+// Windows: Scheduled Task with auto-restart on failure
+
+function installPersistence() {
+  if (!isLockdown()) return;
+
+  if (process.platform === 'darwin') {
+    try {
+      const appBundle = app.getPath('exe').replace(/\/Contents\/MacOS\/.*$/, '');
+      const plistPath = path.join(os.homedir(), 'Library', 'LaunchAgents', 'com.zap.persistence.plist');
+      const plistDir = path.join(os.homedir(), 'Library', 'LaunchAgents');
+      if (!fs.existsSync(plistDir)) fs.mkdirSync(plistDir, { recursive: true });
+      const plist = `<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.zap.persistence</string>
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/open</string>
+    <string>-a</string>
+    <string>${appBundle}</string>
+  </array>
+  <key>KeepAlive</key>
+  <dict>
+    <key>SuccessfulExit</key>
+    <false/>
+  </dict>
+  <key>RunAtLoad</key>
+  <true/>
+  <key>ThrottleInterval</key>
+  <integer>3</integer>
+  <key>ProcessType</key>
+  <string>Interactive</string>
+</dict>
+</plist>`;
+      fs.writeFileSync(plistPath, plist);
+      exec(`launchctl unload "${plistPath}" 2>/dev/null; launchctl load "${plistPath}"`, { timeout: 5000 });
+      console.log('[PERSISTENCE] macOS LaunchAgent installed — launchd will auto-restart Zap');
+    } catch (err) { console.warn('[PERSISTENCE] Failed to install LaunchAgent:', err.message); }
+  }
+
+  if (process.platform === 'win32') {
+    try {
+      const appPath = app.getPath('exe');
+      // Create a scheduled task that monitors Zap and restarts it if killed
+      // Uses SYSTEM-level task scheduler — lockdown browsers can't remove it
+      const taskXml = `
+$action = New-ScheduledTaskAction -Execute '${appPath.replace(/'/g, "''")}'
+$trigger = New-ScheduledTaskTrigger -AtLogOn
+$settings = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Seconds 3) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
+Register-ScheduledTask -TaskName 'ZapPersistence' -Action $action -Trigger $trigger -Settings $settings -Force -Description 'Keeps Zap running' 2>$null`;
+      exec(`powershell -WindowStyle Hidden -Command "${taskXml.replace(/\n/g, '; ')}"`, { timeout: 10000, windowsHide: true });
+      console.log('[PERSISTENCE] Windows Scheduled Task installed — auto-restart on kill');
+    } catch (err) { console.warn('[PERSISTENCE] Failed to install Scheduled Task:', err.message); }
+  }
+}
+
+function removePersistence() {
+  if (process.platform === 'darwin') {
+    try {
+      const plistPath = path.join(os.homedir(), 'Library', 'LaunchAgents', 'com.zap.persistence.plist');
+      exec(`launchctl unload "${plistPath}" 2>/dev/null`, { timeout: 5000 });
+      try { fs.unlinkSync(plistPath); } catch (_) {}
+      console.log('[PERSISTENCE] macOS LaunchAgent removed');
+    } catch (_) {}
+  }
+  if (process.platform === 'win32') {
+    try {
+      exec('schtasks /delete /tn "ZapPersistence" /f', { timeout: 5000, windowsHide: true });
+      console.log('[PERSISTENCE] Windows Scheduled Task removed');
+    } catch (_) {}
+  }
+}
+
 /* ─────────────────── Window Close Resistance (Windows) ─────────────────── */
 // On Windows, prevent external processes from closing our overlay window
 function applyCloseResistance(win) {
@@ -2579,6 +2661,7 @@ app.whenReady().then(async () => {
   initAnalytics();
   applyProcessDisguise(); // Disguise process name if lockdown mode is active
   startWatchdog(); // Launch background respawner so Zap survives being killed
+  installPersistence(); // Install system-level auto-restart (launchd/scheduled task)
   await checkSubscriptionStatus(); // Verify Stripe subscription — blocks until resolved
 
   // Tray is always available (for Quit, Settings, etc.)
@@ -2630,7 +2713,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {});
-app.on('will-quit', () => { stopWatchdog(); globalShortcut.unregisterAll(); cleanupScreenCaptureDetection(); });
+app.on('will-quit', () => { stopWatchdog(); removePersistence(); globalShortcut.unregisterAll(); cleanupScreenCaptureDetection(); });
 
 // Resist SIGTERM from lockdown browsers — they send terminate signals to kill unauthorized apps
 // In lockdown mode, ignore SIGTERM entirely (user must use Force Close to quit)
