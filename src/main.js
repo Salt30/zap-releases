@@ -492,7 +492,7 @@ async function grabScreenNative() {
     try {
       const tmpFile = path.join(os.tmpdir(), 'zap_nat_' + Date.now() + '.png');
       await new Promise((resolve, reject) => {
-        exec(`screencapture -x -C "${tmpFile}"`, { timeout: 8000 }, (err) => err ? reject(err) : resolve());
+        exec(`screencapture -x "${tmpFile}"`, { timeout: 8000 }, (err) => err ? reject(err) : resolve());
       });
       if (!fs.existsSync(tmpFile)) return null;
       const imgBuf = fs.readFileSync(tmpFile);
@@ -524,8 +524,11 @@ async function grabScreen() {
   const display = screen.getPrimaryDisplay();
   const { width, height } = display.size;
   const scale = display.scaleFactor || 2;
+  // A real full-screen capture should produce a data URL of at least 50KB
+  // Smaller images are likely blank/corrupt (lockdown browser blocked the capture)
+  const MIN_VALID_SIZE = 50000;
 
-  // Primary: Electron desktopCapturer
+  // Step 1: Try Electron desktopCapturer (fastest, but lockdown browsers can block it)
   try {
     const sources = await desktopCapturer.getSources({
       types: ['screen'],
@@ -533,35 +536,46 @@ async function grabScreen() {
     });
     if (sources && sources.length > 0) {
       const img = sources[0].thumbnail.toDataURL();
-      if (img && img.length > 100) return img; // Valid capture
+      if (img && img.length > MIN_VALID_SIZE) return img; // Good capture
+      // If image is too small, desktopCapturer probably returned blank/black — fall through
+      console.log(`[CAPTURE] desktopCapturer returned small image (${img ? img.length : 0} chars) — trying native capture`);
     }
   } catch (_) {}
 
-  // Fallback (Windows): Use .NET System.Drawing for screen capture via PowerShell
-  // This bypasses Electron's capture path entirely — uses GDI+ at OS level
+  // Step 2: Try native OS-level capture (bypasses Chromium hooks from lockdown browsers)
+  try {
+    const nativeImg = await grabScreenNative();
+    if (nativeImg && nativeImg.length > MIN_VALID_SIZE) return nativeImg;
+    if (nativeImg) console.log(`[CAPTURE] Native capture returned small image (${nativeImg.length} chars)`);
+  } catch (_) {}
+
+  // Step 3: Last-resort fallbacks with lower validation threshold
   if (process.platform === 'win32') {
     try {
       const tmpFile = path.join(os.tmpdir(), 'zap_cap_' + Date.now() + '.png');
       const ps = `Add-Type -AssemblyName System.Drawing; Add-Type -AssemblyName System.Windows.Forms; $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; $bmp = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height); $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size); $bmp.Save('${tmpFile.replace(/\\/g, '\\\\')}'); $g.Dispose(); $bmp.Dispose()`;
       await new Promise((resolve, reject) => {
-        exec(`powershell -WindowStyle Hidden -Command "${ps}"`, { timeout: 5000, windowsHide: true }, (err) => err ? reject(err) : resolve());
+        exec(`powershell -WindowStyle Hidden -Command "${ps}"`, { timeout: 8000, windowsHide: true }, (err) => err ? reject(err) : resolve());
       });
-      const imgBuf = fs.readFileSync(tmpFile);
-      try { fs.unlinkSync(tmpFile); } catch (_) {}
-      return 'data:image/png;base64,' + imgBuf.toString('base64');
+      if (fs.existsSync(tmpFile)) {
+        const imgBuf = fs.readFileSync(tmpFile);
+        try { fs.unlinkSync(tmpFile); } catch (_) {}
+        if (imgBuf.length > 500) return 'data:image/png;base64,' + imgBuf.toString('base64');
+      }
     } catch (_) {}
   }
 
-  // Fallback (macOS): Use screencapture command
   if (process.platform === 'darwin') {
     try {
       const tmpFile = path.join(os.tmpdir(), 'zap_cap_' + Date.now() + '.png');
       await new Promise((resolve, reject) => {
-        exec(`screencapture -x -C "${tmpFile}"`, { timeout: 5000 }, (err) => err ? reject(err) : resolve());
+        exec(`screencapture -x "${tmpFile}"`, { timeout: 8000 }, (err) => err ? reject(err) : resolve());
       });
-      const imgBuf = fs.readFileSync(tmpFile);
-      try { fs.unlinkSync(tmpFile); } catch (_) {}
-      return 'data:image/png;base64,' + imgBuf.toString('base64');
+      if (fs.existsSync(tmpFile)) {
+        const imgBuf = fs.readFileSync(tmpFile);
+        try { fs.unlinkSync(tmpFile); } catch (_) {}
+        if (imgBuf.length > 500) return 'data:image/png;base64,' + imgBuf.toString('base64');
+      }
     } catch (_) {}
   }
 
@@ -602,12 +616,18 @@ function showWithMode(mode) {
     setTimeout(async () => {
       let img = null;
       try { img = await grabScreenNative(); } catch (_) {}
+      // If native capture failed or returned tiny image, try full grabScreen pipeline
+      if (!img || img.length < 50000) {
+        try { img = await grabScreen(); } catch (_) {}
+      }
       try { if (overlayWin && !overlayWin.isDestroyed()) overlayWin.setOpacity(1); } catch (_) {}
-      finishShow(img); // img may be null if native capture also fails — falls back to type-only
-    }, 150);
+      finishShow(img); // img may be null if all capture methods fail — falls back to type-only
+    }, 300);
     return;
   }
 
+  // Normal mode: overlay is hidden at this point, capture the full screen
+  // grabScreen() now tries desktopCapturer first, then native capture as fallback
   grabScreen().then(img => finishShow(img)).catch(() => finishShow(null));
 }
 
