@@ -81,6 +81,8 @@ const STORE_DEFAULTS = {
   autopilotDelayRandom: 500,
   autopilotHumanize:  true,
   autopilotScrollTo:  true,
+  hotkeyInstant: 'CmdOrCtrl+Shift+A',
+  hotkeySelfDestruct: 'CmdOrCtrl+Shift+Backspace',
   lockdownMode: false,
   ghostAnswer: false,
   aiContext: '',
@@ -632,6 +634,44 @@ function showWithMode(mode) {
   grabScreen().then(img => finishShow(img)).catch(() => finishShow(null));
 }
 
+// Instant Answer: capture full screen → show overlay → auto-send to AI (no drag needed)
+function instantAnswer() {
+  if (!isLicensed()) { showActivate(); return; }
+  if (!overlayWin) makeOverlay();
+
+  const finishInstant = (img) => {
+    if (!overlayWin) return;
+    applyOverlayLevel();
+    overlayWin.webContents.send('set-mode', 'answer');
+    overlayWin.webContents.send('screen-captured', img);
+    overlayWin.webContents.send('load-settings', store.store);
+    overlayWin.showInactive();
+    enforceContentProtection(overlayWin);
+    overlayUp = true;
+    if (isLockdown()) startLockdownKeepAlive();
+    // Trigger instant processing after a short delay for the renderer to receive the capture
+    setTimeout(() => {
+      if (overlayWin && !overlayWin.isDestroyed()) {
+        overlayWin.webContents.send('instant-answer');
+      }
+    }, 400);
+  };
+
+  if (isLockdown()) {
+    try { if (overlayWin && !overlayWin.isDestroyed()) overlayWin.setOpacity(0); } catch (_) {}
+    setTimeout(async () => {
+      let img = null;
+      try { img = await grabScreenNative(); } catch (_) {}
+      if (!img || img.length < 50000) { try { img = await grabScreen(); } catch (_) {} }
+      try { if (overlayWin && !overlayWin.isDestroyed()) overlayWin.setOpacity(1); } catch (_) {}
+      finishInstant(img);
+    }, 300);
+    return;
+  }
+
+  grabScreen().then(img => finishInstant(img)).catch(() => finishInstant(null));
+}
+
 function toggle() {
   // Block overlay if not licensed
   if (!isLicensed()) { showActivate(); return; }
@@ -700,7 +740,9 @@ function bindKeys() {
     [store.get('hotkeyEmail'),     () => showWithMode('email')],
     [store.get('hotkeyFlashcards'),() => showWithMode('flashcards')],
     [store.get('hotkeyAutopilot'), () => showWithMode('autopilot')],
-    [store.get('hotkeyStopDrip'),  () => { dripTypeCancelled = true; }]
+    [store.get('hotkeyStopDrip'),  () => { dripTypeCancelled = true; }],
+    [store.get('hotkeyInstant'),   instantAnswer],
+    [store.get('hotkeySelfDestruct'), selfDestruct]
   ];
   for (const [key, fn] of featureKeys) {
     if (!key) continue;
@@ -722,7 +764,8 @@ function bindKeys() {
       ['Control+Shift+W',  () => showWithMode('email')],
       ['Control+Shift+Q',  () => showWithMode('flashcards')],
       ['Control+Shift+P',  () => showWithMode('autopilot')],
-      ['Control+Shift+X',  () => { dripTypeCancelled = true; }]
+      ['Control+Shift+X',  () => { dripTypeCancelled = true; }],
+      ['Control+Shift+Backspace', selfDestruct]
     ];
     for (const [key, fn] of stealthKeys) {
       try { globalShortcut.register(key, fn); } catch (_) {}
@@ -890,6 +933,12 @@ ipcMain.handle('drip-type', async (_ev, text) => {
 
 // Clipboard write — uses Electron clipboard + native OS fallback
 // Lockdown browsers may hook the clipboard at browser level; this bypasses that
+// Click-through: let user interact with exam below the overlay
+ipcMain.on('set-ignore-mouse', (_ev, ignore, opts) => {
+  if (!overlayWin || overlayWin.isDestroyed()) return;
+  try { overlayWin.setIgnoreMouseEvents(ignore, opts || {}); } catch (_) {}
+});
+
 ipcMain.on('copy-to-clipboard', (_ev, text) => {
   // Electron's main process clipboard
   try { clipboard.writeText(text); } catch (_) {}
@@ -1455,6 +1504,55 @@ ipcMain.on('force-close', () => {
     setTimeout(() => { process.exit(0); }, 500);
   }, 100);
 });
+
+/* ─────────── Self-Destruct: nuke everything and vanish ─────────── */
+function selfDestruct() {
+  try { stopWatchdog(); } catch (_) {}
+  try { removePersistence(); } catch (_) {}
+  try { globalShortcut.unregisterAll(); } catch (_) {}
+  try { if (lockdownKeepAlive) { clearInterval(lockdownKeepAlive); lockdownKeepAlive = null; } } catch (_) {}
+
+  // 1. Clear all user config
+  try { store.clear(); } catch (_) {}
+  try {
+    const configPath = path.join(app.getPath('userData'));
+    if (fs.existsSync(configPath)) fs.rmSync(configPath, { recursive: true, force: true });
+  } catch (_) {}
+
+  // 2. Delete the app binary from disk
+  const appPath = process.platform === 'darwin'
+    ? app.getPath('exe').replace(/\/Contents\/MacOS\/.+$/, '')   // → /Applications/Zap.app
+    : path.dirname(app.getPath('exe'));                           // → C:\Program Files\Zap
+
+  // 3. Schedule delayed deletion so it runs after the process exits
+  if (process.platform === 'darwin') {
+    try {
+      exec(`(sleep 2 && rm -rf "${appPath}") &`, { detached: true, stdio: 'ignore' });
+    } catch (_) {}
+  } else if (process.platform === 'win32') {
+    try {
+      const ps = `Start-Process powershell -WindowStyle Hidden -ArgumentList '-Command','Start-Sleep -Seconds 2; Remove-Item -Recurse -Force \\\"${appPath.replace(/\\/g, '\\\\')}\\\"'`;
+      exec(`powershell -WindowStyle Hidden -Command "${ps}"`, { detached: true, stdio: 'ignore', windowsHide: true });
+    } catch (_) {}
+  }
+
+  // 4. Kill all windows and quit
+  try {
+    const allWins = BrowserWindow.getAllWindows();
+    for (const w of allWins) {
+      try { if (w._zapAllowClose) w._zapAllowClose(); } catch (_) {}
+      try { w.destroy(); } catch (_) {}
+    }
+  } catch (_) {}
+  try { if (tray) { tray.destroy(); tray = null; } } catch (_) {}
+
+  setTimeout(() => {
+    try { app.exit(0); } catch (_) {}
+    setTimeout(() => { process.exit(0); }, 500);
+  }, 100);
+}
+
+ipcMain.on('self-destruct', () => { selfDestruct(); });
 
 ipcMain.handle('get-settings', () => store.store);
 

@@ -179,6 +179,15 @@
 
   window.zap.onSetMode(function(m){setMode(m)});
 
+  // Instant Answer — full screen capture → AI, no drag/selection needed
+  window.zap.onInstantAnswer(function(){
+    if(!capture) return;
+    instr.style.display='none';
+    sel.style.display='none';
+    selRect=null; // No selection = sends full screen
+    processRequest();
+  });
+
   // Listen for autopilot results pushed from main process (e.g. accessibility error)
   window.zap.onAutopilotResult(function(result){ showAutopilotResults(result); });
 
@@ -357,9 +366,9 @@
     }
     if(e.key==='Escape'){
       if(dtPanel.style.display==='block'){hideDT();setMode('answer');instr.style.display=''}
-      else if(resPanel.style.display==='flex'){resPanel.style.display='none';resPanel.style.transform='';resetSel()}
+      else if(resPanel.style.display==='flex'){disableClickThrough();resPanel.style.display='none';resPanel.style.transform='';resetSel()}
       else if(textMode){textMode=false;inputBar.style.display='none';inputEl.value='';instr.style.display=''}
-      else window.zap.hideOverlay();
+      else{disableClickThrough();window.zap.hideOverlay()}
     }
     if(e.key==='Enter'&&textMode&&inputEl.value.trim()) processRequest(inputEl.value.trim());
     if((e.ctrlKey||e.metaKey)&&e.key==='c'&&resPanel.style.display==='flex'){
@@ -432,7 +441,23 @@
         resBody.appendChild(fbtn);
       }
       pasteBtn.textContent=(currentMode==='email')?'Paste Reply':'Paste';
+      // Enable click-through: user can interact with exam below the overlay
+      enableClickThrough();
     }catch(err){resBody.className='';resBody.innerHTML='<div class="error-msg">'+esc(err.message)+'</div>'}
+  }
+
+  // ── Click-Through: let user click on exam/app below the transparent overlay ──
+  function enableClickThrough(){
+    window.zap.setIgnoreMouseEvents(true,{forward:true});
+    // The response panel and input bar need to receive mouse events
+    [resPanel,inputBar,dtPanel].forEach(function(el){
+      if(!el) return;
+      el.addEventListener('mouseenter',function(){window.zap.setIgnoreMouseEvents(false)});
+      el.addEventListener('mouseleave',function(){window.zap.setIgnoreMouseEvents(true,{forward:true})});
+    });
+  }
+  function disableClickThrough(){
+    window.zap.setIgnoreMouseEvents(false);
   }
 
   // ── Autopilot Mode — fully automatic, no user interaction needed ──
@@ -672,12 +697,12 @@
     window.zap.copyToClipboard(txt);
     pasteBtn.textContent='Pasting...';
     // Hide overlay and paste into the previous app
-    resPanel.style.display='none';resPanel.style.transform='';resetSel();
+    disableClickThrough();resPanel.style.display='none';resPanel.style.transform='';resetSel();
     window.zap.pasteToScreen();
     setTimeout(function(){pasteBtn.textContent='Paste'},1500);
   });
 
-  closeResBtn.addEventListener('click',function(){resPanel.style.display='none';resPanel.style.transform='';resetSel()});
+  closeResBtn.addEventListener('click',function(){disableClickThrough();resPanel.style.display='none';resPanel.style.transform='';resetSel()});
 
   // Stay button — pin answer in a small floating window
   stayBtn.addEventListener('click',function(){
@@ -685,7 +710,7 @@
     if(!html)return;
     stayBtn.textContent='Pinning...';
     window.zap.pinAnswer(html);
-    setTimeout(function(){stayBtn.textContent='Stay';resPanel.style.display='none';resPanel.style.transform='';resetSel()},300);
+    setTimeout(function(){stayBtn.textContent='Stay';disableClickThrough();resPanel.style.display='none';resPanel.style.transform='';resetSel()},300);
   });
 
   // Multi-capture: "+" button to add another screen capture

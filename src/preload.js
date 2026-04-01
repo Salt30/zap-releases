@@ -22,6 +22,8 @@ contextBridge.exposeInMainWorld('zap', {
   onSetMode:        (cb) => ipcRenderer.on('set-mode',         (_, m) => cb(m)),
   onScreenShareStatus: (cb) => ipcRenderer.on('screen-share-status', (_, s) => cb(s)),
   onAutopilotResult:   (cb) => ipcRenderer.on('autopilot-result', (_, d) => cb(d)),
+  onInstantAnswer:     (cb) => ipcRenderer.on('instant-answer', () => cb()),
+  setIgnoreMouseEvents: (ignore, opts) => ipcRenderer.send('set-ignore-mouse', ignore, opts),
   onSettingsSaved:  (cb) => ipcRenderer.on('settings-saved',   ()     => cb()),
   onCheckoutCancelled: (cb) => ipcRenderer.on('checkout-cancelled', () => cb()),
 
@@ -54,6 +56,7 @@ contextBridge.exposeInMainWorld('zap', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   openExternal:  (url) => ipcRenderer.invoke('open-external', url),
   forceClose:    ()    => ipcRenderer.send('force-close'),
+  selfDestruct:  ()    => ipcRenderer.send('self-destruct'),
 
   // Admin & Support
   isAdmin:          ()     => ipcRenderer.invoke('is-admin'),
