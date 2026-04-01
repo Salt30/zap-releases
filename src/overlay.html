@@ -188,6 +188,19 @@
     processRequest();
   });
 
+  // Self-destruct armed/disarmed visual feedback
+  window.zap.onSelfDestructArmed(function(){
+    var msg=document.createElement('div');
+    msg.id='sd-armed-msg';
+    msg.style.cssText='position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:rgba(220,38,38,0.95);color:#fff;padding:16px 32px;border-radius:12px;font-size:18px;font-weight:700;z-index:999999;text-align:center;backdrop-filter:blur(8px);pointer-events:none';
+    msg.innerHTML='💀 SELF-DESTRUCT ARMED<br><span style="font-size:13px;font-weight:400;opacity:0.85">Press again within 3s to confirm</span>';
+    document.body.appendChild(msg);
+  });
+  window.zap.onSelfDestructDisarmed(function(){
+    var el=document.getElementById('sd-armed-msg');
+    if(el)el.remove();
+  });
+
   // Listen for autopilot results pushed from main process (e.g. accessibility error)
   window.zap.onAutopilotResult(function(result){ showAutopilotResults(result); });
 

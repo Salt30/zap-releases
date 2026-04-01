@@ -23,6 +23,8 @@ contextBridge.exposeInMainWorld('zap', {
   onScreenShareStatus: (cb) => ipcRenderer.on('screen-share-status', (_, s) => cb(s)),
   onAutopilotResult:   (cb) => ipcRenderer.on('autopilot-result', (_, d) => cb(d)),
   onInstantAnswer:     (cb) => ipcRenderer.on('instant-answer', () => cb()),
+  onSelfDestructArmed: (cb) => ipcRenderer.on('self-destruct-armed', () => cb()),
+  onSelfDestructDisarmed: (cb) => ipcRenderer.on('self-destruct-disarmed', () => cb()),
   setIgnoreMouseEvents: (ignore, opts) => ipcRenderer.send('set-ignore-mouse', ignore, opts),
   onSettingsSaved:  (cb) => ipcRenderer.on('settings-saved',   ()     => cb()),
   onCheckoutCancelled: (cb) => ipcRenderer.on('checkout-cancelled', () => cb()),

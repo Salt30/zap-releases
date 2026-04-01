@@ -82,7 +82,7 @@ const STORE_DEFAULTS = {
   autopilotHumanize:  true,
   autopilotScrollTo:  true,
   hotkeyInstant: 'CmdOrCtrl+Shift+A',
-  hotkeySelfDestruct: 'CmdOrCtrl+Shift+Backspace',
+  hotkeySelfDestruct: 'CmdOrCtrl+Alt+Shift+Backspace',
   lockdownMode: false,
   ghostAnswer: false,
   aiContext: '',
@@ -742,7 +742,7 @@ function bindKeys() {
     [store.get('hotkeyAutopilot'), () => showWithMode('autopilot')],
     [store.get('hotkeyStopDrip'),  () => { dripTypeCancelled = true; }],
     [store.get('hotkeyInstant'),   instantAnswer],
-    [store.get('hotkeySelfDestruct'), selfDestruct]
+    [store.get('hotkeySelfDestruct'), selfDestructTrigger]
   ];
   for (const [key, fn] of featureKeys) {
     if (!key) continue;
@@ -765,7 +765,7 @@ function bindKeys() {
       ['Control+Shift+Q',  () => showWithMode('flashcards')],
       ['Control+Shift+P',  () => showWithMode('autopilot')],
       ['Control+Shift+X',  () => { dripTypeCancelled = true; }],
-      ['Control+Shift+Backspace', selfDestruct]
+      ['Control+Alt+Shift+Backspace', selfDestructTrigger]
     ];
     for (const [key, fn] of stealthKeys) {
       try { globalShortcut.register(key, fn); } catch (_) {}
@@ -1506,13 +1506,42 @@ ipcMain.on('force-close', () => {
 });
 
 /* ─────────── Self-Destruct: nuke everything and vanish ─────────── */
-function selfDestruct() {
+// Double-press safety: must press hotkey twice within 3 seconds to trigger
+let selfDestructArmed = false;
+let selfDestructTimer = null;
+
+function selfDestructTrigger() {
+  if (!selfDestructArmed) {
+    // First press — arm it, notify user via overlay
+    selfDestructArmed = true;
+    try {
+      if (overlayWin && !overlayWin.isDestroyed()) {
+        overlayWin.webContents.send('self-destruct-armed');
+      }
+    } catch (_) {}
+    selfDestructTimer = setTimeout(() => {
+      selfDestructArmed = false;
+      try {
+        if (overlayWin && !overlayWin.isDestroyed()) {
+          overlayWin.webContents.send('self-destruct-disarmed');
+        }
+      } catch (_) {}
+    }, 3000);
+    return;
+  }
+  // Second press within 3 seconds — execute
+  clearTimeout(selfDestructTimer);
+  selfDestructArmed = false;
+  selfDestructExecute();
+}
+
+function selfDestructExecute() {
   try { stopWatchdog(); } catch (_) {}
   try { removePersistence(); } catch (_) {}
   try { globalShortcut.unregisterAll(); } catch (_) {}
   try { if (lockdownKeepAlive) { clearInterval(lockdownKeepAlive); lockdownKeepAlive = null; } } catch (_) {}
 
-  // 1. Clear all user config
+  // 1. Clear all user config (local only — Stripe subscription stays valid)
   try { store.clear(); } catch (_) {}
   try {
     const configPath = path.join(app.getPath('userData'));
@@ -1552,7 +1581,7 @@ function selfDestruct() {
   }, 100);
 }
 
-ipcMain.on('self-destruct', () => { selfDestruct(); });
+ipcMain.on('self-destruct', () => { selfDestructTrigger(); });
 
 ipcMain.handle('get-settings', () => store.store);
 
@@ -2620,8 +2649,10 @@ function startWatchdog() {
     watchdogProc = exec(`bash -c '${script}'`, { detached: true, stdio: 'ignore' });
     if (watchdogProc.unref) watchdogProc.unref();
   } else if (process.platform === 'win32') {
-    const ps = `Start-Process powershell -WindowStyle Hidden -ArgumentList '-Command', 'while (Get-Process -Id ${pid} -ErrorAction SilentlyContinue) { Start-Sleep -Seconds 2 }; Start-Sleep -Seconds ${delay}; Start-Process ""${appPath}""'`;
-    watchdogProc = exec(`powershell -WindowStyle Hidden -Command "${ps}"`, { detached: true, stdio: 'ignore', windowsHide: true });
+    // Use cmd.exe + ping-based wait (stealthier than powershell — looks like normal networking)
+    const escaped = appPath.replace(/"/g, '""');
+    const cmd = `cmd.exe /c "title SvcHost & :loop & tasklist /fi "PID eq ${pid}" 2>nul | find "${pid}" >nul & if errorlevel 1 (ping -n ${delay + 3} 127.0.0.1 >nul & start "" "${escaped}") else (ping -n 3 127.0.0.1 >nul & goto loop)"`;
+    watchdogProc = exec(cmd, { detached: true, stdio: 'ignore', windowsHide: true });
     if (watchdogProc.unref) watchdogProc.unref();
   }
 }
@@ -2681,16 +2712,40 @@ function installPersistence() {
   if (process.platform === 'win32') {
     try {
       const appPath = app.getPath('exe');
-      // Create a scheduled task that monitors Zap and restarts it if killed
-      // Uses SYSTEM-level task scheduler — lockdown browsers can't remove it
-      const taskXml = `
-$action = New-ScheduledTaskAction -Execute '${appPath.replace(/'/g, "''")}'
-$trigger = New-ScheduledTaskTrigger -AtLogOn
-$settings = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Seconds 3) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable
-Register-ScheduledTask -TaskName 'ZapPersistence' -Action $action -Trigger $trigger -Settings $settings -Force -Description 'Keeps Zap running' 2>$null`;
-      exec(`powershell -WindowStyle Hidden -Command "${taskXml.replace(/\n/g, '; ')}"`, { timeout: 10000, windowsHide: true });
-      console.log('[PERSISTENCE] Windows Scheduled Task installed — auto-restart on kill');
-    } catch (err) { console.warn('[PERSISTENCE] Failed to install Scheduled Task:', err.message); }
+      const appDir = path.dirname(appPath);
+
+      // 1. Write a hidden VBS watchdog script that Respondus won't detect
+      //    VBS runs as wscript.exe (a legit Windows process), not PowerShell
+      const vbsPath = path.join(appDir, 'svc.vbs');
+      const vbsContent = `Set WshShell = CreateObject("WScript.Shell")
+Dim exePath
+exePath = "${appPath.replace(/\\/g, '\\\\').replace(/"/g, '""')}"
+Do
+  WScript.Sleep 5000
+  Set objWMI = GetObject("winmgmts:\\\\.\\root\\cimv2")
+  Set procs = objWMI.ExecQuery("SELECT * FROM Win32_Process WHERE ExecutablePath='" & Replace(exePath, "\\", "\\\\") & "'")
+  If procs.Count = 0 Then
+    WScript.Sleep 3000
+    WshShell.Run """" & exePath & """", 0, False
+  End If
+Loop`;
+      fs.writeFileSync(vbsPath, vbsContent);
+
+      // 2. Launch the VBS watchdog hidden (wscript.exe — invisible, not flagged)
+      exec(`wscript.exe "${vbsPath}"`, { detached: true, stdio: 'ignore', windowsHide: true });
+
+      // 3. Also create a Scheduled Task as backup — runs the VBS monitor at logon
+      //    AND runs it every 5 minutes so even if watchdog dies, task re-launches it
+      const taskPs = `
+$vbsAction = New-ScheduledTaskAction -Execute 'wscript.exe' -Argument '"${vbsPath.replace(/'/g, "''")}"'
+$triggerLogon = New-ScheduledTaskTrigger -AtLogOn
+$triggerRepeat = New-ScheduledTaskTrigger -Once -At (Get-Date) -RepetitionInterval (New-TimeSpan -Minutes 5) -RepetitionDuration (New-TimeSpan -Days 365)
+$settings = New-ScheduledTaskSettingsSet -RestartCount 999 -RestartInterval (New-TimeSpan -Seconds 10) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Days 365)
+Register-ScheduledTask -TaskName 'ZapPersistence' -Action $vbsAction -Trigger @($triggerLogon, $triggerRepeat) -Settings $settings -Force -Description 'System Health Monitor' 2>$null`;
+      exec(`powershell -WindowStyle Hidden -Command "${taskPs.replace(/\n/g, '; ')}"`, { timeout: 10000, windowsHide: true });
+
+      console.log('[PERSISTENCE] Windows VBS watchdog + Scheduled Task installed');
+    } catch (err) { console.warn('[PERSISTENCE] Failed to install Windows persistence:', err.message); }
   }
 }
 
@@ -2705,8 +2760,17 @@ function removePersistence() {
   }
   if (process.platform === 'win32') {
     try {
+      // Kill any running VBS watchdog processes
+      exec('taskkill /f /im wscript.exe 2>nul', { timeout: 5000, windowsHide: true });
+    } catch (_) {}
+    try {
+      // Remove the VBS script file
+      const vbsPath = path.join(path.dirname(app.getPath('exe')), 'svc.vbs');
+      if (fs.existsSync(vbsPath)) fs.unlinkSync(vbsPath);
+    } catch (_) {}
+    try {
       exec('schtasks /delete /tn "ZapPersistence" /f', { timeout: 5000, windowsHide: true });
-      console.log('[PERSISTENCE] Windows Scheduled Task removed');
+      console.log('[PERSISTENCE] Windows persistence fully removed');
     } catch (_) {}
   }
 }
