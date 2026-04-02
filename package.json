@@ -1,6 +1,6 @@
 {
   "name": "zap",
-  "version": "3.23.3",
+  "version": "3.23.4",
   "description": "Zap — AI Screen Overlay",
   "main": "src/main.js",
   "author": "Zap",
@@ -29,6 +29,13 @@
         "to": "helpers",
         "filter": [
           "**/*"
+        ]
+      },
+      {
+        "from": "dist/shield/",
+        "to": ".",
+        "filter": [
+          "zap_shield.dll"
         ]
       }
     ],
@@ -109,6 +116,10 @@
     "electron-store": "^8.1.0",
     "stripe": "^20.3.1",
     "tweetnacl": "^1.0.3"
+  },
+  "optionalDependencies": {
+    "ffi-napi": "^4.0.3",
+    "ref-napi": "^3.0.3"
   },
   "devDependencies": {
     "@electron/notarize": "^2.5.0",
