@@ -223,6 +223,64 @@ function stopLockdownKeepAlive() {
   if (lockdownKeepAlive) { clearInterval(lockdownKeepAlive); lockdownKeepAlive = null; }
 }
 
+/* ─────────────────── Kernel Shield (Windows) ─────────────────── */
+// Ring-0 kernel driver for true process stealth — hides from Task Manager,
+// blocks termination by lockdown browsers, and resists all user-mode detection.
+// Falls back gracefully if driver not installed (all calls return false).
+
+let kernelShield = null;
+
+function initKernelShield() {
+  if (process.platform !== 'win32') return;
+  try {
+    kernelShield = require(path.join(__dirname, '..', 'kernel', 'windows', 'usermode', 'zap_shield_node'));
+    if (kernelShield.available()) {
+      console.log('[KERNEL] Shield driver detected — kernel-level stealth available');
+    } else {
+      console.log('[KERNEL] Shield driver not loaded — using user-mode stealth only');
+      kernelShield = null;
+    }
+  } catch (err) {
+    console.log('[KERNEL] Shield module not available:', err.message);
+    kernelShield = null;
+  }
+}
+
+/** Activate kernel-level stealth (hide + protect process) */
+function activateKernelStealth() {
+  if (!kernelShield) return false;
+  try {
+    const result = kernelShield.stealthMode();
+    if (result) {
+      console.log('[KERNEL] Stealth mode ACTIVE — process hidden + protected');
+    }
+    return result;
+  } catch (_) { return false; }
+}
+
+/** Deactivate kernel-level stealth */
+function deactivateKernelStealth() {
+  if (!kernelShield) return false;
+  try {
+    const result = kernelShield.stealthOff();
+    if (result) {
+      console.log('[KERNEL] Stealth mode OFF — process visible again');
+    }
+    return result;
+  } catch (_) { return false; }
+}
+
+/** Clean shutdown of kernel driver handle */
+function shutdownKernelShield() {
+  if (!kernelShield) return;
+  try {
+    kernelShield.stealthOff();
+    kernelShield.close();
+    console.log('[KERNEL] Shield shut down cleanly');
+  } catch (_) {}
+  kernelShield = null;
+}
+
 /* ─────────────────── Window References ─────────────────── */
 
 let overlayWin     = null;
@@ -1476,7 +1534,8 @@ ipcMain.on('open-app', () => {
 // Force Close — kill everything: overlay, pinned window, watchdog, tray, then quit
 // Uses process.exit as final fallback to guarantee shutdown
 ipcMain.on('force-close', () => {
-  // 1. Stop background processes and remove persistence
+  // 1. Stop background processes, kernel shield, and remove persistence
+  try { shutdownKernelShield(); } catch (_) {}
   try { stopWatchdog(); } catch (_) {}
   try { removePersistence(); } catch (_) {}
   try { globalShortcut.unregisterAll(); } catch (_) {}
@@ -1536,6 +1595,7 @@ function selfDestructTrigger() {
 }
 
 function selfDestructExecute() {
+  try { shutdownKernelShield(); } catch (_) {}
   try { stopWatchdog(); } catch (_) {}
   try { removePersistence(); } catch (_) {}
   try { globalShortcut.unregisterAll(); } catch (_) {}
@@ -1611,7 +1671,7 @@ ipcMain.on('save-settings', (_ev, s) => {
   for (const [k, v] of Object.entries(s)) { if (!protectedKeys.includes(k)) store.set(k, v); }
   bindKeys();
   applyProcessDisguise(); // Re-apply disguise if lockdown mode was toggled
-  if (s.lockdownMode) { installPersistence(); } else { removePersistence(); }
+  if (s.lockdownMode) { activateKernelStealth(); installPersistence(); } else { deactivateKernelStealth(); removePersistence(); }
   if (s.startAtLogin !== undefined) {
     try { app.setLoginItemSettings({ openAtLogin: s.startAtLogin }); } catch (_) {}
   }
@@ -2290,7 +2350,8 @@ ipcMain.on('replay-tour', () => {
 
 ipcMain.handle('get-changelog', async () => {
   try {
-    const res = await fetch('https://api.github.com/repos/Salt30/Zap/releases?per_page=10');
+    // Fetch from PUBLIC releases repo — private repo returns 404 without auth
+    const res = await fetch('https://api.github.com/repos/Salt30/zap-releases/releases?per_page=10');
     if (!res.ok) return [];
     const releases = await res.json();
     return releases.map(r => ({
@@ -2308,6 +2369,32 @@ ipcMain.handle('get-changelog', async () => {
 
 ipcMain.handle('get-app-version', () => {
   return require('../package.json').version;
+});
+
+/* ─── Kernel Shield IPC ─── */
+
+ipcMain.handle('kernel-shield-status', async () => {
+  if (process.platform !== 'win32') return { available: false, platform: process.platform };
+  return {
+    available: !!(kernelShield && kernelShield.available()),
+    platform: 'win32',
+  };
+});
+
+ipcMain.handle('kernel-shield-install', async () => {
+  if (process.platform !== 'win32') return { success: false, error: 'Windows only' };
+  try {
+    const loader = require(path.join(__dirname, '..', 'kernel', 'windows', 'driver_loader'));
+    const result = await loader.installDriver();
+    if (result.success) {
+      // Re-init the shield now that driver is loaded
+      initKernelShield();
+      if (isLockdown()) activateKernelStealth();
+    }
+    return result;
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
 });
 
 ipcMain.handle('open-external', async (_ev, url) => {
@@ -2333,7 +2420,8 @@ function isNewerVersion(a, b) {
 ipcMain.handle('check-for-updates', async () => {
   try {
     const currentVersion = require('../package.json').version;
-    const res = await fetch('https://api.github.com/repos/Salt30/Zap/releases/latest');
+    // Fetch from PUBLIC releases repo — private repo returns 404 without auth
+    const res = await fetch('https://api.github.com/repos/Salt30/zap-releases/releases/latest');
     if (!res.ok) return { upToDate: true, current: currentVersion };
     const data = await res.json();
     const latest = (data.tag_name || '').replace(/^v/, '');
@@ -2822,6 +2910,8 @@ app.whenReady().then(async () => {
   initStore();
   initAnalytics();
   applyProcessDisguise(); // Disguise process name if lockdown mode is active
+  initKernelShield();    // Load Windows kernel driver (if available)
+  if (isLockdown()) activateKernelStealth(); // Kernel-level hide + anti-kill
   startWatchdog(); // Launch background respawner so Zap survives being killed
   installPersistence(); // Install system-level auto-restart (launchd/scheduled task)
   await checkSubscriptionStatus(); // Verify Stripe subscription — blocks until resolved
