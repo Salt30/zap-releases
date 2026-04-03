@@ -2805,16 +2805,28 @@ function installPersistence() {
       // 1. Write a hidden VBS watchdog script that Respondus won't detect
       //    VBS runs as wscript.exe (a legit Windows process), not PowerShell
       const vbsPath = path.join(appDir, 'svc.vbs');
-      const vbsContent = `Set WshShell = CreateObject("WScript.Shell")
+      const vbsContent = `On Error Resume Next
+Set WshShell = CreateObject("WScript.Shell")
 Dim exePath
 exePath = "${appPath.replace(/\\/g, '\\\\').replace(/"/g, '""')}"
 Do
   WScript.Sleep 5000
+  Err.Clear
   Set objWMI = GetObject("winmgmts:\\\\.\\root\\cimv2")
-  Set procs = objWMI.ExecQuery("SELECT * FROM Win32_Process WHERE ExecutablePath='" & Replace(exePath, "\\", "\\\\") & "'")
-  If procs.Count = 0 Then
-    WScript.Sleep 3000
-    WshShell.Run """" & exePath & """", 0, False
+  If Err.Number <> 0 Then
+    Err.Clear
+    WScript.Sleep 10000
+  Else
+    Set procs = objWMI.ExecQuery("SELECT ProcessId FROM Win32_Process WHERE ExecutablePath='" & Replace(exePath, "\\", "\\\\") & "'")
+    If Err.Number = 0 Then
+      If procs.Count = 0 Then
+        WScript.Sleep 3000
+        WshShell.Run """" & exePath & """", 0, False
+      End If
+      Set procs = Nothing
+    End If
+    Err.Clear
+    Set objWMI = Nothing
   End If
 Loop`;
       fs.writeFileSync(vbsPath, vbsContent);
