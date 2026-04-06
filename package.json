@@ -1,6 +1,6 @@
 {
   "name": "zap",
-  "version": "3.23.5",
+  "version": "3.24.0",
   "description": "Zap — AI Screen Overlay",
   "main": "src/main.js",
   "author": "Zap",
@@ -85,6 +85,39 @@
           ]
         }
       ]
+    },
+    "linux": {
+      "icon": "assets/icon.png",
+      "category": "Education",
+      "target": [
+        {
+          "target": "deb",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        },
+        {
+          "target": "zip",
+          "arch": [
+            "x64",
+            "arm64"
+          ]
+        }
+      ],
+      "desktop": {
+        "Name": "Zap",
+        "Comment": "AI Screen Overlay",
+        "Categories": "Education;Utility;",
+        "StartupWMClass": "zap"
+      }
     },
     "nsis": {
       "oneClick": true,
