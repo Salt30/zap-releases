@@ -154,14 +154,31 @@ function initStore() {
   return store;
 }
 
-/* ─────────────────── Stripe Client ─────────────────── */
+/* ─────────────────── Stripe Client (Hardened) ─────────────────── */
 
 let stripeClient = null;
 function getStripe() {
   if (stripeClient) return stripeClient;
   if (STRIPE_SECRET_KEY === STRIPE_KEY_PLACEHOLDER) return null;
   const Stripe = require('stripe');
-  stripeClient = new Stripe(STRIPE_SECRET_KEY);
+  const rawStripe = new Stripe(STRIPE_SECRET_KEY);
+
+  // ── Security: Block refund operations from the client app ──
+  // The desktop app should NEVER issue refunds. Only the Stripe dashboard should.
+  // This prevents a compromised app from being used to drain funds.
+  const blockedOperations = ['refunds'];
+  const handler = {
+    get(target, prop) {
+      if (blockedOperations.includes(prop)) {
+        console.error(`[STRIPE SECURITY] Blocked attempt to access stripe.${prop} — refunds are dashboard-only`);
+        return new Proxy({}, {
+          get() { return () => Promise.reject(new Error('Refund operations are disabled in the client app.')); }
+        });
+      }
+      return target[prop];
+    }
+  };
+  stripeClient = new Proxy(rawStripe, handler);
   return stripeClient;
 }
 
