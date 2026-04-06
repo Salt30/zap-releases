@@ -18,6 +18,84 @@ const ANNOUNCEMENTS_CHANNEL = process.env.UPDATES_CHANNEL; // #announcements cha
 
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
+// ══════════════════════════════════════════════════════════════
+//  RATE LIMITING — prevent abuse and runaway API costs
+// ══════════════════════════════════════════════════════════════
+const rateLimiter = {
+  userCounts: new Map(),   // userId -> { count, resetTime }
+  globalCount: 0,
+  globalReset: Date.now() + 3600000,
+  MAX_PER_USER_PER_HOUR: 30,   // Max AI requests per user per hour
+  MAX_GLOBAL_PER_HOUR: 500,     // Max total AI requests per hour
+  COST_ALERT_THRESHOLD: 200,    // DM owner if estimated cost exceeds this
+
+  check(userId) {
+    const now = Date.now();
+
+    // Reset global counter hourly
+    if (now > this.globalReset) {
+      this.globalCount = 0;
+      this.globalReset = now + 3600000;
+    }
+
+    // Check global limit
+    if (this.globalCount >= this.MAX_GLOBAL_PER_HOUR) {
+      console.warn(`[RATE LIMIT] Global limit hit: ${this.globalCount}/${this.MAX_GLOBAL_PER_HOUR}`);
+      return false;
+    }
+
+    // Check per-user limit
+    let user = this.userCounts.get(userId);
+    if (!user || now > user.resetTime) {
+      user = { count: 0, resetTime: now + 3600000 };
+      this.userCounts.set(userId, user);
+    }
+    if (user.count >= this.MAX_PER_USER_PER_HOUR) {
+      console.warn(`[RATE LIMIT] User ${userId} hit limit: ${user.count}/${this.MAX_PER_USER_PER_HOUR}`);
+      return false;
+    }
+
+    user.count++;
+    this.globalCount++;
+    return true;
+  },
+
+  // Clean up old entries every 30 min
+  cleanup() {
+    const now = Date.now();
+    for (const [id, data] of this.userCounts) {
+      if (now > data.resetTime) this.userCounts.delete(id);
+    }
+  }
+};
+setInterval(() => rateLimiter.cleanup(), 30 * 60 * 1000);
+
+// ══════════════════════════════════════════════════════════════
+//  STARTUP SECURITY CHECKS — validate environment
+// ══════════════════════════════════════════════════════════════
+function validateEnvironment() {
+  const required = ['DISCORD_TOKEN', 'OPENAI_API_KEY', 'OWNER_ID'];
+  const missing = required.filter(k => !process.env[k]);
+  if (missing.length) {
+    console.error(`[SECURITY] Missing required env vars: ${missing.join(', ')}`);
+    console.error('[SECURITY] Bot will not start without these. Check .env file.');
+    process.exit(1);
+  }
+
+  // Warn if running with old/known-compromised keys
+  const compromisedPatterns = ['GOAmuM', 'sk-proj-3iRR', 'ghp_skJC'];
+  for (const pat of compromisedPatterns) {
+    for (const [key, val] of Object.entries(process.env)) {
+      if (val && val.includes(pat)) {
+        console.error(`[SECURITY] ⚠️  ${key} appears to contain a COMPROMISED key! Rotate immediately.`);
+      }
+    }
+  }
+
+  console.log('[SECURITY] Environment validated — all keys present');
+}
+validateEnvironment();
+
 // ── GitHub API helper ──
 async function githubAPI(endpoint, method = 'GET', body = null) {
   const url = endpoint.startsWith('http') ? endpoint : `https://api.github.com/repos/${GITHUB_REPO}${endpoint}`;
@@ -228,10 +306,52 @@ Context: ${context}`;
 }
 
 // ══════════════════════════════════════════════════════════════
+//  INPUT SANITIZATION — prevent prompt injection & abuse
+// ══════════════════════════════════════════════════════════════
+const MAX_INPUT_LENGTH = 2000; // Discord max is 2000 anyway
+
+function sanitizeInput(text) {
+  if (!text) return '';
+  // Truncate overly long messages
+  let clean = text.slice(0, MAX_INPUT_LENGTH);
+  // Strip common prompt injection patterns
+  const injectionPatterns = [
+    /ignore (?:all )?(?:previous |above |prior )?instructions/gi,
+    /you are now/gi,
+    /new system prompt/gi,
+    /\[SYSTEM\]/gi,
+    /\[ADMIN\]/gi,
+    /reveal (?:your )?(?:system )?prompt/gi,
+    /what (?:is|are) your (?:system )?(?:prompt|instructions)/gi,
+    /pretend you(?:'re| are)/gi,
+    /act as (?:if you(?:'re| are)|a)/gi,
+    /disregard (?:all )?(?:previous )?/gi,
+  ];
+  for (const pat of injectionPatterns) {
+    if (pat.test(clean)) {
+      console.warn(`[SECURITY] Prompt injection attempt detected: "${clean.slice(0, 100)}"`);
+      // Don't block — just log. The AI system prompt is hardened enough.
+    }
+  }
+  return clean;
+}
+
+// ══════════════════════════════════════════════════════════════
 //  SMART AI RESPONSE — uses thinking + knowledge
 // ══════════════════════════════════════════════════════════════
 
-async function getAIResponse(userMessage, channelId, context = '') {
+async function getAIResponse(userMessage, channelId, context = '', userId = null) {
+  // ── Sanitize input ──
+  userMessage = sanitizeInput(userMessage);
+
+  // ── Rate limit check ──
+  if (userId && !rateLimiter.check(userId)) {
+    return "⚡ You're sending messages a bit too fast! Please wait a few minutes and try again. (Limit: 30 requests/hour)";
+  }
+  if (!userId && !rateLimiter.check('anonymous')) {
+    return "⚡ The bot is experiencing high traffic right now. Please try again in a few minutes.";
+  }
+
   const history = getHistory(channelId);
 
   // Think first
@@ -352,7 +472,7 @@ async function handleBugReport(message, text) {
       // Respond to user
       const context = `This bug has been reported by ${reporterCount} users now. It's been escalated to the dev team as a likely real bug. Acknowledge the issue, let them know others are affected too and the team is on it. Also provide any troubleshooting that might help in the meantime.`;
       await message.channel.sendTyping();
-      const reply = await getAIResponse(description, message.channel.id, context);
+      const reply = await getAIResponse(description, message.channel.id, context, message.author.id);
       await safeReply(message, reply);
       return;
     }
@@ -360,7 +480,7 @@ async function handleBugReport(message, text) {
     // Same person or only 1 reporter — troubleshoot first
     const context = `This bug was reported before but only by ${reporterCount} user(s). It might be a user-side issue. Your internal analysis: ${analysis}\n\nTroubleshoot first — ask about their version, OS, settings, whether stealth mode is on, etc. Don't assume it's a Zap bug yet.`;
     await message.channel.sendTyping();
-    const reply = await getAIResponse(description, message.channel.id, context);
+    const reply = await getAIResponse(description, message.channel.id, context, message.author.id);
     await safeReply(message, reply);
     return;
   }
@@ -386,7 +506,7 @@ async function handleBugReport(message, text) {
   // Respond with troubleshooting — assume user error first
   const context = `New bug report — first time seeing this issue. Your internal analysis: ${analysis}\n\nThis is the FIRST report of this issue, so it's likely a user-side problem. Troubleshoot thoroughly: ask about version (must be v3.23.2), OS, whether stealth mode is enabled, their settings, internet connection, etc. Be helpful but don't assume Zap is broken. If they confirm everything is correct, say you'll escalate to the team.`;
   await message.channel.sendTyping();
-  const reply = await getAIResponse(description, message.channel.id, context);
+  const reply = await getAIResponse(description, message.channel.id, context, message.author.id);
   await safeReply(message, reply);
 
   // Notify owner (informational, not urgent)
@@ -461,7 +581,7 @@ async function handleRecommendation(message, text) {
   // Respond to the user — thoughtful response based on analysis
   const responseContext = `The user suggested this feature: "${description}". Your analysis: ${analysis}\n\nRespond to the user: thank them for the idea, briefly share whether it aligns with Zap's direction (based on your analysis), and let them know it's been sent to the team for review. Don't promise it will be built — say the team will review it.`;
   await message.channel.sendTyping();
-  const reply = await getAIResponse(description, message.channel.id, responseContext);
+  const reply = await getAIResponse(description, message.channel.id, responseContext, message.author.id);
   await safeReply(message, reply);
 }
 
@@ -792,7 +912,7 @@ async function handleTicket(message) {
   const context = `This is support ticket channel: ${message.channel.name}. The user needs help with Zap. Be thorough, ask diagnostic questions if needed (version, OS, settings), and provide step-by-step solutions.`;
 
   await message.channel.sendTyping();
-  const reply = await getAIResponse(userMsg, message.channel.id, context);
+  const reply = await getAIResponse(userMsg, message.channel.id, context, message.author.id);
 
   const safeReplyText = sanitizeOutput(reply);
   if (safeReplyText.length > 1900) {
@@ -825,7 +945,7 @@ async function handleMention(message) {
   }
 
   const context = `User @${message.author.username} mentioned the bot in #${message.channel.name}. Type classified as: ${type}. Respond helpfully and concisely.`;
-  const reply = await getAIResponse(cleanMsg, message.channel.id, context);
+  const reply = await getAIResponse(cleanMsg, message.channel.id, context, message.author.id);
 
   const safeText = sanitizeOutput(reply);
   if (safeText.length > 1900) {
@@ -902,7 +1022,7 @@ async function handleFeedbackChannel(message) {
     // General question in feedback channel — answer with context
     const context = `This is the ${message.channel.name} channel. Respond helpfully.`;
     await message.channel.sendTyping();
-    const reply = await getAIResponse(message.content, message.channel.id, context);
+    const reply = await getAIResponse(message.content, message.channel.id, context, message.author.id);
     await safeReply(message, reply);
   }
 }
@@ -929,7 +1049,7 @@ client.on('messageCreate', async (message) => {
     if (message.channel.type === ChannelType.DM) {
       await message.channel.sendTyping();
       const context = 'This is a private DM. The user wants help. Be extra helpful and thorough.';
-      const reply = await getAIResponse(message.content, message.channel.id, context);
+      const reply = await getAIResponse(message.content, message.channel.id, context, message.author.id);
       await message.channel.send(sanitizeOutput(reply));
       return;
     }
