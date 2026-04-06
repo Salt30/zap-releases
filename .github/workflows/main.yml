@@ -229,3 +229,75 @@ jobs:
             gh release upload $VERSION $_.FullName --clobber
           }
         shell: pwsh
+
+  build-linux:
+    needs: create-release
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        run: npm install
+
+      - name: Install Linux build tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y dpkg fakeroot rpm
+
+      - name: Generate Linux icons
+        run: |
+          pip install Pillow
+          python3 -c "
+          from PIL import Image
+          import os
+          img = Image.open('assets/icon.png')
+          for size in [16, 32, 48, 64, 128, 256, 512]:
+              d = f'assets/icons/{size}x{size}'
+              os.makedirs(d, exist_ok=True)
+              img.resize((size, size), Image.LANCZOS).save(f'{d}/icon.png')
+          print('Linux icons generated')
+          "
+
+      - name: Inject API keys
+        run: |
+          sed -i "s/YOUR_PERPLEXITY_API_KEY/${{ secrets.PERPLEXITY_API_KEY }}/g" src/main.js
+          sed -i "s/YOUR_OPENAI_API_KEY/${{ secrets.OPENAI_API_KEY }}/g" src/main.js
+          sed -i "s/YOUR_STRIPE_SECRET_KEY/${{ secrets.STRIPE_SECRET_KEY }}/g" src/main.js
+          sed -i "s/YOUR_GH_SUPPORT_TOKEN/${{ secrets.GH_SUPPORT_TOKEN }}/g" src/main.js
+
+      - name: Verify API keys were injected
+        run: |
+          if grep -q "YOUR_PERPLEXITY_API_KEY" src/main.js; then
+            echo "ERROR: Perplexity placeholder still present."
+            exit 1
+          fi
+          if grep -q "YOUR_STRIPE_SECRET_KEY" src/main.js; then
+            echo "WARNING: Stripe placeholder still present."
+          fi
+          echo "API key injection verified."
+
+      - name: Build Linux
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: npx electron-builder --linux deb AppImage zip --publish never
+
+      - name: List dist output
+        if: always()
+        run: ls -la dist/
+
+      - name: Upload Linux assets to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.create-release.outputs.version }}"
+          echo "Uploading Linux assets to release $VERSION..."
+          for f in dist/*.deb dist/*.AppImage dist/*.zip; do
+            if [ -f "$f" ]; then
+              echo "Uploading: $f"
+              gh release upload "$VERSION" "$f" --clobber
+            fi
+          done
