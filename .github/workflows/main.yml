@@ -2,9 +2,44 @@ name: Build & Sign Zap
 
 on:
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version tag (e.g. v3.23.5) - leave empty to read from package.json'
+        required: false
+        default: ''
 
 jobs:
+  create-release:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      upload_url: ${{ steps.release.outputs.upload_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            echo "version=${{ github.event.inputs.version }}" >> $GITHUB_OUTPUT
+          else
+            VERSION=$(node -p "require('./package.json').version")
+            echo "version=v${VERSION}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Create draft release
+        id: release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.version }}
+          name: "Zap ${{ steps.version.outputs.version }}"
+          draft: true
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
   build-mac:
+    needs: create-release
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,24 +56,15 @@ jobs:
           CERTIFICATE_BASE64: ${{ secrets.CERTIFICATE_BASE64 }}
           CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
         run: |
-          # Decode certificate
           echo "$CERTIFICATE_BASE64" | base64 --decode > certificate.p12
-
-          # Create and configure keychain
           security create-keychain -p actions build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p actions build.keychain
           security set-keychain-settings -t 3600 -u build.keychain
-
-          # Import certificate
           security import certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k actions build.keychain
-
-          # Verify the identity is available
           echo "Available signing identities:"
           security find-identity -v -p codesigning build.keychain
-
-          # Clean up
           rm certificate.p12
 
       - name: Inject API keys
@@ -102,21 +128,14 @@ jobs:
             echo "========================================="
             echo "Submitting: $DMG"
             echo "========================================="
-
-            # Submit and capture output
             RESULT=$(xcrun notarytool submit "$DMG" \
               --apple-id "$APPLE_ID" \
               --password "$APPLE_APP_SPECIFIC_PASSWORD" \
               --team-id "$APPLE_TEAM_ID" \
               --wait 2>&1) || true
-
             echo "$RESULT"
-
-            # Extract submission ID
             SUB_ID=$(echo "$RESULT" | grep "id:" | head -1 | awk '{print $2}')
             echo "Submission ID: $SUB_ID"
-
-            # Check if it was invalid
             if echo "$RESULT" | grep -q "Invalid"; then
               echo ""
               echo "=== NOTARIZATION LOG ==="
@@ -127,8 +146,6 @@ jobs:
               echo "========================"
               exit 1
             fi
-
-            # Staple if successful
             xcrun stapler staple "$DMG"
             echo "Notarization and stapling complete for $DMG!"
           done
@@ -137,41 +154,21 @@ jobs:
         if: always()
         run: ls -la dist/
 
-      - name: Upload ARM64 DMG
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Zap-DMG
-          path: dist/*arm64*.dmg
-
-      - name: Upload ARM64 ZIP
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Zap-ZIP
-          path: dist/*arm64*.zip
-
-      - name: Upload Intel DMG
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Zap-DMG-Intel
-          path: |
-            dist/*.dmg
-            !dist/*arm64*.dmg
-            !dist/*.blockmap
-
-      - name: Upload Intel ZIP
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Zap-ZIP-Intel
-          path: |
-            dist/*mac.zip
-            dist/*x64*.zip
-            !dist/*arm64*.zip
+      - name: Upload Mac assets to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.create-release.outputs.version }}"
+          echo "Uploading Mac assets to release $VERSION..."
+          for f in dist/*.dmg dist/*.zip; do
+            if [ -f "$f" ]; then
+              echo "Uploading: $f"
+              gh release upload "$VERSION" "$f" --clobber
+            fi
+          done
 
   build-win:
+    needs: create-release
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -218,16 +215,14 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx electron-builder --win nsis zip --publish never
 
-      - name: Upload Windows Installer
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Zap-Windows-Setup
-          path: dist/*.exe
-
-      - name: Upload Windows ZIP
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: Zap-Windows-ZIP
-          path: dist/*.zip
+      - name: Upload Windows assets to release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $VERSION = "${{ needs.create-release.outputs.version }}"
+          Write-Output "Uploading Windows assets to release $VERSION..."
+          Get-ChildItem dist/*.exe, dist/*.zip | ForEach-Object {
+            Write-Output "Uploading: $($_.Name)"
+            gh release upload $VERSION $_.FullName --clobber
+          }
+        shell: pwsh
