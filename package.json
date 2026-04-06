@@ -3,7 +3,10 @@
   "version": "3.24.0",
   "description": "Zap — AI Screen Overlay",
   "main": "src/main.js",
-  "author": "Zap",
+  "author": {
+    "name": "Zap",
+    "email": "support@tryzap.net"
+  },
   "license": "MIT",
   "scripts": {
     "start": "electron .",
@@ -89,6 +92,7 @@
     "linux": {
       "icon": "assets/icon.png",
       "category": "Education",
+      "maintainer": "Zap <support@tryzap.net>",
       "target": [
         {
           "target": "deb",
