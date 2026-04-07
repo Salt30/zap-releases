@@ -83,7 +83,7 @@ function validateEnvironment() {
   }
 
   // Warn if running with old/known-compromised keys
-  const compromisedPatterns = ['GOAmuM', 'sk-proj-3iRR', 'ghp_skJC'];
+  const compromisedPatterns = ['GOAmuM', 'sk-proj-3iRR', 'ghp_skJC', 'CO5z3R9xy', 'Vc0BvMN'];
   for (const pat of compromisedPatterns) {
     for (const [key, val] of Object.entries(process.env)) {
       if (val && val.includes(pat)) {
