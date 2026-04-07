@@ -54,6 +54,11 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Install security build tools
+        run: |
+          npm install --save-dev bytenode javascript-obfuscator
+          npm install --save bytenode
+
       - name: Import certificate
         env:
           CERTIFICATE_BASE64: ${{ secrets.CERTIFICATE_BASE64 }}
@@ -76,6 +81,8 @@ jobs:
           sed -i '' "s/YOUR_OPENAI_API_KEY/${{ secrets.OPENAI_API_KEY }}/g" src/main.js
           sed -i '' "s/YOUR_STRIPE_SECRET_KEY/${{ secrets.STRIPE_SECRET_KEY }}/g" src/main.js
           sed -i '' "s/YOUR_GH_SUPPORT_TOKEN/${{ secrets.GH_SUPPORT_TOKEN }}/g" src/main.js
+          sed -i '' "s/YOUR_ADMIN_KEY_1/${{ secrets.ADMIN_KEY_1 }}/g" src/main.js
+          sed -i '' "s/YOUR_ADMIN_KEY_2/${{ secrets.ADMIN_KEY_2 }}/g" src/main.js
 
       - name: Verify API keys were injected
         run: |
@@ -89,7 +96,35 @@ jobs:
           if grep -q "YOUR_GH_SUPPORT_TOKEN" src/main.js; then
             echo "WARNING: GitHub support token placeholder still present."
           fi
+          if grep -q "YOUR_ADMIN_KEY_1" src/main.js; then
+            echo "WARNING: Admin key 1 placeholder still present."
+          fi
           echo "API key injection verified."
+
+      - name: Obfuscate source code
+        run: node scripts/obfuscate.js
+
+      - name: Compile to V8 bytecode
+        run: node scripts/compile-bytecode.js
+
+      - name: Verify bytecode compilation
+        run: |
+          if [ ! -f "src/main.jsc" ]; then
+            echo "ERROR: main.jsc not found — bytecode compilation failed"
+            exit 1
+          fi
+          if [ ! -f "src/preload.jsc" ]; then
+            echo "ERROR: preload.jsc not found — bytecode compilation failed"
+            exit 1
+          fi
+          echo "Bytecode files:"
+          ls -la src/*.jsc
+          echo ""
+          echo "Loader files (should be tiny):"
+          wc -c src/main.js src/preload.js
+          echo ""
+          echo "Verifying main.js is now a loader (not source):"
+          head -3 src/main.js
 
       - name: Compile native helpers (universal binary)
         run: |
@@ -120,6 +155,23 @@ jobs:
           echo ""
           echo "Signing info:"
           codesign -dv --verbose=4 "$APP" 2>&1 | head -20
+
+      - name: Verify ASAR contains bytecode (not source)
+        run: |
+          ASAR=$(find dist -name "app.asar" | head -1)
+          if [ -n "$ASAR" ]; then
+            npx asar list "$ASAR" | head -20
+            echo ""
+            echo "Checking for .jsc files in ASAR:"
+            npx asar list "$ASAR" | grep -c "\.jsc" || echo "0 .jsc files found"
+            echo ""
+            echo "Checking main.js is a loader (< 200 bytes):"
+            npx asar extract-file "$ASAR" src/main.js /tmp/extracted_main.js 2>/dev/null || true
+            if [ -f /tmp/extracted_main.js ]; then
+              wc -c /tmp/extracted_main.js
+              cat /tmp/extracted_main.js
+            fi
+          fi
 
       - name: Notarize all DMGs
         env:
@@ -183,6 +235,11 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Install security build tools
+        run: |
+          npm install --save-dev bytenode javascript-obfuscator
+          npm install --save bytenode
+
       - name: Generate Windows icon
         run: |
           pip install Pillow
@@ -195,6 +252,8 @@ jobs:
           (Get-Content src/main.js) -replace 'YOUR_OPENAI_API_KEY', '${{ secrets.OPENAI_API_KEY }}' | Set-Content src/main.js
           (Get-Content src/main.js) -replace 'YOUR_STRIPE_SECRET_KEY', '${{ secrets.STRIPE_SECRET_KEY }}' | Set-Content src/main.js
           (Get-Content src/main.js) -replace 'YOUR_GH_SUPPORT_TOKEN', '${{ secrets.GH_SUPPORT_TOKEN }}' | Set-Content src/main.js
+          (Get-Content src/main.js) -replace 'YOUR_ADMIN_KEY_1', '${{ secrets.ADMIN_KEY_1 }}' | Set-Content src/main.js
+          (Get-Content src/main.js) -replace 'YOUR_ADMIN_KEY_2', '${{ secrets.ADMIN_KEY_2 }}' | Set-Content src/main.js
         shell: pwsh
 
       - name: Verify API keys were injected
@@ -210,7 +269,24 @@ jobs:
           if ($content -match 'YOUR_GH_SUPPORT_TOKEN') {
             Write-Warning "GitHub support token placeholder still present."
           }
+          if ($content -match 'YOUR_ADMIN_KEY_1') {
+            Write-Warning "Admin key 1 placeholder still present."
+          }
           Write-Output "API key injection verified."
+        shell: pwsh
+
+      - name: Obfuscate source code
+        run: node scripts/obfuscate.js
+
+      - name: Compile to V8 bytecode
+        run: node scripts/compile-bytecode.js
+
+      - name: Verify bytecode compilation
+        run: |
+          if (!(Test-Path "src/main.jsc")) { Write-Error "main.jsc not found"; exit 1 }
+          if (!(Test-Path "src/preload.jsc")) { Write-Error "preload.jsc not found"; exit 1 }
+          Write-Output "Bytecode files created successfully"
+          Get-ChildItem src/*.jsc | Format-Table Name, Length
         shell: pwsh
 
       - name: Build Windows
@@ -243,6 +319,11 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Install security build tools
+        run: |
+          npm install --save-dev bytenode javascript-obfuscator
+          npm install --save bytenode
+
       - name: Install Linux build tools
         run: |
           sudo apt-get update
@@ -268,6 +349,8 @@ jobs:
           sed -i "s/YOUR_OPENAI_API_KEY/${{ secrets.OPENAI_API_KEY }}/g" src/main.js
           sed -i "s/YOUR_STRIPE_SECRET_KEY/${{ secrets.STRIPE_SECRET_KEY }}/g" src/main.js
           sed -i "s/YOUR_GH_SUPPORT_TOKEN/${{ secrets.GH_SUPPORT_TOKEN }}/g" src/main.js
+          sed -i "s/YOUR_ADMIN_KEY_1/${{ secrets.ADMIN_KEY_1 }}/g" src/main.js
+          sed -i "s/YOUR_ADMIN_KEY_2/${{ secrets.ADMIN_KEY_2 }}/g" src/main.js
 
       - name: Verify API keys were injected
         run: |
@@ -278,7 +361,23 @@ jobs:
           if grep -q "YOUR_STRIPE_SECRET_KEY" src/main.js; then
             echo "WARNING: Stripe placeholder still present."
           fi
+          if grep -q "YOUR_ADMIN_KEY_1" src/main.js; then
+            echo "WARNING: Admin key 1 placeholder still present."
+          fi
           echo "API key injection verified."
+
+      - name: Obfuscate source code
+        run: node scripts/obfuscate.js
+
+      - name: Compile to V8 bytecode
+        run: node scripts/compile-bytecode.js
+
+      - name: Verify bytecode compilation
+        run: |
+          test -f src/main.jsc || { echo "ERROR: main.jsc not found"; exit 1; }
+          test -f src/preload.jsc || { echo "ERROR: preload.jsc not found"; exit 1; }
+          echo "Bytecode files:"
+          ls -la src/*.jsc
 
       - name: Build Linux
         env:
