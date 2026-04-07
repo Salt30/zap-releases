@@ -108,6 +108,15 @@
 <div class="divider"><span>or</span></div>
 
 <div class="admin-section">
+  <a class="admin-toggle" id="website-toggle" href="#">Already paid on the website? Click here</a>
+  <div class="admin-input-wrap" id="website-wrap">
+    <input type="email" class="email-input" id="website-email" placeholder="Enter the email you used to subscribe" autocomplete="email" spellcheck="false" />
+    <button class="admin-btn" id="website-btn" style="background:linear-gradient(135deg,var(--accent),#3a5a8a);border:none;color:var(--text)">Verify & Activate</button>
+    <div class="status" id="website-status"></div>
+  </div>
+</div>
+
+<div class="admin-section" style="margin-top:8px">
   <a class="admin-toggle" id="admin-toggle" href="#">Have an admin key? Click here</a>
   <div class="admin-input-wrap" id="admin-wrap">
     <input type="text" class="key-input" id="admin-key" placeholder="Enter admin key" autocomplete="off" spellcheck="false" />
@@ -209,6 +218,65 @@
     subscribeBtn.disabled = false;
     subscribeBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg> Try Again';
   }
+
+  // Toggle website email verification section
+  var websiteToggle = document.getElementById('website-toggle');
+  var websiteWrap = document.getElementById('website-wrap');
+  var websiteEmail = document.getElementById('website-email');
+  var websiteBtn = document.getElementById('website-btn');
+  var websiteStatus = document.getElementById('website-status');
+
+  websiteToggle.addEventListener('click', function(e) {
+    e.preventDefault();
+    websiteWrap.style.display = websiteWrap.style.display === 'block' ? 'none' : 'block';
+    if (websiteWrap.style.display === 'block') {
+      // Pre-fill from main email input if available
+      if (emailInput.value && !websiteEmail.value) websiteEmail.value = emailInput.value;
+      websiteEmail.focus();
+    }
+  });
+
+  websiteBtn.addEventListener('click', async function() {
+    if (!legalCheckbox.checked) {
+      websiteStatus.textContent = 'You must agree to the Terms, Privacy Policy, and Acceptable Use Policy.';
+      websiteStatus.className = 'status error';
+      return;
+    }
+
+    var email = websiteEmail.value.trim();
+    if (!email || !email.includes('@')) {
+      websiteStatus.textContent = 'Please enter a valid email.';
+      websiteStatus.className = 'status error';
+      websiteEmail.focus();
+      return;
+    }
+
+    websiteBtn.disabled = true;
+    websiteBtn.textContent = 'Verifying...';
+    websiteStatus.textContent = '';
+
+    try {
+      var result = await window.zap.verifyEmailSubscription(email);
+      if (result.valid) {
+        await window.zap.acceptTerms();
+        websiteStatus.textContent = 'Subscription found! Activating...';
+        websiteStatus.className = 'status success';
+        websiteBtn.textContent = 'Activated!';
+      } else {
+        websiteStatus.textContent = result.error || 'No subscription found for this email.';
+        websiteStatus.className = 'status error';
+        websiteBtn.disabled = false;
+        websiteBtn.textContent = 'Verify & Activate';
+      }
+    } catch (err) {
+      websiteStatus.textContent = 'Verification failed. Please try again.';
+      websiteStatus.className = 'status error';
+      websiteBtn.disabled = false;
+      websiteBtn.textContent = 'Verify & Activate';
+    }
+  });
+
+  websiteEmail.addEventListener('keydown', function(e) { if (e.key === 'Enter') websiteBtn.click(); });
 
   // Toggle admin key section
   adminToggle.addEventListener('click', function(e) {
