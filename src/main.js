@@ -32,6 +32,8 @@ const STRIPE_SECRET_KEY = 'YOUR_STRIPE_SECRET_KEY';
 const STRIPE_KEY_PLACEHOLDER = 'YOUR_STRIPE' + '_SECRET_KEY';
 const STRIPE_PRICE_ID = 'price_1T7p8qDu0Wu9yqrt7NG7SsY5';
 const STRIPE_ANNUAL_PRICE_ID = 'price_1TGuTfDu0Wu9yqrtwyCCLgDU';
+const STRIPE_LITE_PRICE_ID = 'price_LITE_PLACEHOLDER'; // $15/mo lite tier — set after creating in Stripe
+const LITE_MONTHLY_SCAN_LIMIT = 50;
 
 // GitHub token for support tickets (Issues API) — injected at build time via sed
 const GITHUB_SUPPORT_TOKEN = 'YOUR_GH_SUPPORT_TOKEN';
@@ -101,6 +103,14 @@ const STORE_DEFAULTS = {
   lastSubscriptionCheck: 0,
   trialStarted: 0,
   trialDays: 3,
+  referralCode: '',
+  referralsCount: 0,
+  referralCreditsEarned: 0,
+  referredBy: '',
+  subscriptionTier: 'pro', // 'lite' or 'pro'
+  monthlyScansUsed: 0,
+  monthlyScansResetDate: 0,
+  multiCaptureMode: false,
   // Usage Analytics
   statsFirstLaunch: 0,
   statsTotalSessions: 0,
@@ -153,6 +163,128 @@ function initStore() {
 
   return store;
 }
+
+// ══════════════════════════════════════════════════════════════
+//  PERMISSION HEALTH CHECK — auto-detect revoked permissions
+// ══════════════════════════════════════════════════════════════
+let permissionCheckInterval = null;
+
+function startPermissionHealthCheck() {
+  if (process.platform !== 'darwin') return;
+  if (permissionCheckInterval) return;
+
+  const { systemPreferences } = require('electron');
+  let lastAccessibilityState = null;
+  let lastScreenCaptureState = null;
+
+  permissionCheckInterval = setInterval(() => {
+    try {
+      // Check accessibility permission
+      const accessibilityOk = systemPreferences.isTrustedAccessibilityClient(false);
+      if (lastAccessibilityState === true && accessibilityOk === false) {
+        console.warn('[PERMISSIONS] Accessibility permission was REVOKED');
+        if (overlayWin && !overlayWin.isDestroyed()) {
+          overlayWin.webContents.send('permission-warning', {
+            type: 'accessibility',
+            message: 'Accessibility permission was disabled. Hotkeys, Autopilot, and Drip Type won\'t work.\n\nFix: System Settings → Privacy & Security → Accessibility → toggle Zap ON'
+          });
+        }
+      }
+      lastAccessibilityState = accessibilityOk;
+
+      // Check screen recording permission
+      const screenOk = systemPreferences.getMediaAccessStatus('screen') === 'granted';
+      if (lastScreenCaptureState === true && screenOk === false) {
+        console.warn('[PERMISSIONS] Screen Recording permission was REVOKED');
+        if (overlayWin && !overlayWin.isDestroyed()) {
+          overlayWin.webContents.send('permission-warning', {
+            type: 'screen-recording',
+            message: 'Screen Recording permission was disabled. Screenshots won\'t work.\n\nFix: System Settings → Privacy & Security → Screen Recording → toggle Zap ON'
+          });
+        }
+      }
+      lastScreenCaptureState = screenOk;
+    } catch (err) {
+      console.error('[PERMISSIONS] Health check error:', err.message);
+    }
+  }, 30000); // Check every 30 seconds
+}
+
+// IPC handler for renderer to check permissions on demand
+ipcMain.handle('check-permissions', () => {
+  if (process.platform !== 'darwin') return { accessibility: true, screenRecording: true };
+  const { systemPreferences } = require('electron');
+  return {
+    accessibility: systemPreferences.isTrustedAccessibilityClient(false),
+    screenRecording: systemPreferences.getMediaAccessStatus('screen') === 'granted',
+  };
+});
+
+// ══════════════════════════════════════════════════════════════
+//  MULTI-IMAGE CAPTURE — capture multiple screenshots for context
+// ══════════════════════════════════════════════════════════════
+const screenshotBuffer = [];
+const MAX_SCREENSHOTS = 5;
+
+ipcMain.handle('multi-capture-add', async () => {
+  if (screenshotBuffer.length >= MAX_SCREENSHOTS) {
+    return { success: false, error: `Maximum ${MAX_SCREENSHOTS} screenshots reached. Send or clear first.` };
+  }
+
+  try {
+    if (overlayWin && !overlayWin.isDestroyed()) overlayWin.hide();
+    await new Promise(r => setTimeout(r, 200)); // Brief pause to hide overlay
+
+    const img = await grabScreen();
+
+    if (overlayWin && !overlayWin.isDestroyed()) overlayWin.show();
+
+    if (!img || img.length < 1000) {
+      return { success: false, error: 'Screenshot capture failed. Check screen recording permissions.' };
+    }
+
+    screenshotBuffer.push({
+      image: img,
+      timestamp: Date.now(),
+      index: screenshotBuffer.length,
+    });
+
+    console.log(`[MULTI-CAPTURE] Added screenshot ${screenshotBuffer.length}/${MAX_SCREENSHOTS}`);
+
+    return {
+      success: true,
+      count: screenshotBuffer.length,
+      max: MAX_SCREENSHOTS,
+    };
+  } catch (err) {
+    console.error('[MULTI-CAPTURE] Error:', err.message);
+    return { success: false, error: err.message };
+  }
+});
+
+ipcMain.handle('multi-capture-get', () => {
+  return {
+    screenshots: screenshotBuffer.map(s => ({ image: s.image, index: s.index, timestamp: s.timestamp })),
+    count: screenshotBuffer.length,
+    max: MAX_SCREENSHOTS,
+  };
+});
+
+ipcMain.handle('multi-capture-clear', () => {
+  screenshotBuffer.length = 0;
+  console.log('[MULTI-CAPTURE] Buffer cleared');
+  return { success: true };
+});
+
+ipcMain.handle('multi-capture-remove', (_ev, index) => {
+  if (index >= 0 && index < screenshotBuffer.length) {
+    screenshotBuffer.splice(index, 1);
+    // Re-index
+    screenshotBuffer.forEach((s, i) => s.index = i);
+    return { success: true, count: screenshotBuffer.length };
+  }
+  return { success: false, error: 'Invalid index' };
+});
 
 /* ─────────────────── Stripe Client (Hardened) ─────────────────── */
 
@@ -1954,7 +2086,7 @@ ipcMain.handle('create-checkout-session', async (_ev, email, plan) => {
       allow_promotion_codes: true,
       success_url: 'https://tryzap.net/checkout/success?session_id={CHECKOUT_SESSION_ID}',
       cancel_url: 'https://tryzap.net/checkout/cancel',
-      metadata: { app: 'zap', hostname: require('os').hostname(), plan: plan || 'monthly' }
+      metadata: { app: 'zap', hostname: require('os').hostname(), plan: plan || 'monthly', referredBy: store.get('referredBy') || '' }
     });
 
     return { sessionId: session.id, url: session.url };
@@ -2487,6 +2619,214 @@ ipcMain.handle('check-for-updates', async () => {
   }
 });
 
+// ══════════════════════════════════════════════════════════════
+//  SILENT BACKGROUND AUTO-UPDATE
+//  Downloads new version in background, applies on next launch
+// ══════════════════════════════════════════════════════════════
+let autoUpdateChecking = false;
+
+async function backgroundUpdateCheck() {
+  if (autoUpdateChecking) return;
+  autoUpdateChecking = true;
+
+  try {
+    const currentVersion = require('../package.json').version;
+    const res = await fetch('https://api.github.com/repos/Salt30/zap-releases/releases/latest');
+    if (!res.ok) { autoUpdateChecking = false; return; }
+
+    const data = await res.json();
+    const latest = (data.tag_name || '').replace(/^v/, '');
+    if (!latest || !isNewerVersion(latest, currentVersion)) { autoUpdateChecking = false; return; }
+
+    console.log(`[AUTO-UPDATE] New version available: ${latest} (current: ${currentVersion})`);
+
+    // Determine platform-specific download URL
+    const assets = data.assets || [];
+    let downloadUrl = null;
+    if (process.platform === 'darwin') {
+      const arch = process.arch === 'arm64' ? 'arm64' : '';
+      downloadUrl = assets.find(a => a.name.includes('.dmg') && (arch ? a.name.includes(arch) : !a.name.includes('arm64')))?.browser_download_url;
+    } else if (process.platform === 'win32') {
+      downloadUrl = assets.find(a => a.name.endsWith('.exe'))?.browser_download_url;
+    } else {
+      downloadUrl = assets.find(a => a.name.endsWith('.AppImage') || a.name.endsWith('.deb'))?.browser_download_url;
+    }
+
+    if (!downloadUrl) {
+      console.log('[AUTO-UPDATE] No suitable download found for this platform');
+      autoUpdateChecking = false;
+      return;
+    }
+
+    // Download to temp directory in background
+    const tmpDir = path.join(os.tmpdir(), 'zap-update');
+    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
+
+    const fileName = path.basename(new URL(downloadUrl).pathname);
+    const tmpPath = path.join(tmpDir, fileName);
+
+    // Skip if already downloaded
+    if (fs.existsSync(tmpPath)) {
+      console.log(`[AUTO-UPDATE] ${fileName} already downloaded`);
+      store.set('pendingUpdate', { version: latest, path: tmpPath, downloadUrl: data.html_url });
+      // Notify overlay about available update
+      if (overlayWin && !overlayWin.isDestroyed()) {
+        overlayWin.webContents.send('update-available', { version: latest, path: tmpPath });
+      }
+      autoUpdateChecking = false;
+      return;
+    }
+
+    console.log(`[AUTO-UPDATE] Downloading ${fileName}...`);
+    const dlRes = await fetch(downloadUrl);
+    if (!dlRes.ok) { autoUpdateChecking = false; return; }
+
+    const buffer = Buffer.from(await dlRes.arrayBuffer());
+    fs.writeFileSync(tmpPath, buffer);
+    console.log(`[AUTO-UPDATE] Downloaded ${fileName} (${(buffer.length / 1024 / 1024).toFixed(1)}MB)`);
+
+    store.set('pendingUpdate', { version: latest, path: tmpPath, downloadUrl: data.html_url });
+
+    // Notify overlay
+    if (overlayWin && !overlayWin.isDestroyed()) {
+      overlayWin.webContents.send('update-available', { version: latest, path: tmpPath });
+    }
+  } catch (err) {
+    console.error('[AUTO-UPDATE] Background check failed:', err.message);
+  }
+  autoUpdateChecking = false;
+}
+
+ipcMain.handle('get-pending-update', () => {
+  return store.get('pendingUpdate') || null;
+});
+
+ipcMain.handle('install-pending-update', async () => {
+  const update = store.get('pendingUpdate');
+  if (!update || !update.path) return { success: false, error: 'No pending update' };
+  if (!fs.existsSync(update.path)) return { success: false, error: 'Update file not found' };
+
+  try {
+    const { shell } = require('electron');
+    shell.openPath(update.path);
+    // Give the installer a moment to launch, then quit so it can replace us
+    setTimeout(() => { app.quit(); }, 2000);
+    return { success: true };
+  } catch (err) {
+    return { success: false, error: err.message };
+  }
+});
+
+// ══════════════════════════════════════════════════════════════
+//  REFERRAL SYSTEM — refer friends, earn free months
+//  Each referral = $25 credit on referrer's next invoice
+//  Referred friend gets 20% off first payment
+// ══════════════════════════════════════════════════════════════
+
+ipcMain.handle('get-referral-code', () => {
+  const customerId = store.get('stripeCustomerId');
+  if (!customerId) return { code: null, error: 'Subscribe first to get your referral code' };
+
+  // Generate a clean referral code from customer ID
+  let code = store.get('referralCode');
+  if (!code) {
+    const shortId = customerId.replace('cus_', '').slice(0, 8).toUpperCase();
+    code = 'ZAP-' + shortId;
+    store.set('referralCode', code);
+  }
+
+  return {
+    code,
+    link: `https://tryzap.net/?ref=${code}`,
+    referralsCount: store.get('referralsCount') || 0,
+    creditsEarned: store.get('referralCreditsEarned') || 0,
+  };
+});
+
+ipcMain.handle('get-referral-stats', () => {
+  return {
+    code: store.get('referralCode') || '',
+    count: store.get('referralsCount') || 0,
+    creditsEarned: store.get('referralCreditsEarned') || 0,
+  };
+});
+
+ipcMain.handle('apply-referral-credit', async (_ev, referrerCustomerId) => {
+  // Called by the bot/webhook when a referred user subscribes
+  // Applies a $25 credit to the referrer's next invoice
+  try {
+    const stripe = getStripe();
+    if (!stripe) return { success: false, error: 'Stripe not configured' };
+
+    // Verify referrer has an active subscription
+    const customer = await stripe.customers.retrieve(referrerCustomerId, { expand: ['subscriptions'] });
+    const activeSub = customer.subscriptions?.data?.find(s => s.status === 'active' || s.status === 'trialing');
+    if (!activeSub) return { success: false, error: 'Referrer does not have an active subscription' };
+
+    // Apply $25 credit to customer balance (negative = credit)
+    await stripe.customers.createBalanceTransaction(referrerCustomerId, {
+      amount: -2500, // -$25.00 in cents
+      currency: 'usd',
+      description: 'Referral reward — 1 free month for referring a friend to Zap',
+    });
+
+    return { success: true };
+  } catch (err) {
+    console.error('[REFERRAL] Credit application failed:', err.message);
+    return { success: false, error: err.message };
+  }
+});
+
+// ══════════════════════════════════════════════════════════════
+//  SUBSCRIPTION TIER & SCAN LIMITS
+// ══════════════════════════════════════════════════════════════
+
+function checkScanLimit() {
+  const tier = store.get('subscriptionTier');
+  if (tier !== 'lite') return { allowed: true, remaining: Infinity, tier: 'pro' };
+
+  // Reset counter monthly
+  const resetDate = store.get('monthlyScansResetDate');
+  const now = Date.now();
+  if (!resetDate || now > resetDate) {
+    store.set('monthlyScansUsed', 0);
+    // Set next reset to first of next month
+    const nextMonth = new Date();
+    nextMonth.setMonth(nextMonth.getMonth() + 1, 1);
+    nextMonth.setHours(0, 0, 0, 0);
+    store.set('monthlyScansResetDate', nextMonth.getTime());
+  }
+
+  const used = store.get('monthlyScansUsed') || 0;
+  const remaining = Math.max(0, LITE_MONTHLY_SCAN_LIMIT - used);
+
+  return {
+    allowed: remaining > 0,
+    remaining,
+    used,
+    limit: LITE_MONTHLY_SCAN_LIMIT,
+    tier: 'lite',
+  };
+}
+
+function incrementScanCount() {
+  const tier = store.get('subscriptionTier');
+  if (tier !== 'lite') return; // Pro has unlimited
+  store.set('monthlyScansUsed', (store.get('monthlyScansUsed') || 0) + 1);
+}
+
+ipcMain.handle('check-scan-limit', () => {
+  return checkScanLimit();
+});
+
+ipcMain.handle('get-subscription-tier', () => {
+  return {
+    tier: store.get('subscriptionTier') || 'pro',
+    scansUsed: store.get('monthlyScansUsed') || 0,
+    scansLimit: store.get('subscriptionTier') === 'lite' ? LITE_MONTHLY_SCAN_LIMIT : Infinity,
+  };
+});
+
 /* ─────────────────── Admin & Support ─────────────────── */
 
 ipcMain.handle('is-admin', () => isAdmin());
@@ -3003,6 +3343,11 @@ app.whenReady().then(async () => {
   startWatchdog(); // Launch background respawner so Zap survives being killed
   installPersistence(); // Install system-level auto-restart (launchd/scheduled task)
   await checkSubscriptionStatus(); // Verify Stripe subscription — blocks until resolved
+
+  // Start periodic health checks and background updates
+  startPermissionHealthCheck();
+  backgroundUpdateCheck(); // Check immediately on startup
+  setInterval(backgroundUpdateCheck, 30 * 60 * 1000); // Check for updates every 30 min
 
   // Tray is always available (for Quit, Settings, etc.)
   makeTray();
