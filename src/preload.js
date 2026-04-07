@@ -28,6 +28,10 @@ contextBridge.exposeInMainWorld('zap', {
   setIgnoreMouseEvents: (ignore, opts) => ipcRenderer.send('set-ignore-mouse', ignore, opts),
   onSettingsSaved:  (cb) => ipcRenderer.on('settings-saved',   ()     => cb()),
   onCheckoutCancelled: (cb) => ipcRenderer.on('checkout-cancelled', () => cb()),
+  onModeLocked:    (cb) => ipcRenderer.on('mode-locked', (_, d) => cb(d)),
+  onScanCounter:   (cb) => ipcRenderer.on('scan-counter', (_, d) => cb(d)),
+  onScanLimitReached: (cb) => ipcRenderer.on('scan-limit-reached', (_, d) => cb(d)),
+  checkModeAccess: (mode) => ipcRenderer.invoke('check-mode-access', mode),
 
   authSignup:      (data) => ipcRenderer.invoke('auth-signup', data),
   authSignin:      (data) => ipcRenderer.invoke('auth-signin', data),
