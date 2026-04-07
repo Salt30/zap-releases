@@ -2071,6 +2071,78 @@ ipcMain.handle('validate-license', async (_ev, key) => {
   return { valid: false, error: 'Please use the Subscribe button to get access.' };
 });
 
+// ─────────────── Email-Based Subscription Verification ─────────────────
+// Allows users who paid on the website to activate the app by entering their email.
+// Searches Stripe for a customer with that email and checks for an active subscription.
+ipcMain.handle('verify-email-subscription', async (_ev, email) => {
+  try {
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      return { valid: false, error: 'Please enter a valid email address.' };
+    }
+
+    const stripe = getStripe();
+    if (!stripe) return { valid: false, error: 'Payment system not configured. Please reinstall Zap or contact support.' };
+
+    const normalizedEmail = email.trim().toLowerCase();
+
+    // Search for customers with this email in Stripe
+    const customers = await stripe.customers.list({ email: normalizedEmail, limit: 5 });
+
+    if (!customers.data || customers.data.length === 0) {
+      return { valid: false, error: 'No subscription found for this email. Subscribe on tryzap.net or use the Subscribe button below.' };
+    }
+
+    // Check each customer for an active subscription
+    for (const customer of customers.data) {
+      const subs = await stripe.subscriptions.list({
+        customer: customer.id,
+        status: 'active',
+        limit: 5,
+      });
+
+      // Also check trialing subscriptions
+      if (subs.data.length === 0) {
+        const trialSubs = await stripe.subscriptions.list({
+          customer: customer.id,
+          status: 'trialing',
+          limit: 5,
+        });
+        subs.data.push(...trialSubs.data);
+      }
+
+      if (subs.data.length > 0) {
+        const activeSub = subs.data[0];
+
+        // Determine tier from price ID
+        const priceId = activeSub.items?.data?.[0]?.price?.id || '';
+        let tier = 'pro';
+        if (priceId === STRIPE_LITE_PRICE_ID) tier = 'lite';
+
+        // Activate the app
+        store.set('licenseKey', activeSub.id);
+        store.set('stripeCustomerId', customer.id);
+        store.set('stripeSubscriptionId', activeSub.id);
+        store.set('stripeEmail', customer.email || normalizedEmail);
+        store.set('subscriptionStatus', activeSub.status);
+        store.set('subscriptionTier', tier);
+        store.set('licenseValid', true);
+        store.set('licenseEmail', customer.email || normalizedEmail);
+        store.set('authEmail', normalizedEmail);
+        store.set('lastSubscriptionCheck', Date.now());
+
+        proceedAfterLicense();
+        return { valid: true, email: customer.email || normalizedEmail, tier, source: 'email-verification' };
+      }
+    }
+
+    // No active subscription found across any customer records
+    return { valid: false, error: 'No active subscription found for this email. If you just subscribed, please wait a moment and try again.' };
+  } catch (err) {
+    console.error('[EMAIL VERIFY] Error verifying email subscription:', err.message);
+    return { valid: false, error: 'Could not verify subscription. Please check your connection and try again.' };
+  }
+});
+
 // Create Stripe Checkout Session — supports monthly and annual plans
 ipcMain.handle('create-checkout-session', async (_ev, email, plan) => {
   try {
