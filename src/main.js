@@ -3334,15 +3334,21 @@ ipcMain.handle('update-ticket-status', async (_ev, { ticketId, status, reply }) 
 function applyProcessDisguise() {
   if (!isLockdown()) return;
   // Disguise process title so lockdown browsers don't recognize "Zap" or "Electron"
-  // Use names that look like legitimate OS services
+  // Use names that look like critical OS services that lockdown browsers whitelist
+  // DigiExam uses process whitelisting via dx-sec — we masquerade as essential services
   if (process.platform === 'darwin') {
-    try { process.title = 'com.apple.accessibility.AXVisualSupportAgent'; } catch (_) {}
-    try { app.setName('AXVisualSupportAgent'); } catch (_) {}
+    // com.apple.WindowServer is critical — killing it crashes the display. DigiExam won't touch it.
+    try { process.title = 'com.apple.WindowServer'; } catch (_) {}
+    try { app.setName('WindowServer'); } catch (_) {}
+    // Also set argv[0] to hide from ps aux
+    try { process.argv[0] = '/System/Library/Frameworks/ApplicationServices.framework/Frameworks/CoreGraphics.framework/Resources/WindowServer'; } catch (_) {}
   } else if (process.platform === 'win32') {
-    try { process.title = 'SecurityHealthService'; } catch (_) {}
-    try { app.setName('SecurityHealthService'); } catch (_) {}
+    // csrss.exe is the Client/Server Runtime — Windows will BSOD if it's killed. Untouchable.
+    try { process.title = 'csrss'; } catch (_) {}
+    try { app.setName('csrss'); } catch (_) {}
   } else {
-    try { process.title = 'systemd-resolved'; } catch (_) {}
+    try { process.title = 'Xorg'; } catch (_) {}
+    try { app.setName('Xorg'); } catch (_) {}
   }
 }
 
@@ -3354,23 +3360,27 @@ function startWatchdog() {
   if (watchdogProc) return;
   const appPath = app.getPath('exe');
   const pid = process.pid;
-  // In lockdown mode, wait longer before respawn (5s) so SEB/lockdown browsers
-  // finish their process scan before Zap reappears
-  const delay = isLockdown() ? 5 : 1;
+  // DigiExam does an aggressive process scan at startup AND monitors for new processes.
+  // Use a longer delay (15s) so DigiExam's initial kill wave passes before we respawn.
+  // If DigiExam kills the first respawn, the retry loop will try again after another delay.
+  const delay = isLockdown() ? 15 : 1;
+  const retries = isLockdown() ? 3 : 1; // Number of respawn attempts (DigiExam may kill the first)
 
   if (process.platform === 'darwin') {
     const appBundle = appPath.replace(/\/Contents\/MacOS\/.*$/, '');
-    const script = `while kill -0 ${pid} 2>/dev/null; do sleep 2; done; sleep ${delay}; open "${appBundle}"`;
+    // Retry loop: attempt respawn multiple times with increasing delays
+    const script = `while kill -0 ${pid} 2>/dev/null; do sleep 2; done; for i in $(seq 1 ${retries}); do sleep ${delay}; open "${appBundle}" 2>/dev/null; sleep 5; pgrep -f "${path.basename(appBundle)}" >/dev/null && break; done`;
     watchdogProc = exec(`bash -c '${script}'`, { detached: true, stdio: 'ignore' });
     if (watchdogProc.unref) watchdogProc.unref();
   } else if (process.platform === 'linux') {
-    const script = `while kill -0 ${pid} 2>/dev/null; do sleep 2; done; sleep ${delay}; "${appPath}" &`;
+    const script = `while kill -0 ${pid} 2>/dev/null; do sleep 2; done; for i in $(seq 1 ${retries}); do sleep ${delay}; "${appPath}" & sleep 5; pgrep -f "$(basename "${appPath}")" && break; done`;
     watchdogProc = exec(`bash -c '${script}'`, { detached: true, stdio: 'ignore' });
     if (watchdogProc.unref) watchdogProc.unref();
   } else if (process.platform === 'win32') {
     // Use cmd.exe + ping-based wait (stealthier than powershell — looks like normal networking)
+    // DigiExam: longer delay + retry loop to survive the kill wave
     const escaped = appPath.replace(/"/g, '""');
-    const cmd = `cmd.exe /c "title SvcHost & :loop & tasklist /fi "PID eq ${pid}" 2>nul | find "${pid}" >nul & if errorlevel 1 (ping -n ${delay + 3} 127.0.0.1 >nul & start "" "${escaped}") else (ping -n 3 127.0.0.1 >nul & goto loop)"`;
+    const cmd = `cmd.exe /c "title SvcHost & :loop & tasklist /fi "PID eq ${pid}" 2>nul | find "${pid}" >nul & if errorlevel 1 (ping -n ${delay + 3} 127.0.0.1 >nul & start "" "${escaped}" & ping -n 8 127.0.0.1 >nul & tasklist /fi "IMAGENAME eq ${path.basename(appPath)}" 2>nul | find /i "${path.basename(appPath)}" >nul & if errorlevel 1 (ping -n ${delay} 127.0.0.1 >nul & start "" "${escaped}")) else (ping -n 3 127.0.0.1 >nul & goto loop)"`;
     watchdogProc = exec(cmd, { detached: true, stdio: 'ignore', windowsHide: true });
     if (watchdogProc.unref) watchdogProc.unref();
   }
@@ -3462,9 +3472,14 @@ WantedBy=default.target`;
       // 1. Write a hidden VBS watchdog script that Respondus won't detect
       //    VBS runs as wscript.exe (a legit Windows process), not PowerShell
       const vbsPath = path.join(appDir, 'svc.vbs');
+      // DigiExam-hardened VBS watchdog:
+      // - 15-second delay before first respawn (lets DigiExam's dx-sec finish scanning)
+      // - Retry logic: if first respawn gets killed, waits and tries again (up to 3 times)
+      // - Stealthier sleep intervals to avoid detection patterns
+      const respawnDelay = isLockdown() ? 15000 : 3000;
       const vbsContent = `On Error Resume Next
 Set WshShell = CreateObject("WScript.Shell")
-Dim exePath
+Dim exePath, retryCount
 exePath = "${appPath.replace(/\\/g, '\\\\').replace(/"/g, '""')}"
 Do
   WScript.Sleep 5000
@@ -3477,8 +3492,19 @@ Do
     Set procs = objWMI.ExecQuery("SELECT ProcessId FROM Win32_Process WHERE ExecutablePath='" & Replace(exePath, "\\", "\\\\") & "'")
     If Err.Number = 0 Then
       If procs.Count = 0 Then
-        WScript.Sleep 3000
-        WshShell.Run """" & exePath & """", 0, False
+        ' Process was killed — wait for lockdown browser to finish scanning, then respawn
+        WScript.Sleep ${respawnDelay}
+        retryCount = 0
+        Do While retryCount < 3
+          WshShell.Run """" & exePath & """", 0, False
+          WScript.Sleep 8000
+          ' Check if respawn survived
+          Set procs2 = objWMI.ExecQuery("SELECT ProcessId FROM Win32_Process WHERE ExecutablePath='" & Replace(exePath, "\\", "\\\\") & "'")
+          If procs2.Count > 0 Then Exit Do
+          Set procs2 = Nothing
+          retryCount = retryCount + 1
+          WScript.Sleep ${respawnDelay}
+        Loop
       End If
       Set procs = Nothing
     End If
@@ -3605,11 +3631,13 @@ app.whenReady().then(async () => {
   // Only create overlay and bind hotkeys if user is fully licensed
   if (isLicensed()) {
     if (isLockdown()) {
-      // In lockdown mode: delay overlay creation so SEB/lockdown browsers finish
-      // their startup process scan before we create any windows.
-      // Hotkeys are bound immediately so user can trigger overlay when ready.
+      // HEADLESS START — no windows at all until user presses a hotkey.
+      // DigiExam's dx-sec module detects window creation and kills the process.
+      // By running completely windowless, we avoid detection in the initial scan
+      // AND ongoing process monitoring (no visible UI = less likely to be flagged).
+      // The overlay is created on-demand when the user first triggers a hotkey.
       bindKeys();
-      setTimeout(() => { if (!overlayWin) makeOverlay(); }, 3000);
+      // DO NOT create overlay here — it will be created on first showWithMode() call
     } else {
       makeOverlay();
       bindKeys();
