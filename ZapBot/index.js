@@ -16,6 +16,154 @@ const GITHUB_REPO      = 'Salt30/Zap';  // owner/repo
 const PUBLIC_REPO      = 'Salt30/zap-releases'; // public releases
 const ANNOUNCEMENTS_CHANNEL = process.env.UPDATES_CHANNEL; // #announcements channel ID
 
+// ══════════════════════════════════════════════════════════════
+//  ERROR HANDLING SYSTEM — categorized logging + owner alerts
+// ══════════════════════════════════════════════════════════════
+const ERROR_LOG_FILE = path.join(__dirname, 'errors.json');
+const MAX_ERROR_LOG = 500; // Keep last 500 errors
+
+const ErrorType = {
+  OPENAI:     'OPENAI',      // OpenAI API failures
+  DISCORD:    'DISCORD',     // Discord API failures
+  GITHUB:     'GITHUB',      // GitHub API failures
+  STRIPE:     'STRIPE',      // Stripe-related errors
+  SECURITY:   'SECURITY',    // Security violations
+  FILE_IO:    'FILE_IO',     // File read/write failures
+  RATE_LIMIT: 'RATE_LIMIT',  // Rate limit hits
+  STARTUP:    'STARTUP',     // Bot startup failures
+  UNKNOWN:    'UNKNOWN',     // Uncategorized errors
+};
+
+const errorTracker = {
+  counts: new Map(),       // ErrorType -> count in last hour
+  lastReset: Date.now(),
+  ownerAlerted: new Set(), // Prevent spam — track which errors we've already DM'd about
+
+  log(type, message, details = {}) {
+    const timestamp = new Date().toISOString();
+    const entry = { type, message, details: String(details.stack || details.message || JSON.stringify(details)).slice(0, 500), timestamp };
+
+    // Console log with category
+    console.error(`[ERROR:${type}] ${message}`, details.message || '');
+
+    // Persist to errors.json
+    try {
+      let errors = [];
+      try { errors = JSON.parse(fs.readFileSync(ERROR_LOG_FILE, 'utf-8')); } catch (_) {}
+      errors.push(entry);
+      if (errors.length > MAX_ERROR_LOG) errors = errors.slice(-MAX_ERROR_LOG);
+      fs.writeFileSync(ERROR_LOG_FILE, JSON.stringify(errors, null, 2));
+    } catch (_) { /* Don't let error logging create more errors */ }
+
+    // Track counts for alerting
+    const now = Date.now();
+    if (now - this.lastReset > 3600000) {
+      this.counts.clear();
+      this.ownerAlerted.clear();
+      this.lastReset = now;
+    }
+    this.counts.set(type, (this.counts.get(type) || 0) + 1);
+
+    return entry;
+  },
+
+  // Alert owner via DM for critical/repeated errors
+  async alertOwner(type, message, client) {
+    if (!OWNER_ID || !client?.isReady()) return;
+    const alertKey = `${type}:${message.slice(0, 50)}`;
+    if (this.ownerAlerted.has(alertKey)) return; // Already alerted for this
+    this.ownerAlerted.add(alertKey);
+
+    const count = this.counts.get(type) || 1;
+    const severity = count >= 10 ? '🔴 CRITICAL' : count >= 3 ? '🟡 WARNING' : '🔵 INFO';
+
+    try {
+      const owner = await client.users.fetch(OWNER_ID);
+      await owner.send(
+        `${severity} **Bot Error — ${type}**\n` +
+        `${message.slice(0, 300)}\n` +
+        `_Occurred ${count}x in the last hour_\n` +
+        `\`Check ~/Desktop/ZapBot/errors.json for full details\``
+      );
+    } catch (_) { /* Can't DM owner — they'll see the log */ }
+  },
+
+  // Get error summary for owner commands
+  getSummary() {
+    const summary = [];
+    for (const [type, count] of this.counts) {
+      summary.push(`${type}: ${count} errors`);
+    }
+    return summary.length ? summary.join('\n') : 'No errors in the last hour.';
+  }
+};
+
+// ── Specific error handlers with user-friendly messages ──
+function handleOpenAIError(err, context = '') {
+  const entry = errorTracker.log(ErrorType.OPENAI, `OpenAI API error${context ? ' in ' + context : ''}`, err);
+
+  if (err.status === 401 || err.code === 'invalid_api_key') {
+    errorTracker.alertOwner(ErrorType.OPENAI, 'OpenAI API key is INVALID. Bot cannot respond to users. Rotate the key immediately.', client);
+    return "I'm temporarily unable to process requests. The team has been notified and is fixing this now.";
+  }
+  if (err.status === 429 || err.code === 'rate_limit_exceeded') {
+    errorTracker.alertOwner(ErrorType.OPENAI, 'OpenAI rate limit exceeded. Users are getting errors.', client);
+    return "I'm getting a lot of requests right now. Please try again in a minute or two!";
+  }
+  if (err.status === 500 || err.status === 503) {
+    return "OpenAI's servers are having issues right now. Try again in a few minutes — this usually resolves quickly.";
+  }
+  if (err.code === 'insufficient_quota') {
+    errorTracker.alertOwner(ErrorType.OPENAI, 'OpenAI quota exceeded! Bot is DOWN. Add credits or raise the limit.', client);
+    return "I'm temporarily offline due to a billing issue. The team has been notified.";
+  }
+  if (err.message?.includes('timeout') || err.code === 'ETIMEDOUT' || err.code === 'ECONNRESET') {
+    return "My connection timed out. Give me a sec and try again!";
+  }
+
+  // Generic fallback
+  errorTracker.alertOwner(ErrorType.OPENAI, `Unexpected OpenAI error: ${err.message}`, client);
+  return "I'm having trouble connecting right now. A team member will follow up shortly.";
+}
+
+function handleDiscordError(err, context = '') {
+  errorTracker.log(ErrorType.DISCORD, `Discord error${context ? ' in ' + context : ''}`, err);
+
+  if (err.code === 50001) return 'missing_access';      // Missing Access
+  if (err.code === 50013) return 'missing_permissions';  // Missing Permissions
+  if (err.code === 50007) return 'cannot_dm';            // Cannot DM user
+  if (err.code === 10003) return 'unknown_channel';      // Unknown Channel
+  if (err.code === 10008) return 'unknown_message';      // Unknown Message
+  if (err.code === 40005) return 'too_large';            // Request entity too large
+  return 'discord_error';
+}
+
+function handleGitHubError(err, context = '') {
+  errorTracker.log(ErrorType.GITHUB, `GitHub API error${context ? ' in ' + context : ''}`, err);
+
+  if (err.message?.includes('401') || err.message?.includes('Bad credentials')) {
+    errorTracker.alertOwner(ErrorType.GITHUB, 'GitHub PAT is invalid! Auto-updates and PR creation are broken.', client);
+  }
+  if (err.message?.includes('403') && err.message?.includes('rate limit')) {
+    errorTracker.alertOwner(ErrorType.GITHUB, 'GitHub API rate limit exceeded.', client);
+  }
+}
+
+// ── Global uncaught error handlers ──
+process.on('uncaughtException', (err) => {
+  errorTracker.log(ErrorType.UNKNOWN, 'Uncaught exception — bot may be unstable', err);
+  errorTracker.alertOwner(ErrorType.UNKNOWN, `Uncaught exception: ${err.message}. Bot may need a restart.`, client);
+  // Don't exit — let the bot try to keep running
+  console.error('[FATAL] Uncaught exception:', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+  const err = reason instanceof Error ? reason : new Error(String(reason));
+  errorTracker.log(ErrorType.UNKNOWN, 'Unhandled promise rejection', err);
+  // Don't exit — log and continue
+  console.error('[FATAL] Unhandled rejection:', reason);
+});
+
 const openai = new OpenAI({ apiKey: OPENAI_API_KEY });
 
 // ══════════════════════════════════════════════════════════════
@@ -111,10 +259,20 @@ async function githubAPI(endpoint, method = 'GET', body = null) {
     opts.headers['Content-Type'] = 'application/json';
     opts.body = JSON.stringify(body);
   }
-  const res = await fetch(url, opts);
+
+  let res;
+  try {
+    res = await fetch(url, opts);
+  } catch (err) {
+    handleGitHubError(err, `fetch ${method} ${endpoint}`);
+    throw new Error(`GitHub API network error (${method} ${endpoint}): ${err.message}`);
+  }
+
   if (!res.ok) {
-    const text = await res.text();
-    throw new Error(`GitHub API ${method} ${endpoint}: ${res.status} ${text.slice(0, 200)}`);
+    const text = await res.text().catch(() => 'no body');
+    const error = new Error(`GitHub API ${method} ${endpoint}: ${res.status} ${text.slice(0, 200)}`);
+    handleGitHubError(error, `${method} ${endpoint}`);
+    throw error;
   }
   return res.json();
 }
@@ -255,10 +413,22 @@ const RECS_FILE = path.join(__dirname, 'recommendations.json');
 const BUGS_FILE = path.join(__dirname, 'bugs.json');
 
 function loadJSON(file) {
-  try { return JSON.parse(fs.readFileSync(file, 'utf-8')); } catch (_) { return []; }
+  try {
+    return JSON.parse(fs.readFileSync(file, 'utf-8'));
+  } catch (err) {
+    if (err.code !== 'ENOENT') { // Don't log "file not found" — that's expected on first run
+      errorTracker.log(ErrorType.FILE_IO, `Failed to read ${path.basename(file)}`, err);
+    }
+    return [];
+  }
 }
 function saveJSON(file, data) {
-  fs.writeFileSync(file, JSON.stringify(data, null, 2));
+  try {
+    fs.writeFileSync(file, JSON.stringify(data, null, 2));
+  } catch (err) {
+    errorTracker.log(ErrorType.FILE_IO, `Failed to write ${path.basename(file)}`, err);
+    errorTracker.alertOwner(ErrorType.FILE_IO, `Cannot save ${path.basename(file)} — data may be lost. Check disk space/permissions.`, client);
+  }
 }
 
 // ── Conversation history per channel (last 20 messages for context) ──
@@ -302,7 +472,10 @@ Context: ${context}`;
       temperature: 0.3,
     });
     return res.choices[0]?.message?.content || '';
-  } catch (_) { return ''; }
+  } catch (err) {
+    errorTracker.log(ErrorType.OPENAI, 'Think engine failed', err);
+    return ''; // Non-critical — bot can still respond without thinking
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -378,8 +551,7 @@ async function getAIResponse(userMessage, channelId, context = '', userId = null
     addToHistory(channelId, 'assistant', reply);
     return reply;
   } catch (err) {
-    console.error('[AI ERROR]', err.message);
-    return "I'm having trouble connecting right now. A team member will follow up shortly.";
+    return handleOpenAIError(err, 'getAIResponse');
   }
 }
 
@@ -403,7 +575,10 @@ async function classifyMessage(text) {
       temperature: 0,
     });
     return (res.choices[0]?.message?.content || 'chat').trim().toLowerCase();
-  } catch (_) { return 'chat'; }
+  } catch (err) {
+    errorTracker.log(ErrorType.OPENAI, 'Message classification failed', err);
+    return 'chat'; // Fallback to chat — still respond to user
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -425,6 +600,7 @@ function findSimilarBug(description) {
 }
 
 async function handleBugReport(message, text) {
+  try {
   const bugs = loadJSON(BUGS_FILE);
   const description = text || message.content;
 
@@ -520,6 +696,10 @@ async function handleBugReport(message, text) {
       );
     } catch (_) {}
   }
+  } catch (err) {
+    errorTracker.log(ErrorType.DISCORD, 'Bug report handler failed', err);
+    try { await message.reply("I ran into an issue processing your bug report. Don't worry — try again or a team member will help you shortly."); } catch (_) {}
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -527,6 +707,7 @@ async function handleBugReport(message, text) {
 // ══════════════════════════════════════════════════════════════
 
 async function handleRecommendation(message, text) {
+  try {
   const description = text || message.content;
 
   // Think about the recommendation
@@ -583,6 +764,10 @@ async function handleRecommendation(message, text) {
   await message.channel.sendTyping();
   const reply = await getAIResponse(description, message.channel.id, responseContext, message.author.id);
   await safeReply(message, reply);
+  } catch (err) {
+    errorTracker.log(ErrorType.DISCORD, 'Recommendation handler failed', err);
+    try { await message.reply("Thanks for the suggestion! I had a small issue logging it, but the team will see it."); } catch (_) {}
+  }
 }
 
 // ══════════════════════════════════════════════════════════════
@@ -908,51 +1093,65 @@ client.on('interactionCreate', async (interaction) => {
 
 // ── Handle ticket channels (ticket-XXXX) ──
 async function handleTicket(message) {
-  const userMsg = message.content;
-  const context = `This is support ticket channel: ${message.channel.name}. The user needs help with Zap. Be thorough, ask diagnostic questions if needed (version, OS, settings), and provide step-by-step solutions.`;
+  try {
+    const userMsg = message.content;
+    const context = `This is support ticket channel: ${message.channel.name}. The user needs help with Zap. Be thorough, ask diagnostic questions if needed (version, OS, settings), and provide step-by-step solutions.`;
 
-  await message.channel.sendTyping();
-  const reply = await getAIResponse(userMsg, message.channel.id, context, message.author.id);
+    await message.channel.sendTyping().catch(() => {}); // sendTyping can fail silently
+    const reply = await getAIResponse(userMsg, message.channel.id, context, message.author.id);
 
-  const safeReplyText = sanitizeOutput(reply);
-  if (safeReplyText.length > 1900) {
-    const parts = safeReplyText.match(/.{1,1900}/gs);
-    for (const part of parts) await message.channel.send(part);
-  } else {
-    await message.channel.send(safeReplyText);
+    const safeReplyText = sanitizeOutput(reply);
+    if (safeReplyText.length > 1900) {
+      const parts = safeReplyText.match(/.{1,1900}/gs);
+      for (const part of parts) await message.channel.send(part);
+    } else {
+      await message.channel.send(safeReplyText);
+    }
+  } catch (err) {
+    const errType = handleDiscordError(err, 'handleTicket');
+    if (errType === 'missing_permissions' || errType === 'missing_access') {
+      errorTracker.alertOwner(ErrorType.DISCORD, `Bot can't respond in #${message.channel.name} — missing permissions. Check the channel settings.`, client);
+    } else {
+      try { await message.react('⚠️'); } catch (_) {} // Visual indicator something went wrong
+    }
   }
 }
 
 // ── Handle @zapbot mentions ──
 async function handleMention(message) {
-  const cleanMsg = message.content.replace(/<@!?\d+>/g, '').trim();
-  if (!cleanMsg) {
-    await message.reply("Hey! Ask me anything about Zap — troubleshooting, features, pricing, you name it. 🚀");
-    return;
-  }
+  try {
+    const cleanMsg = message.content.replace(/<@!?\d+>/g, '').trim();
+    if (!cleanMsg) {
+      await message.reply("Hey! Ask me anything about Zap — troubleshooting, features, pricing, you name it. 🚀");
+      return;
+    }
 
-  await message.channel.sendTyping();
-  const type = await classifyMessage(cleanMsg);
+    await message.channel.sendTyping().catch(() => {});
+    const type = await classifyMessage(cleanMsg);
 
-  if (type === 'feature') {
-    await handleRecommendation(message, cleanMsg);
-    return;
-  }
+    if (type === 'feature') {
+      await handleRecommendation(message, cleanMsg);
+      return;
+    }
 
-  if (type === 'bug') {
-    await handleBugReport(message, cleanMsg);
-    return;
-  }
+    if (type === 'bug') {
+      await handleBugReport(message, cleanMsg);
+      return;
+    }
 
-  const context = `User @${message.author.username} mentioned the bot in #${message.channel.name}. Type classified as: ${type}. Respond helpfully and concisely.`;
-  const reply = await getAIResponse(cleanMsg, message.channel.id, context, message.author.id);
+    const context = `User @${message.author.username} mentioned the bot in #${message.channel.name}. Type classified as: ${type}. Respond helpfully and concisely.`;
+    const reply = await getAIResponse(cleanMsg, message.channel.id, context, message.author.id);
 
-  const safeText = sanitizeOutput(reply);
-  if (safeText.length > 1900) {
-    const parts = safeText.match(/.{1,1900}/gs);
-    for (const part of parts) await safeReply(message, parts[0]);
-  } else {
-    await safeReply(message, reply);
+    const safeText = sanitizeOutput(reply);
+    if (safeText.length > 1900) {
+      const parts = safeText.match(/.{1,1900}/gs);
+      for (const part of parts) await safeReply(message, part);
+    } else {
+      await safeReply(message, reply);
+    }
+  } catch (err) {
+    handleDiscordError(err, 'handleMention');
+    try { await message.reply("Sorry, something went wrong on my end. Try again in a moment!"); } catch (_) {}
   }
 }
 
@@ -1047,10 +1246,15 @@ client.on('messageCreate', async (message) => {
 
     // ── DMs — always respond (this is direct support) ──
     if (message.channel.type === ChannelType.DM) {
-      await message.channel.sendTyping();
-      const context = 'This is a private DM. The user wants help. Be extra helpful and thorough.';
-      const reply = await getAIResponse(message.content, message.channel.id, context, message.author.id);
-      await message.channel.send(sanitizeOutput(reply));
+      try {
+        await message.channel.sendTyping().catch(() => {});
+        const context = 'This is a private DM. The user wants help. Be extra helpful and thorough.';
+        const reply = await getAIResponse(message.content, message.channel.id, context, message.author.id);
+        await message.channel.send(sanitizeOutput(reply));
+      } catch (err) {
+        errorTracker.log(ErrorType.DISCORD, `DM handler error for @${message.author.username}`, err);
+        try { await message.channel.send("Sorry, I'm having trouble right now. Try again in a moment or reach out in the Discord server for help!"); } catch (_) {}
+      }
       return;
     }
 
@@ -1077,7 +1281,18 @@ client.on('messageCreate', async (message) => {
     await handleMention(message);
 
   } catch (err) {
-    console.error('[MESSAGE HANDLER ERROR]', err);
+    errorTracker.log(ErrorType.DISCORD, `Message handler error in #${message.channel?.name || 'DM'} from @${message.author?.username || 'unknown'}`, err);
+
+    // Try to give the user a helpful response
+    try {
+      if (err.message?.includes('Missing Access') || err.message?.includes('Missing Permissions')) {
+        errorTracker.alertOwner(ErrorType.DISCORD, `Bot missing permissions in #${message.channel?.name}. Cannot respond to users there.`, client);
+      } else if (err.message?.includes('rate limit') || err.status === 429) {
+        await message.reply("I'm getting a lot of messages right now — give me a sec and try again!").catch(() => {});
+      } else {
+        await message.react('⚠️').catch(() => {}); // Visual indicator without being spammy
+      }
+    } catch (_) { /* Can't even react — permissions issue, already logged */ }
   }
 });
 
@@ -1313,9 +1528,71 @@ client.on('ready', () => {
   releaseCheckInterval = setInterval(checkForNewRelease, 5 * 60 * 1000);
 });
 
-// ── Graceful shutdown ──
-process.on('SIGINT', () => { if (releaseCheckInterval) clearInterval(releaseCheckInterval); client.destroy(); process.exit(0); });
-process.on('SIGTERM', () => { if (releaseCheckInterval) clearInterval(releaseCheckInterval); client.destroy(); process.exit(0); });
+// ── Discord connection error handling ──
+client.on('error', (err) => {
+  errorTracker.log(ErrorType.DISCORD, 'Discord client error', err);
+  errorTracker.alertOwner(ErrorType.DISCORD, `Discord client error: ${err.message}. Bot may reconnect automatically.`, client);
+});
 
-// ── Login ──
-client.login(DISCORD_TOKEN);
+client.on('warn', (warning) => {
+  console.warn('[DISCORD WARN]', warning);
+});
+
+client.on('shardDisconnect', (event, shardId) => {
+  errorTracker.log(ErrorType.DISCORD, `Shard ${shardId} disconnected (code: ${event.code})`, { message: event.reason || 'No reason' });
+});
+
+client.on('shardReconnecting', (shardId) => {
+  console.log(`[DISCORD] Shard ${shardId} reconnecting...`);
+});
+
+client.on('shardResume', (shardId) => {
+  console.log(`[DISCORD] Shard ${shardId} resumed — back online`);
+});
+
+// ── Graceful shutdown ──
+process.on('SIGINT', () => {
+  console.log('[SHUTDOWN] SIGINT received — shutting down gracefully');
+  if (releaseCheckInterval) clearInterval(releaseCheckInterval);
+  client.destroy();
+  process.exit(0);
+});
+process.on('SIGTERM', () => {
+  console.log('[SHUTDOWN] SIGTERM received — shutting down gracefully');
+  if (releaseCheckInterval) clearInterval(releaseCheckInterval);
+  client.destroy();
+  process.exit(0);
+});
+
+// ── Login with error handling ──
+client.login(DISCORD_TOKEN).catch((err) => {
+  errorTracker.log(ErrorType.STARTUP, 'Failed to login to Discord', err);
+
+  if (err.code === 'TokenInvalid' || err.message?.includes('TOKEN_INVALID')) {
+    console.error('\n╔════════════════════════════════════════════════╗');
+    console.error('║  DISCORD TOKEN IS INVALID                      ║');
+    console.error('║                                                ║');
+    console.error('║  Go to discord.com/developers/applications     ║');
+    console.error('║  → Your app → Bot → Reset Token                ║');
+    console.error('║  Then update .env with the new token           ║');
+    console.error('╚════════════════════════════════════════════════╝\n');
+  } else if (err.code === 'DisallowedIntents') {
+    console.error('\n╔════════════════════════════════════════════════╗');
+    console.error('║  MISSING DISCORD INTENTS                       ║');
+    console.error('║                                                ║');
+    console.error('║  Go to discord.com/developers/applications     ║');
+    console.error('║  → Your app → Bot → Enable all intents         ║');
+    console.error('╚════════════════════════════════════════════════╝\n');
+  } else if (err.message?.includes('ENOTFOUND') || err.message?.includes('ECONNREFUSED')) {
+    console.error('\n╔════════════════════════════════════════════════╗');
+    console.error('║  NO INTERNET CONNECTION                        ║');
+    console.error('║                                                ║');
+    console.error('║  Check your internet and try again.            ║');
+    console.error('║  Bot will auto-retry via launchd.              ║');
+    console.error('╚════════════════════════════════════════════════╝\n');
+  } else {
+    console.error(`\n[STARTUP] Unknown login error: ${err.message}\n`);
+  }
+
+  process.exit(1);
+});
