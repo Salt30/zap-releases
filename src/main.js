@@ -33,7 +33,8 @@ const STRIPE_KEY_PLACEHOLDER = 'YOUR_STRIPE' + '_SECRET_KEY';
 const STRIPE_PRICE_ID = 'price_1T7p8qDu0Wu9yqrt7NG7SsY5';
 const STRIPE_ANNUAL_PRICE_ID = 'price_1TGuTfDu0Wu9yqrtwyCCLgDU';
 const STRIPE_LITE_PRICE_ID = 'price_LITE_PLACEHOLDER'; // $15/mo lite tier — set after creating in Stripe
-const LITE_MONTHLY_SCAN_LIMIT = 50;
+const LITE_MONTHLY_SCAN_LIMIT = 25;
+const LITE_ALLOWED_MODES = ['answer', 'driptype', 'translate'];
 
 // GitHub token for support tickets (Issues API) — injected at build time via sed
 const GITHUB_SUPPORT_TOKEN = 'YOUR_GH_SUPPORT_TOKEN';
@@ -794,13 +795,63 @@ async function grabScreen() {
 
 /* ─────────────────── Show / Toggle Overlay ─────────────────── */
 
+function isModeLocked(mode) {
+  const tier = store.get('subscriptionTier');
+  if (tier !== 'lite') return false;
+  return !LITE_ALLOWED_MODES.includes(mode);
+}
+
 function showWithMode(mode) {
   // Block overlay if not licensed
   if (!isLicensed()) { showActivate(); return; }
+
+  // Lite tier: block restricted modes with locked animation
+  if (isModeLocked(mode)) {
+    if (!overlayWin) makeOverlay();
+    if (!overlayUp) {
+      // Need to show overlay briefly to display the locked message
+      applyOverlayLevel();
+      overlayWin.showInactive();
+      overlayUp = true;
+    }
+    overlayWin.webContents.send('mode-locked', {
+      mode,
+      allowedModes: LITE_ALLOWED_MODES,
+      tier: 'lite',
+      message: `${mode.charAt(0).toUpperCase() + mode.slice(1)} mode requires Zap Pro. Upgrade to unlock all modes.`
+    });
+    return;
+  }
+
+  // Lite tier: check scan limit and send counter
+  const tier = store.get('subscriptionTier');
+  if (tier === 'lite') {
+    const scanStatus = checkScanLimit();
+    if (!scanStatus.allowed) {
+      if (!overlayWin) makeOverlay();
+      if (!overlayUp) {
+        applyOverlayLevel();
+        overlayWin.showInactive();
+        overlayUp = true;
+      }
+      overlayWin.webContents.send('scan-limit-reached', {
+        used: scanStatus.used,
+        limit: scanStatus.limit,
+        message: 'You\'ve used all 25 scans this month. Upgrade to Pro for unlimited scans.'
+      });
+      return;
+    }
+  }
+
   if (!overlayWin) makeOverlay();
 
   if (overlayUp) {
     overlayWin.webContents.send('set-mode', mode);
+    // Send scan counter for lite users
+    if (tier === 'lite') {
+      const scanStatus = checkScanLimit();
+      overlayWin.webContents.send('scan-counter', { remaining: scanStatus.remaining, limit: scanStatus.limit, used: scanStatus.used });
+    }
     return;
   }
 
@@ -810,6 +861,12 @@ function showWithMode(mode) {
     overlayWin.webContents.send('set-mode', mode);
     overlayWin.webContents.send('screen-captured', img);
     overlayWin.webContents.send('load-settings', store.store);
+    // Send scan counter for lite users so overlay can show remaining scans
+    const showTier = store.get('subscriptionTier');
+    if (showTier === 'lite') {
+      const scanStatus = checkScanLimit();
+      overlayWin.webContents.send('scan-counter', { remaining: scanStatus.remaining, limit: scanStatus.limit, used: scanStatus.used });
+    }
     overlayWin.showInactive();
     // Re-enforce content protection AFTER show — critical for panel windows
     enforceContentProtection(overlayWin);
@@ -1860,6 +1917,28 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
   }
   // Block AI usage for unlicensed users
   if (!isLicensed()) return { error: 'Subscription required. Please subscribe to use Zap.' };
+
+  // Lite tier: enforce mode restrictions
+  const reqTier = store.get('subscriptionTier');
+  if (reqTier === 'lite' && !LITE_ALLOWED_MODES.includes(mode)) {
+    return { error: `${(mode || 'This').charAt(0).toUpperCase() + (mode || 'this').slice(1)} mode requires Zap Pro. Upgrade to unlock all modes.` };
+  }
+
+  // Lite tier: enforce scan limit
+  if (reqTier === 'lite') {
+    const scanStatus = checkScanLimit();
+    if (!scanStatus.allowed) {
+      return { error: `You've used all ${LITE_MONTHLY_SCAN_LIMIT} scans this month. Upgrade to Pro for unlimited scans.` };
+    }
+    // Increment scan count for lite users
+    incrementScanCount();
+    // Send updated counter to overlay
+    if (overlayWin && !overlayWin.isDestroyed()) {
+      const updated = checkScanLimit();
+      overlayWin.webContents.send('scan-counter', { remaining: updated.remaining, limit: updated.limit, used: updated.used });
+    }
+  }
+
   // Track usage analytics
   trackUsage(mode || 'answer');
 
@@ -2892,11 +2971,20 @@ ipcMain.handle('check-scan-limit', () => {
 });
 
 ipcMain.handle('get-subscription-tier', () => {
+  const tier = store.get('subscriptionTier') || 'pro';
   return {
-    tier: store.get('subscriptionTier') || 'pro',
+    tier,
     scansUsed: store.get('monthlyScansUsed') || 0,
-    scansLimit: store.get('subscriptionTier') === 'lite' ? LITE_MONTHLY_SCAN_LIMIT : Infinity,
+    scansLimit: tier === 'lite' ? LITE_MONTHLY_SCAN_LIMIT : Infinity,
+    allowedModes: tier === 'lite' ? LITE_ALLOWED_MODES : null,
   };
+});
+
+ipcMain.handle('check-mode-access', (_ev, mode) => {
+  const tier = store.get('subscriptionTier') || 'pro';
+  if (tier !== 'lite') return { allowed: true, tier: 'pro' };
+  const allowed = LITE_ALLOWED_MODES.includes(mode);
+  return { allowed, tier: 'lite', allowedModes: LITE_ALLOWED_MODES };
 });
 
 /* ─────────────────── Admin & Support ─────────────────── */
