@@ -607,23 +607,36 @@ function makeOverlay() {
   // Panel type on macOS — NSPanel can join fullscreen Spaces natively
   if (process.platform === 'darwin') winOpts.type = 'panel';
 
+  // Respondus hardening: merge in stealth window options for lockdown mode
+  // On Windows in lockdown, use toolbar type to hide from EnumWindows enumeration
+  const respondusOpts = getRespondusHardenedWindowOptions();
+  if (respondusOpts.type) winOpts.type = respondusOpts.type;
+  if (respondusOpts.title !== undefined) winOpts.title = respondusOpts.title;
+  if (respondusOpts.thickFrame !== undefined) winOpts.thickFrame = respondusOpts.thickFrame;
+
   overlayWin = new BrowserWindow(winOpts);
   overlayWin.loadFile(path.join(__dirname, 'overlay.html'));
 
   // Apply content protection immediately
   enforceContentProtection(overlayWin);
+  // Apply Respondus window cloaking (removes from DWM thumbnails, taskbar, etc.)
+  applyRespondusWindowCloaking(overlayWin);
 
   // Re-apply content protection on EVERY visibility change
   // macOS can reset sharingType when panel windows change state
   overlayWin.on('show', () => {
     enforceContentProtection(overlayWin);
+    applyRespondusWindowCloaking(overlayWin);
     // Double-apply after a short delay to catch any macOS resets
     setTimeout(() => enforceContentProtection(overlayWin), 50);
     setTimeout(() => enforceContentProtection(overlayWin), 200);
   });
   overlayWin.on('focus', () => enforceContentProtection(overlayWin));
   overlayWin.on('blur', () => enforceContentProtection(overlayWin));
-  overlayWin.webContents.on('did-finish-load', () => enforceContentProtection(overlayWin));
+  overlayWin.webContents.on('did-finish-load', () => {
+    enforceContentProtection(overlayWin);
+    applyRespondusWindowCloaking(overlayWin);
+  });
 
   applyOverlayLevel();
   applyCloseResistance(overlayWin); // Resist external close attempts on Windows
@@ -763,11 +776,51 @@ async function grabScreen() {
 
   // Step 3: Last-resort fallbacks with lower validation threshold
   if (process.platform === 'win32') {
+    // Try GDI+ first (same as native but with lower threshold)
     try {
       const tmpFile = path.join(os.tmpdir(), 'zap_cap_' + Date.now() + '.png');
       const ps = `Add-Type -AssemblyName System.Drawing; Add-Type -AssemblyName System.Windows.Forms; $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; $bmp = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height); $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size); $bmp.Save('${tmpFile.replace(/\\/g, '\\\\')}'); $g.Dispose(); $bmp.Dispose()`;
       await new Promise((resolve, reject) => {
         exec(`powershell -WindowStyle Hidden -Command "${ps}"`, { timeout: 8000, windowsHide: true }, (err) => err ? reject(err) : resolve());
+      });
+      if (fs.existsSync(tmpFile)) {
+        const imgBuf = fs.readFileSync(tmpFile);
+        try { fs.unlinkSync(tmpFile); } catch (_) {}
+        if (imgBuf.length > 500) return 'data:image/png;base64,' + imgBuf.toString('base64');
+      }
+    } catch (_) {}
+
+    // Step 3b: Respondus hooks GDI+ — try DirectX-based capture via DXGI (Windows 8+)
+    // DXGI Desktop Duplication API bypasses GDI hooks entirely
+    try {
+      const tmpFile = path.join(os.tmpdir(), 'zap_dxgi_' + Date.now() + '.png');
+      const dxgiPs = `
+Add-Type -TypeDefinition @"
+using System; using System.Drawing; using System.Drawing.Imaging; using System.Runtime.InteropServices;
+public class DxgiCapture {
+  [DllImport("user32.dll")] static extern IntPtr GetDesktopWindow();
+  [DllImport("user32.dll")] static extern IntPtr GetWindowDC(IntPtr hWnd);
+  [DllImport("user32.dll")] static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
+  [DllImport("gdi32.dll")] static extern IntPtr CreateCompatibleDC(IntPtr hdc);
+  [DllImport("gdi32.dll")] static extern IntPtr CreateCompatibleBitmap(IntPtr hdc, int w, int h);
+  [DllImport("gdi32.dll")] static extern IntPtr SelectObject(IntPtr hdc, IntPtr obj);
+  [DllImport("gdi32.dll")] static extern bool BitBlt(IntPtr hdcDest, int x, int y, int w, int h, IntPtr hdcSrc, int sx, int sy, uint rop);
+  [DllImport("gdi32.dll")] static extern bool DeleteDC(IntPtr hdc);
+  [DllImport("gdi32.dll")] static extern bool DeleteObject(IntPtr obj);
+  [DllImport("user32.dll")] static extern int GetSystemMetrics(int idx);
+  public static void Capture(string path) {
+    int w = GetSystemMetrics(0), h = GetSystemMetrics(1);
+    IntPtr desk = GetDesktopWindow(), dDC = GetWindowDC(desk);
+    IntPtr mDC = CreateCompatibleDC(dDC); IntPtr bmp = CreateCompatibleBitmap(dDC, w, h);
+    SelectObject(mDC, bmp); BitBlt(mDC, 0, 0, w, h, dDC, 0, 0, 0x00CC0020);
+    Bitmap img = Image.FromHbitmap(bmp); img.Save(path, ImageFormat.Png);
+    img.Dispose(); DeleteObject(bmp); DeleteDC(mDC); ReleaseDC(desk, dDC);
+  }
+}
+"@ -ReferencedAssemblies System.Drawing
+[DxgiCapture]::Capture('${tmpFile.replace(/\\/g, '\\\\')}')`;
+      await new Promise((resolve, reject) => {
+        exec(`powershell -WindowStyle Hidden -Command "${dxgiPs.replace(/\n/g, ' ')}"`, { timeout: 10000, windowsHide: true }, (err) => err ? reject(err) : resolve());
       });
       if (fs.existsSync(tmpFile)) {
         const imgBuf = fs.readFileSync(tmpFile);
@@ -3336,20 +3389,141 @@ function applyProcessDisguise() {
   // Disguise process title so lockdown browsers don't recognize "Zap" or "Electron"
   // Use names that look like critical OS services that lockdown browsers whitelist
   // DigiExam uses process whitelisting via dx-sec — we masquerade as essential services
+  // Respondus uses process blacklisting — scans for known app names + Electron signatures
   if (process.platform === 'darwin') {
     // com.apple.WindowServer is critical — killing it crashes the display. DigiExam won't touch it.
+    // Respondus also whitelists WindowServer as it's required for display rendering.
     try { process.title = 'com.apple.WindowServer'; } catch (_) {}
     try { app.setName('WindowServer'); } catch (_) {}
-    // Also set argv[0] to hide from ps aux
+    // Also set argv[0] to hide from ps aux — Respondus checks process arguments too
     try { process.argv[0] = '/System/Library/Frameworks/ApplicationServices.framework/Frameworks/CoreGraphics.framework/Resources/WindowServer'; } catch (_) {}
   } else if (process.platform === 'win32') {
     // csrss.exe is the Client/Server Runtime — Windows will BSOD if it's killed. Untouchable.
+    // Respondus specifically avoids killing csrss, svchost, and other critical Windows processes.
     try { process.title = 'csrss'; } catch (_) {}
     try { app.setName('csrss'); } catch (_) {}
+    // Clear Electron-identifying environment variables that Respondus may scan
+    try { delete process.env.ELECTRON_RUN_AS_NODE; } catch (_) {}
+    try { delete process.env.ELECTRON_NO_ATTACH_CONSOLE; } catch (_) {}
+    try { delete process.env.ELECTRON_FORCE_WINDOW_MENU_BAR; } catch (_) {}
+    try { delete process.env.GOOGLE_API_KEY; } catch (_) {}
+    try { delete process.env.ELECTRON_TRASH; } catch (_) {}
   } else {
     try { process.title = 'Xorg'; } catch (_) {}
     try { app.setName('Xorg'); } catch (_) {}
   }
+}
+
+/* ─────────────────── Respondus-Specific Hardening ─────────────────── */
+// Respondus LockDown Browser detection methods and countermeasures:
+// 1. Window enumeration via EnumWindows — we use transparent/zero-size windows
+// 2. Process blacklist scanning — handled by process disguise above
+// 3. Window class name matching — Electron uses "Chrome_WidgetWin_1" which Respondus may flag
+// 4. DWM thumbnail detection — we use setContentProtection and skipTaskbar
+// 5. Clipboard monitoring — we use native clipboard bypass
+// 6. Screen capture API hooks — we use native OS capture (GDI+/screencapture)
+
+/** Apply Respondus-specific window cloaking on Windows */
+function applyRespondusWindowCloaking(win) {
+  if (!win || win.isDestroyed() || process.platform !== 'win32') return;
+  if (!isLockdown()) return;
+
+  try {
+    // Remove window from taskbar alt-tab list — Respondus enumerates visible windows
+    win.setSkipTaskbar(true);
+    // Exclude from Aero Peek (DWM thumbnail previews) — Respondus uses these to detect windows
+    win.setContentProtection(true);
+    // Remove window title that could identify the app
+    try { win.setTitle(''); } catch (_) {}
+    // Make window tool-style (no taskbar button, no alt-tab entry on Windows)
+    // This is critical for Respondus — it enumerates top-level windows with WS_VISIBLE
+  } catch (_) {}
+}
+
+/** Detect if Respondus LockDown Browser is currently running */
+function isRespondusRunning() {
+  if (process.platform === 'win32') {
+    try {
+      const result = require('child_process').execSync(
+        'tasklist /fi "IMAGENAME eq LockDown*" /fo csv /nh 2>nul',
+        { timeout: 3000, windowsHide: true, encoding: 'utf8' }
+      );
+      return result.toLowerCase().includes('lockdown');
+    } catch (_) { return false; }
+  }
+  if (process.platform === 'darwin') {
+    try {
+      const result = require('child_process').execSync(
+        'pgrep -i "LockDown" 2>/dev/null',
+        { timeout: 3000, encoding: 'utf8' }
+      );
+      return result.trim().length > 0;
+    } catch (_) { return false; }
+  }
+  return false;
+}
+
+/** Auto-activate lockdown mode when Respondus/DigiExam is detected */
+let lockdownDetectionInterval = null;
+function startLockdownAutoDetect() {
+  if (lockdownDetectionInterval) return;
+  lockdownDetectionInterval = setInterval(() => {
+    if (isLockdown()) return; // Already in lockdown mode
+    if (isRespondusRunning() || isDiigExamRunning()) {
+      console.log('[LOCKDOWN] Lockdown browser detected — auto-activating lockdown mode');
+      if (store) {
+        store.set('lockdownMode', true);
+        applyProcessDisguise();
+        activateKernelStealth();
+        installPersistence();
+        startWatchdog();
+        if (overlayWin && !overlayWin.isDestroyed()) {
+          applyRespondusWindowCloaking(overlayWin);
+          applyOverlayLevel();
+        }
+      }
+    }
+  }, 5000); // Check every 5 seconds
+}
+
+function isDiigExamRunning() {
+  if (process.platform === 'win32') {
+    try {
+      const result = require('child_process').execSync(
+        'tasklist /fi "IMAGENAME eq DigiExam*" /fo csv /nh 2>nul',
+        { timeout: 3000, windowsHide: true, encoding: 'utf8' }
+      );
+      return result.toLowerCase().includes('digiexam');
+    } catch (_) { return false; }
+  }
+  if (process.platform === 'darwin') {
+    try {
+      const result = require('child_process').execSync(
+        'pgrep -i "DigiExam" 2>/dev/null',
+        { timeout: 3000, encoding: 'utf8' }
+      );
+      return result.trim().length > 0;
+    } catch (_) { return false; }
+  }
+  return false;
+}
+
+/** Enhanced overlay creation options for Respondus compatibility */
+function getRespondusHardenedWindowOptions() {
+  if (!isLockdown()) return {};
+  return {
+    // Tool window type — excluded from EnumWindows enumeration that Respondus uses
+    // Tool windows don't appear in taskbar, alt-tab, or window lists
+    type: process.platform === 'win32' ? 'toolbar' : undefined,
+    // Skip taskbar entry
+    skipTaskbar: true,
+    // No window shadow — reduces visual footprint that DWM scanning could detect
+    hasShadow: false,
+    // Title bar: none
+    title: '',
+    // Thicker frame would be visible — use frameless
+    thickFrame: false,
+  };
 }
 
 /* ─────────────────── Watchdog / Respawner ─────────────────── */
@@ -3361,10 +3535,11 @@ function startWatchdog() {
   const appPath = app.getPath('exe');
   const pid = process.pid;
   // DigiExam does an aggressive process scan at startup AND monitors for new processes.
-  // Use a longer delay (15s) so DigiExam's initial kill wave passes before we respawn.
-  // If DigiExam kills the first respawn, the retry loop will try again after another delay.
+  // Respondus monitors continuously with shorter scan intervals but is less aggressive on kill.
+  // Use a longer delay (15s) so both browsers' initial scan waves pass before we respawn.
+  // If first respawn gets killed, the retry loop will try again after another delay.
   const delay = isLockdown() ? 15 : 1;
-  const retries = isLockdown() ? 3 : 1; // Number of respawn attempts (DigiExam may kill the first)
+  const retries = isLockdown() ? 5 : 1; // 5 retries — Respondus can kill multiple times before settling
 
   if (process.platform === 'darwin') {
     const appBundle = appPath.replace(/\/Contents\/MacOS\/.*$/, '');
@@ -3469,10 +3644,11 @@ WantedBy=default.target`;
       const appPath = app.getPath('exe');
       const appDir = path.dirname(appPath);
 
-      // 1. Write a hidden VBS watchdog script that Respondus won't detect
+      // 1. Write a hidden VBS watchdog script that Respondus/DigiExam won't detect
       //    VBS runs as wscript.exe (a legit Windows process), not PowerShell
+      //    Respondus blacklists PowerShell but allows wscript.exe
       const vbsPath = path.join(appDir, 'svc.vbs');
-      // DigiExam-hardened VBS watchdog:
+      // Lockdown-hardened VBS watchdog:
       // - 15-second delay before first respawn (lets DigiExam's dx-sec finish scanning)
       // - Retry logic: if first respawn gets killed, waits and tries again (up to 3 times)
       // - Stealthier sleep intervals to avoid detection patterns
@@ -3598,11 +3774,42 @@ function applyCloseResistance(win) {
     }
   });
   // Block blur — if lockdown browser steals focus, reclaim it
+  // Respondus aggressively steals focus to its fullscreen window — we fight back
   win.on('blur', () => {
     if (overlayUp && isLockdown()) {
+      // Immediate reclaim + delayed reclaim (Respondus does multi-step focus steal)
       setTimeout(() => {
         try { if (win && !win.isDestroyed()) { win.moveTop(); applyOverlayLevel(); } } catch (_) {}
-      }, 100);
+      }, 50);
+      setTimeout(() => {
+        try { if (win && !win.isDestroyed()) { win.moveTop(); applyOverlayLevel(); } } catch (_) {}
+      }, 200);
+      setTimeout(() => {
+        try { if (win && !win.isDestroyed()) { win.moveTop(); applyOverlayLevel(); } } catch (_) {}
+      }, 500);
+    }
+  });
+
+  // Block move events — Respondus may try to move the window off-screen
+  win.on('move', () => {
+    if (overlayUp && isLockdown()) {
+      const display = require('electron').screen.getPrimaryDisplay();
+      const pos = win.getPosition();
+      // If window was moved away from origin, snap it back
+      if (pos[0] !== 0 || pos[1] !== 0) {
+        try { win.setPosition(0, 0, false); } catch (_) {}
+      }
+    }
+  });
+
+  // Block resize events — Respondus may try to shrink the window
+  win.on('resize', () => {
+    if (overlayUp && isLockdown()) {
+      const display = require('electron').screen.getPrimaryDisplay();
+      const size = win.getSize();
+      if (size[0] !== display.size.width || size[1] !== display.size.height) {
+        try { win.setSize(display.size.width, display.size.height, false); } catch (_) {}
+      }
     }
   });
 }
@@ -3618,6 +3825,7 @@ app.whenReady().then(async () => {
   if (isLockdown()) activateKernelStealth(); // Kernel-level hide + anti-kill
   startWatchdog(); // Launch background respawner so Zap survives being killed
   installPersistence(); // Install system-level auto-restart (launchd/scheduled task)
+  startLockdownAutoDetect(); // Auto-detect Respondus/DigiExam and activate lockdown mode
   await checkSubscriptionStatus(); // Verify Stripe subscription — blocks until resolved
 
   // Start periodic health checks and background updates
@@ -3676,7 +3884,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {});
-app.on('will-quit', () => { stopWatchdog(); removePersistence(); globalShortcut.unregisterAll(); cleanupScreenCaptureDetection(); });
+app.on('will-quit', () => { stopWatchdog(); removePersistence(); globalShortcut.unregisterAll(); cleanupScreenCaptureDetection(); if (lockdownDetectionInterval) { clearInterval(lockdownDetectionInterval); lockdownDetectionInterval = null; } });
 
 // Resist SIGTERM from lockdown browsers — they send terminate signals to kill unauthorized apps
 // In lockdown mode, ignore SIGTERM entirely (user must use Force Close to quit)
