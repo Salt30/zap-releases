@@ -32,7 +32,8 @@ const STRIPE_SECRET_KEY = 'YOUR_STRIPE_SECRET_KEY';
 const STRIPE_KEY_PLACEHOLDER = 'YOUR_STRIPE' + '_SECRET_KEY';
 const STRIPE_PRICE_ID = 'price_1T7p8qDu0Wu9yqrt7NG7SsY5';
 const STRIPE_ANNUAL_PRICE_ID = 'price_1TGuTfDu0Wu9yqrtwyCCLgDU';
-const STRIPE_LITE_PRICE_ID = 'price_LITE_PLACEHOLDER'; // $15/mo lite tier — set after creating in Stripe
+const STRIPE_LITE_PRICE_ID = 'price_1TJW2NDu0Wu9yqrtUNtAixM1'; // $15/mo lite tier
+const STRIPE_LITE_ANNUAL_PRICE_ID = 'price_1TJWAXDu0Wu9yqrtBXsX2dre'; // annual lite
 const LITE_MONTHLY_SCAN_LIMIT = 25;
 const LITE_ALLOWED_MODES = ['answer', 'driptype', 'translate'];
 
@@ -2228,8 +2229,13 @@ ipcMain.handle('create-checkout-session', async (_ev, email, plan) => {
     const stripe = getStripe();
     if (!stripe) return { error: 'Payment system not configured. Please reinstall Zap or contact support.' };
 
-    const priceId = plan === 'annual' ? STRIPE_ANNUAL_PRICE_ID : STRIPE_PRICE_ID;
-    const session = await stripe.checkout.sessions.create({
+    const priceId = plan === 'annual' ? STRIPE_ANNUAL_PRICE_ID
+                  : plan === 'lite' ? STRIPE_LITE_PRICE_ID
+                  : plan === 'lite-annual' ? STRIPE_LITE_ANNUAL_PRICE_ID
+                  : STRIPE_PRICE_ID;
+
+    const referredBy = store.get('referredBy') || '';
+    const sessionParams = {
       mode: 'subscription',
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
@@ -2237,8 +2243,19 @@ ipcMain.handle('create-checkout-session', async (_ev, email, plan) => {
       allow_promotion_codes: true,
       success_url: 'https://tryzap.net/checkout/success?session_id={CHECKOUT_SESSION_ID}',
       cancel_url: 'https://tryzap.net/checkout/cancel',
-      metadata: { app: 'zap', hostname: require('os').hostname(), plan: plan || 'monthly', referredBy: store.get('referredBy') || '' }
-    });
+      metadata: { app: 'zap', hostname: require('os').hostname(), plan: plan || 'monthly', referredBy }
+    };
+
+    // Apply 10% off for referred users
+    if (referredBy) {
+      const couponId = await getOrCreateReferralCoupon();
+      if (couponId) {
+        sessionParams.discounts = [{ coupon: couponId }];
+        delete sessionParams.allow_promotion_codes; // can't use both discounts and promo codes
+      }
+    }
+
+    const session = await stripe.checkout.sessions.create(sessionParams);
 
     return { sessionId: session.id, url: session.url };
   } catch (err) {
@@ -2339,6 +2356,24 @@ async function activateFromSession(sessionId) {
       store.set('licenseValid', true);
       store.set('licenseEmail', customer.email || '');
       store.set('lastSubscriptionCheck', Date.now());
+
+      // ── Referral: credit the referrer with a free month ──
+      const referredBy = session.metadata?.referredBy || store.get('referredBy') || '';
+      if (referredBy) {
+        try {
+          const referrerCustId = await resolveReferralCode(referredBy);
+          if (referrerCustId) {
+            await stripe.customers.createBalanceTransaction(referrerCustId, {
+              amount: -2500, // -$25.00 = 1 free month
+              currency: 'usd',
+              description: 'Referral reward — 1 free month for referring a friend to Zap',
+            });
+            console.log(`[REFERRAL] Credited referrer ${referrerCustId} with $25 for code ${referredBy}`);
+          }
+        } catch (refErr) {
+          console.error('[REFERRAL] Auto-credit failed (non-blocking):', refErr.message);
+        }
+      }
 
       proceedAfterLicense();
       return { valid: true, email: customer.email };
@@ -2869,10 +2904,41 @@ ipcMain.handle('install-pending-update', async () => {
 });
 
 // ══════════════════════════════════════════════════════════════
-//  REFERRAL SYSTEM — refer friends, earn free months
-//  Each referral = $25 credit on referrer's next invoice
-//  Referred friend gets 20% off first payment
+//  REFERRAL SYSTEM
+//  Referrer: gets 1 free month ($25 credit on next invoice)
+//  Referred: gets 10% off their first payment
 // ══════════════════════════════════════════════════════════════
+
+// Ensure a "10% off first payment" coupon exists in Stripe (created once, reused)
+let referralCouponId = null;
+async function getOrCreateReferralCoupon() {
+  if (referralCouponId) return referralCouponId;
+  try {
+    const stripe = getStripe();
+    if (!stripe) return null;
+
+    // Try to retrieve existing coupon
+    try {
+      const coupon = await stripe.coupons.retrieve('ZAP_REFERRAL_10');
+      referralCouponId = coupon.id;
+      return referralCouponId;
+    } catch (_) {
+      // Doesn't exist yet — create it
+    }
+
+    const coupon = await stripe.coupons.create({
+      id: 'ZAP_REFERRAL_10',
+      percent_off: 10,
+      duration: 'once', // 10% off first payment only
+      name: 'Referral — 10% off first month',
+    });
+    referralCouponId = coupon.id;
+    return referralCouponId;
+  } catch (err) {
+    console.error('[REFERRAL] Failed to create/get coupon:', err.message);
+    return null;
+  }
+}
 
 ipcMain.handle('get-referral-code', () => {
   const customerId = store.get('stripeCustomerId');
@@ -2902,9 +2968,33 @@ ipcMain.handle('get-referral-stats', () => {
   };
 });
 
+// Resolve a referral code (ZAP-XXXXXXXX) to a Stripe customer ID
+async function resolveReferralCode(code) {
+  if (!code || !code.startsWith('ZAP-')) return null;
+  try {
+    const stripe = getStripe();
+    if (!stripe) return null;
+
+    // The code is ZAP-<first 8 chars of cus_ID>
+    const shortId = code.replace('ZAP-', '').toLowerCase();
+
+    // Search customers — the short ID is the first 8 chars after 'cus_'
+    // We'll list recent customers and check
+    const customers = await stripe.customers.list({ limit: 100 });
+    for (const c of customers.data) {
+      const custShort = c.id.replace('cus_', '').slice(0, 8).toUpperCase();
+      if (custShort === code.replace('ZAP-', '')) return c.id;
+    }
+    return null;
+  } catch (err) {
+    console.error('[REFERRAL] Code resolution failed:', err.message);
+    return null;
+  }
+}
+
 ipcMain.handle('apply-referral-credit', async (_ev, referrerCustomerId) => {
-  // Called by the bot/webhook when a referred user subscribes
-  // Applies a $25 credit to the referrer's next invoice
+  // Called when a referred user's subscription becomes active
+  // Applies a $25 credit (1 free month) to the referrer's next invoice
   try {
     const stripe = getStripe();
     if (!stripe) return { success: false, error: 'Stripe not configured' };
