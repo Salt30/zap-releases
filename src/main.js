@@ -316,8 +316,12 @@ function getStripe() {
   return stripeClient;
 }
 
-// Admin master keys — always valid
-const ADMIN_KEYS = ['ZAP-ADMIN-MASTER-2026', 'ZAP-OWNER-ARHAAN-KEY'];
+// Admin master keys — injected at build time via sed (never hardcoded in source)
+const ADMIN_KEY_1 = 'YOUR_ADMIN_KEY_1';
+const ADMIN_KEY_1_PLACEHOLDER = 'YOUR_ADMIN' + '_KEY_1';
+const ADMIN_KEY_2 = 'YOUR_ADMIN_KEY_2';
+const ADMIN_KEY_2_PLACEHOLDER = 'YOUR_ADMIN' + '_KEY_2';
+const ADMIN_KEYS = [ADMIN_KEY_1, ADMIN_KEY_2].filter(k => !k.includes('YOUR_ADMIN'));
 
 /* ─────────────────── Usage Analytics ─────────────────── */
 
