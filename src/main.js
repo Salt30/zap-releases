@@ -3350,6 +3350,21 @@ function extractAdminReply(body) {
   return match ? match[1].trim() : null;
 }
 
+ipcMain.handle('get-ticket-comments', async (_ev, issueNumber) => {
+  const token = getGitHubToken();
+  if (!token || !issueNumber) return [];
+  try {
+    const comments = await ghAPI('GET', `/repos/${GITHUB_REPO}/issues/${issueNumber}/comments?per_page=50`);
+    return comments.map(c => ({
+      id: c.id,
+      body: c.body,
+      createdAt: c.created_at,
+      isAdmin: c.body && c.body.startsWith('**Admin Reply:**'),
+      author: c.user ? c.user.login : 'unknown'
+    }));
+  } catch (_) { return []; }
+});
+
 ipcMain.handle('update-ticket-status', async (_ev, { ticketId, status, reply }) => {
   if (!isAdmin()) return { error: 'Not authorized' };
 
