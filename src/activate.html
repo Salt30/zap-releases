@@ -6,8 +6,12 @@
 <style>
   :root{--accent:#4a6fa5;--accent-glow:#5b82bd;--accent-dim:#3a5a8a;--bg-deep:#0a0a12;--bg-card:rgba(18,18,35,0.85);--bg-input:rgba(10,10,22,0.9);--text:#f5f0e8;--text-muted:#b8b0a0;--text-dim:#6e6a60;--border:rgba(74,111,165,0.15);--border-card:rgba(74,111,165,0.12);--green:#6ec87a;--red:#ef4444;--orange:#f59e0b}
   *{margin:0;padding:0;box-sizing:border-box}
-  body{background:var(--bg-deep);background-image:radial-gradient(ellipse at 20% 0%,rgba(30,45,80,.4) 0%,transparent 60%),radial-gradient(ellipse at 80% 100%,rgba(20,30,60,.3) 0%,transparent 60%),linear-gradient(180deg,#0a0a14 0%,#0d0d1c 40%,#0a0b16 100%);color:var(--text);font-family:'SF Pro Display',system-ui,-apple-system,BlinkMacSystemFont,sans-serif;height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:40px;-webkit-app-region:drag;overflow:hidden}
-  button,input,a{-webkit-app-region:no-drag}
+  body{background:var(--bg-deep);background-image:radial-gradient(ellipse at 20% 0%,rgba(30,45,80,.4) 0%,transparent 60%),radial-gradient(ellipse at 80% 100%,rgba(20,30,60,.3) 0%,transparent 60%),linear-gradient(180deg,#0a0a14 0%,#0d0d1c 40%,#0a0b16 100%);color:var(--text);font-family:'SF Pro Display',system-ui,-apple-system,BlinkMacSystemFont,sans-serif;height:100vh;display:flex;flex-direction:column;align-items:center;padding:40px 40px 24px;-webkit-app-region:drag;overflow-y:auto;overflow-x:hidden}
+  body::-webkit-scrollbar{width:6px}
+  body::-webkit-scrollbar-track{background:transparent}
+  body::-webkit-scrollbar-thumb{background:rgba(74,111,165,0.25);border-radius:3px}
+  body::-webkit-scrollbar-thumb:hover{background:rgba(74,111,165,0.4)}
+  button,input,a,.plan-toggle,.plan-option,.legal-check,.admin-toggle,.section,.admin-section,.divider{-webkit-app-region:no-drag}
 
   .logo{width:72px;height:72px;background:linear-gradient(135deg,var(--accent),#3a5a8a);border-radius:20px;display:flex;align-items:center;justify-content:center;font-size:34px;color:var(--text);box-shadow:0 4px 28px rgba(74,111,165,.35);margin-bottom:16px}
   .title{font-size:26px;font-weight:700;letter-spacing:-.3px;margin-bottom:4px}

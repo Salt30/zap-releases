@@ -2144,7 +2144,7 @@ function showActivate() {
   if (process.platform === 'darwin') app.dock?.show();
 
   activateWin = new BrowserWindow({
-    width: 520, height: 620,
+    width: 520, height: 700,
     resizable: false, minimizable: false, maximizable: false,
     title: 'Activate Zap',
     backgroundColor: '#0a0a12',
