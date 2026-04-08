@@ -691,6 +691,7 @@
       var r=await window.zap.aiRequest({mode:'autopilot',text:null,imageDataUrl:img,region:null,language:settings.language});
       if(r.error){
         // Show error — bring overlay back
+        window.zap.showOverlay();
         resPanel.style.display='flex';resPanel.style.flexDirection='column';
         resPanel.style.left='50%';resPanel.style.top='50%';resPanel.style.transform='translate(-50%,-50%)';
         resBody.className='';resBody.innerHTML='<div class="error-msg">'+esc(r.error)+'</div>';
@@ -703,8 +704,21 @@
           var m2=r.result.match(/\{[\s\S]*\}/);
           if(m2)parsed=JSON.parse(m2[0]); else throw new Error('No JSON found');
         }
-        if(!parsed.fields||!parsed.fields.length){return}
-      }catch(e){return}
+        if(!parsed.fields||!parsed.fields.length){
+          // No fillable fields detected — tell the user
+          window.zap.showOverlay();
+          resPanel.style.display='flex';resPanel.style.flexDirection='column';
+          resPanel.style.left='50%';resPanel.style.top='50%';resPanel.style.transform='translate(-50%,-50%)';
+          resBody.className='';resBody.innerHTML='<div class="error-msg">No fillable fields detected on screen. Autopilot works with forms, quizzes, and text inputs — make sure they\'re visible and try again.</div>';
+          return;
+        }
+      }catch(e){
+        window.zap.showOverlay();
+        resPanel.style.display='flex';resPanel.style.flexDirection='column';
+        resPanel.style.left='50%';resPanel.style.top='50%';resPanel.style.transform='translate(-50%,-50%)';
+        resBody.className='';resBody.innerHTML='<div class="error-msg">Couldn\'t parse autopilot response. Try again.</div>';
+        return;
+      }
 
       // Execute fills silently
       var result=await window.zap.autopilotExecute({fields:parsed.fields});
@@ -713,7 +727,13 @@
         showAutopilotResults(result);
       }
       // Done — overlay stays hidden, user is back to normal screen
-    }catch(err){}
+    }catch(err){
+      // Unexpected error — show feedback instead of failing silently
+      window.zap.showOverlay();
+      resPanel.style.display='flex';resPanel.style.flexDirection='column';
+      resPanel.style.left='50%';resPanel.style.top='50%';resPanel.style.transform='translate(-50%,-50%)';
+      resBody.className='';resBody.innerHTML='<div class="error-msg">Autopilot encountered an error. Please try again.</div>';
+    }
     // Reset mode so next hotkey press works fresh
     currentMode='answer';
     modeInd.textContent='Answer';

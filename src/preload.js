@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer, clipboard } = require('electron');
 
 contextBridge.exposeInMainWorld('zap', {
   hideOverlay:    ()       => ipcRenderer.send('hide-overlay'),
+  showOverlay:    ()       => ipcRenderer.send('show-overlay'),
   openSettings:   ()       => ipcRenderer.send('open-settings'),
   openApp:        ()       => ipcRenderer.send('open-app'),
   getSettings:    ()       => ipcRenderer.invoke('get-settings'),

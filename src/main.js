@@ -44,6 +44,16 @@ function verifyLicense(storeRef) {
   return stored === computeLicenseHMAC(storeRef);
 }
 
+/* ─────────────────── Single Instance Lock ─────────────────── */
+
+// Prevent multiple Zap processes from running simultaneously.
+// If a second instance launches, focus the existing window and exit the duplicate.
+const gotTheLock = app.requestSingleInstanceLock();
+if (!gotTheLock) {
+  console.log('[APP] Another instance is already running — quitting duplicate.');
+  app.quit();
+}
+
 /* ─────────────────── Persistent Settings ─────────────────── */
 
 // This gets replaced by sed during CI build — do NOT change the placeholder string
@@ -1349,6 +1359,13 @@ ipcMain.on('hide-overlay', () => {
   if (dripTypeRunning) dripTypeCancelled = true;
 });
 
+ipcMain.on('show-overlay', () => {
+  if (overlayWin && !overlayWin.isDestroyed()) {
+    overlayWin.show();
+    overlayUp = true;
+  }
+});
+
 ipcMain.on('open-flashcards', (_ev, cards) => showFlashcards(cards));
 
 ipcMain.handle('paste-to-screen', async () => {
@@ -2177,6 +2194,14 @@ let activateWin = null;
 function isLicensed() {
   // Only a valid license key + accepted terms + intact HMAC grants access
   if (!store.get('licenseValid') || !store.get('licenseKey') || !store.get('termsAccepted')) return false;
+  // HMAC migration: existing users upgrading to v3.26.8+ won't have _lsig yet.
+  // Seal their current (legitimate) license data instead of revoking.
+  const storedSig = store.get('_lsig');
+  if (!storedSig) {
+    console.log('[LICENSE] No signature found — migrating existing license (first run after update).');
+    sealLicense(store);
+    return true;
+  }
   // Verify config file hasn't been tampered with
   if (!verifyLicense(store)) {
     console.warn('[LICENSE] Tamper detected — license signature mismatch. Revoking.');
@@ -3911,6 +3936,19 @@ function applyCloseResistance(win) {
     }
   });
 }
+
+/* ─────────────────── Second Instance Handler ─────────────────── */
+
+app.on('second-instance', () => {
+  // A duplicate Zap tried to launch — focus the existing overlay or activate window
+  if (overlayWin && !overlayWin.isDestroyed()) {
+    overlayWin.show();
+    overlayWin.focus();
+  } else if (activateWin && !activateWin.isDestroyed()) {
+    activateWin.show();
+    activateWin.focus();
+  }
+});
 
 /* ─────────────────── App Lifecycle ─────────────────── */
 
