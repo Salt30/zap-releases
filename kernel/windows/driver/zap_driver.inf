@@ -1,0 +1,58 @@
+;
+; zap_driver.inf — INF file for Zap kernel driver installation
+;
+; This INF installs the driver as a kernel-mode service.
+; Used by the installer script and Windows Device Manager.
+;
+; Copyright (c) 2026 Zap AI. PROPRIETARY AND CONFIDENTIAL.
+;
+
+[Version]
+Signature   = "$WINDOWS NT$"
+Class       = System
+ClassGuid   = {4d36e97d-e325-11ce-bfc1-08002be10318}
+Provider    = %ManufacturerName%
+CatalogFile = zap_driver.cat
+DriverVer   = 04/02/2026,1.0.0.0
+PnpLockdown = 1
+
+[DestinationDirs]
+DefaultDestDir = 13
+
+[SourceDisksNames]
+1 = %DiskName%,,,""
+
+[SourceDisksFiles]
+zap_driver.sys = 1,,
+
+; ---- Manufacturer ----
+[Manufacturer]
+%ManufacturerName% = Standard,NTamd64
+
+[Standard.NTamd64]
+%zap_driver.DeviceDesc% = zap_driver_Install, Root\ZapShield
+
+; ---- Install Section ----
+[zap_driver_Install.NT]
+CopyFiles = zap_driver.NT.Copy
+
+[zap_driver.NT.Copy]
+zap_driver.sys
+
+; ---- Service Installation ----
+[zap_driver_Install.NT.Services]
+AddService = ZapShield, 0x00000002, zap_driver_Service_Inst
+
+[zap_driver_Service_Inst]
+DisplayName    = %ServiceDescription%
+ServiceType    = 1               ; SERVICE_KERNEL_DRIVER
+StartType      = 3               ; SERVICE_DEMAND_START
+ErrorControl   = 1               ; SERVICE_ERROR_NORMAL
+ServiceBinary  = %13%\zap_driver.sys
+
+; ---- Strings ----
+[Strings]
+ManufacturerName   = "Zap AI"
+DiskName           = "Zap Shield Driver Installation Disk"
+zap_driver.DeviceDesc = "Zap Shield Kernel Driver"
+ServiceDescription = "Zap Shield — Process protection and stealth service"

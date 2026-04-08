@@ -1,0 +1,18 @@
+; zap_shield.def — Module definition for zap_shield.dll
+; Explicitly exports all public API functions
+
+LIBRARY zap_shield
+EXPORTS
+    zap_init
+    zap_close
+    zap_driver_available
+    zap_get_status
+    zap_hide_self
+    zap_hide_process
+    zap_unhide_process
+    zap_protect_self
+    zap_protect_process
+    zap_unprotect_process
+    zap_self_destruct
+    zap_stealth_mode
+    zap_stealth_off

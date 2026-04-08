@@ -55,9 +55,7 @@ jobs:
         run: npm install
 
       - name: Install security build tools
-        run: |
-          npm install --save-dev bytenode javascript-obfuscator
-          npm install --save bytenode
+        run: npm install --save-dev javascript-obfuscator
 
       - name: Import certificate
         env:
@@ -104,28 +102,6 @@ jobs:
       - name: Obfuscate source code
         run: node scripts/obfuscate.js
 
-      - name: Compile to V8 bytecode
-        run: node scripts/compile-bytecode.js
-
-      - name: Verify bytecode compilation
-        run: |
-          if [ ! -f "src/main.jsc" ]; then
-            echo "ERROR: main.jsc not found — bytecode compilation failed"
-            exit 1
-          fi
-          if [ ! -f "src/preload.jsc" ]; then
-            echo "ERROR: preload.jsc not found — bytecode compilation failed"
-            exit 1
-          fi
-          echo "Bytecode files:"
-          ls -la src/*.jsc
-          echo ""
-          echo "Loader files (should be tiny):"
-          wc -c src/main.js src/preload.js
-          echo ""
-          echo "Verifying main.js is now a loader (not source):"
-          head -3 src/main.js
-
       - name: Compile native helpers (universal binary)
         run: |
           mkdir -p helpers/bin
@@ -155,23 +131,6 @@ jobs:
           echo ""
           echo "Signing info:"
           codesign -dv --verbose=4 "$APP" 2>&1 | head -20
-
-      - name: Verify ASAR contains bytecode (not source)
-        run: |
-          ASAR=$(find dist -name "app.asar" | head -1)
-          if [ -n "$ASAR" ]; then
-            npx asar list "$ASAR" | head -20
-            echo ""
-            echo "Checking for .jsc files in ASAR:"
-            npx asar list "$ASAR" | grep -c "\.jsc" || echo "0 .jsc files found"
-            echo ""
-            echo "Checking main.js is a loader (< 200 bytes):"
-            npx asar extract-file "$ASAR" src/main.js /tmp/extracted_main.js 2>/dev/null || true
-            if [ -f /tmp/extracted_main.js ]; then
-              wc -c /tmp/extracted_main.js
-              cat /tmp/extracted_main.js
-            fi
-          fi
 
       - name: Notarize all DMGs
         env:
@@ -236,9 +195,7 @@ jobs:
         run: npm install
 
       - name: Install security build tools
-        run: |
-          npm install --save-dev bytenode javascript-obfuscator
-          npm install --save bytenode
+        run: npm install --save-dev javascript-obfuscator
 
       - name: Generate Windows icon
         run: |
@@ -278,17 +235,6 @@ jobs:
       - name: Obfuscate source code
         run: node scripts/obfuscate.js
 
-      - name: Compile to V8 bytecode
-        run: node scripts/compile-bytecode.js
-
-      - name: Verify bytecode compilation
-        run: |
-          if (!(Test-Path "src/main.jsc")) { Write-Error "main.jsc not found"; exit 1 }
-          if (!(Test-Path "src/preload.jsc")) { Write-Error "preload.jsc not found"; exit 1 }
-          Write-Output "Bytecode files created successfully"
-          Get-ChildItem src/*.jsc | Format-Table Name, Length
-        shell: pwsh
-
       - name: Build Windows
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -320,9 +266,7 @@ jobs:
         run: npm install
 
       - name: Install security build tools
-        run: |
-          npm install --save-dev bytenode javascript-obfuscator
-          npm install --save bytenode
+        run: npm install --save-dev javascript-obfuscator
 
       - name: Install Linux build tools
         run: |
@@ -368,16 +312,6 @@ jobs:
 
       - name: Obfuscate source code
         run: node scripts/obfuscate.js
-
-      - name: Compile to V8 bytecode
-        run: node scripts/compile-bytecode.js
-
-      - name: Verify bytecode compilation
-        run: |
-          test -f src/main.jsc || { echo "ERROR: main.jsc not found"; exit 1; }
-          test -f src/preload.jsc || { echo "ERROR: preload.jsc not found"; exit 1; }
-          echo "Bytecode files:"
-          ls -la src/*.jsc
 
       - name: Build Linux
         env:
