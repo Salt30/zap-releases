@@ -423,6 +423,13 @@
         </div>
         <div class="toggle" id="toggle-ghostAnswer" data-key="ghostAnswer"><div class="thumb"></div></div>
       </div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-label">Continuous Mode</div>
+          <div class="toggle-desc">Replaces the full-screen overlay with a small floating widget. Click through to your exam while Zap stays on top. Press your hotkey or the Scan button to capture — no drag needed.</div>
+        </div>
+        <div class="toggle" id="toggle-continuousMode" data-key="continuousMode"><div class="thumb"></div></div>
+      </div>
       <div class="field">
         <label>Font Family</label>
         <select id="setting-fontFamily">
@@ -856,6 +863,7 @@
       borderRadius:parseInt(document.getElementById('setting-borderRadius').value),
       overlayOpacity:parseInt(document.getElementById('setting-overlayOpacity').value)||0,
       ghostAnswer:document.getElementById('toggle-ghostAnswer').classList.contains('active'),
+      continuousMode:document.getElementById('toggle-continuousMode').classList.contains('active'),
       fontFamily:document.getElementById('setting-fontFamily').value,
       dripSpeed:40,
       dripWPM:parseInt(document.getElementById('setting-dripWPM').value)||45,

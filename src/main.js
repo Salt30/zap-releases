@@ -1058,6 +1058,11 @@ function toggle() {
   // Block overlay if not licensed
   if (!isLicensed()) { showActivate(); return; }
   if (!overlayWin) makeOverlay();
+  // In continuous mode: re-pressing hotkey triggers a scan instead of hiding
+  if (overlayUp && store.get('continuousMode') && !isLockdown()) {
+    try { overlayWin.webContents.send('continuous-scan'); } catch (_) {}
+    return;
+  }
   if (overlayUp) { overlayWin.hide(); overlayUp = false; stopLockdownKeepAlive(); }
   else showWithMode(store.get('lastMode') || 'answer');
 }
@@ -2013,6 +2018,10 @@ ipcMain.handle('recapture-screen', async () => {
   const img = await grabScreen();
   overlayWin.show();
   applyOverlayLevel();
+  // In continuous mode, re-send settings so overlay re-enters click-through
+  if (store.get('continuousMode')) {
+    overlayWin.webContents.send('load-settings', store.store);
+  }
   return img;
 });
 

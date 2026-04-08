@@ -27,6 +27,7 @@ contextBridge.exposeInMainWorld('zap', {
   onSelfDestructArmed: (cb) => ipcRenderer.on('self-destruct-armed', () => cb()),
   onSelfDestructDisarmed: (cb) => ipcRenderer.on('self-destruct-disarmed', () => cb()),
   onGlobalEscape:        (cb) => ipcRenderer.on('global-escape', () => cb()),
+  onContinuousScan:      (cb) => ipcRenderer.on('continuous-scan', () => cb()),
   setIgnoreMouseEvents: (ignore, opts) => ipcRenderer.send('set-ignore-mouse', ignore, opts),
   onSettingsSaved:  (cb) => ipcRenderer.on('settings-saved',   ()     => cb()),
   onCheckoutCancelled: (cb) => ipcRenderer.on('checkout-cancelled', () => cb()),
