@@ -61,6 +61,7 @@ contextBridge.exposeInMainWorld('zap', {
     try { ipcRenderer.send('copy-to-clipboard', text); } catch (_) {}
   },
 
+  checkPermissions: () => ipcRenderer.invoke('check-permissions'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   openExternal:  (url) => ipcRenderer.invoke('open-external', url),
   forceClose:    ()    => ipcRenderer.send('force-close'),

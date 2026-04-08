@@ -214,11 +214,12 @@ function startPermissionHealthCheck() {
 
 // IPC handler for renderer to check permissions on demand
 ipcMain.handle('check-permissions', () => {
-  if (process.platform !== 'darwin') return { accessibility: true, screenRecording: true };
+  if (process.platform !== 'darwin') return { accessibility: true, screenRecording: true, platform: process.platform };
   const { systemPreferences } = require('electron');
   return {
     accessibility: systemPreferences.isTrustedAccessibilityClient(false),
     screenRecording: systemPreferences.getMediaAccessStatus('screen') === 'granted',
+    platform: 'darwin'
   };
 });
 
