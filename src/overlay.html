@@ -215,7 +215,14 @@
   var inputBar=$('text-input-bar'), inputEl=$('text-input');
   var dtPanel=$('drip-type-panel'), dtArea=$('dt-textarea'), dtStart=$('dt-start-btn'), dtClose=$('dt-close-btn'), dtPencil=$('dt-pencil-btn');
 
-  window.zap.onScreenCaptured(function(u){capture=u;if(captures.length===0&&u)captures=[u];updateCaptureUI()});
+  window.zap.onScreenCaptured(function(u){
+    capture=u;if(captures.length===0&&u)captures=[u];updateCaptureUI();
+    // Reset click-through on fresh capture so drag-to-select works
+    disableClickThrough();
+    // Hide previous response panel so user can drag-select fresh
+    resPanel.style.display='none';resPanel.style.transform='';
+    sel.style.display='none';selRect=null;instr.style.display='';
+  });
 
   window.zap.onLoadSettings(function(s){
     settings=s;
