@@ -15,6 +15,34 @@ const fs = require('fs');
 const os = require('os');
 const { exec } = require('child_process');
 const Store = require('electron-store');
+const crypto = require('crypto');
+
+/* ─────────────────── License Integrity (HMAC tamper detection) ─────────────────── */
+
+// Machine-bound secret: derived from hardware + app path so the signature is unique per install
+function getLicenseSecret() {
+  const hw = (os.hostname() + os.homedir() + os.cpus()[0]?.model + os.totalmem()).replace(/\s/g, '');
+  return crypto.createHash('sha256').update('zap-v3-' + hw).digest();
+}
+
+// Fields that form the license integrity payload — if ANY are tampered, license is invalid
+const LICENSE_FIELDS = ['licenseValid', 'licenseKey', 'stripeCustomerId', 'stripeSubscriptionId', 'subscriptionStatus', 'subscriptionTier', 'licenseEmail'];
+
+function computeLicenseHMAC(storeRef) {
+  const secret = getLicenseSecret();
+  const payload = LICENSE_FIELDS.map(k => String(storeRef.get(k) || '')).join('|');
+  return crypto.createHmac('sha256', secret).update(payload).digest('hex');
+}
+
+function sealLicense(storeRef) {
+  storeRef.set('_lsig', computeLicenseHMAC(storeRef));
+}
+
+function verifyLicense(storeRef) {
+  const stored = storeRef.get('_lsig');
+  if (!stored) return false;
+  return stored === computeLicenseHMAC(storeRef);
+}
 
 /* ─────────────────── Persistent Settings ─────────────────── */
 
@@ -2147,8 +2175,16 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
 let activateWin = null;
 
 function isLicensed() {
-  // Only a valid license key + accepted terms grants access
-  return !!(store.get('licenseValid') && store.get('licenseKey') && store.get('termsAccepted'));
+  // Only a valid license key + accepted terms + intact HMAC grants access
+  if (!store.get('licenseValid') || !store.get('licenseKey') || !store.get('termsAccepted')) return false;
+  // Verify config file hasn't been tampered with
+  if (!verifyLicense(store)) {
+    console.warn('[LICENSE] Tamper detected — license signature mismatch. Revoking.');
+    store.set('licenseValid', false);
+    store.delete('_lsig');
+    return false;
+  }
+  return true;
 }
 
 function trialDaysLeft() {
@@ -2223,6 +2259,7 @@ ipcMain.handle('validate-license', async (_ev, key) => {
     store.set('licenseKey', key.trim());
     store.set('licenseValid', true);
     store.set('licenseEmail', 'admin@tryzap.net');
+    sealLicense(store);
     proceedAfterLicense();
     return { valid: true, email: 'admin@tryzap.net', admin: true };
   }
@@ -2288,6 +2325,7 @@ ipcMain.handle('verify-email-subscription', async (_ev, email) => {
         store.set('licenseEmail', customer.email || normalizedEmail);
         store.set('authEmail', normalizedEmail);
         store.set('lastSubscriptionCheck', Date.now());
+        sealLicense(store);
 
         proceedAfterLicense();
         return { valid: true, email: customer.email || normalizedEmail, tier, source: 'email-verification' };
@@ -2435,6 +2473,7 @@ async function activateFromSession(sessionId) {
       store.set('licenseValid', true);
       store.set('licenseEmail', customer.email || '');
       store.set('lastSubscriptionCheck', Date.now());
+      sealLicense(store);
 
       // ── Referral: credit the referrer with a free month ──
       const referredBy = session.metadata?.referredBy || store.get('referredBy') || '';
@@ -2487,6 +2526,7 @@ async function checkSubscriptionStatus(force = false) {
     if (ADMIN_KEYS.includes(store.get('licenseKey'))) return;
     // No subscription and not admin — revoke
     store.set('licenseValid', false);
+    store.delete('_lsig');
     return;
   }
 
@@ -2507,17 +2547,20 @@ async function checkSubscriptionStatus(force = false) {
     if (sub.status === 'active' || sub.status === 'trialing') {
       store.set('licenseValid', true);
       store.set('lastSubscriptionCheck', Date.now());
+      sealLicense(store);
     } else if (sub.status === 'past_due') {
       // Grace period: keep access for 3 days after payment failure
       const periodEnd = sub.current_period_end * 1000;
       const graceDays = 3 * 24 * 60 * 60 * 1000;
       if (Date.now() > periodEnd + graceDays) {
         store.set('licenseValid', false);
+        store.delete('_lsig');
       }
       store.set('lastSubscriptionCheck', Date.now());
     } else {
       // canceled, unpaid, incomplete, incomplete_expired — revoke immediately
       store.set('licenseValid', false);
+      store.delete('_lsig');
       store.set('lastSubscriptionCheck', Date.now());
     }
   } catch (err) {
@@ -2527,6 +2570,7 @@ async function checkSubscriptionStatus(force = false) {
     const OFFLINE_GRACE = 48 * 60 * 60 * 1000;
     if (Date.now() - lastCheck > OFFLINE_GRACE) {
       store.set('licenseValid', false);
+      store.delete('_lsig');
     }
   }
 }
