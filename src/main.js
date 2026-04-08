@@ -444,6 +444,25 @@ let flashcardsWin  = null;
 let pinnedWin      = null;
 let tray           = null;
 let overlayUp      = false;
+let escShortcutRegistered = false;
+
+function registerEscShortcut() {
+  if (escShortcutRegistered) return;
+  try {
+    globalShortcut.register('Escape', () => {
+      if (!overlayUp || !overlayWin) return;
+      // Forward Escape to the overlay renderer so it can handle its own dismiss logic
+      try { overlayWin.webContents.send('global-escape'); } catch (_) {}
+    });
+    escShortcutRegistered = true;
+  } catch (_) {}
+}
+
+function unregisterEscShortcut() {
+  if (!escShortcutRegistered) return;
+  try { globalShortcut.unregister('Escape'); } catch (_) {}
+  escShortcutRegistered = false;
+}
 
 /* ─────────────────── Screen Share Stealth ─────────────────── */
 
@@ -631,10 +650,12 @@ function makeOverlay() {
   overlayWin.on('show', () => {
     enforceContentProtection(overlayWin);
     applyRespondusWindowCloaking(overlayWin);
+    registerEscShortcut();
     // Double-apply after a short delay to catch any macOS resets
     setTimeout(() => enforceContentProtection(overlayWin), 50);
     setTimeout(() => enforceContentProtection(overlayWin), 200);
   });
+  overlayWin.on('hide', () => { unregisterEscShortcut(); });
   overlayWin.on('focus', () => enforceContentProtection(overlayWin));
   overlayWin.on('blur', () => enforceContentProtection(overlayWin));
   overlayWin.webContents.on('did-finish-load', () => {

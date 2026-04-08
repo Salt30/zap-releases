@@ -233,6 +233,10 @@
       inputBar.style.display='block';
       instr.innerHTML='Type your question and press <kbd>Enter</kbd> &middot; <kbd>Esc</kbd> close';
       setTimeout(function(){inputEl.focus()},150);
+    } else if(!s.lockdownMode && currentMode!=='driptype'){
+      textMode=false;
+      inputBar.style.display='none';
+      instr.style.display='';
     }
   });
 
@@ -492,6 +496,16 @@
 
   function resetSel(){sel.style.display='none';selRect=null;instr.style.display='';captures=capture?[capture]:[];addCaptureBtn.style.display='none';captureCount.style.display='none'}
 
+  function handleEscape(){
+    if(dtPanel.style.display==='block'){hideDT();setMode('answer');instr.style.display=''}
+    else if(resPanel.style.display==='flex'){disableClickThrough();resPanel.style.display='none';resPanel.style.transform='';resetSel()}
+    else if(textMode){textMode=false;inputBar.style.display='none';inputEl.value='';instr.style.display=''}
+    else{disableClickThrough();window.zap.hideOverlay()}
+  }
+
+  // Global Escape from main process — works even when overlay has no keyboard focus (click-through mode)
+  window.zap.onGlobalEscape(function(){handleEscape()});
+
   document.addEventListener('keydown',function(e){
     if(e.target===dtArea&&e.key!=='Escape')return;
     if(e.key==='Tab'){
@@ -502,12 +516,8 @@
       if(textMode){inputEl.focus();instr.style.display='none'}
       else{instr.style.display='';inputEl.value=''}
     }
-    if(e.key==='Escape'){
-      if(dtPanel.style.display==='block'){hideDT();setMode('answer');instr.style.display=''}
-      else if(resPanel.style.display==='flex'){disableClickThrough();resPanel.style.display='none';resPanel.style.transform='';resetSel()}
-      else if(textMode){textMode=false;inputBar.style.display='none';inputEl.value='';instr.style.display=''}
-      else{disableClickThrough();window.zap.hideOverlay()}
-    }
+    if(e.key==='Escape') handleEscape();
+
     if(e.key==='Enter'&&textMode&&inputEl.value.trim()) processRequest(inputEl.value.trim());
     if((e.ctrlKey||e.metaKey)&&e.key==='c'&&resPanel.style.display==='flex'){
       window.zap.copyToClipboard(resBody.innerText);
@@ -585,16 +595,19 @@
   }
 
   // ── Click-Through: let user click on exam/app below the transparent overlay ──
+  var clickThroughActive=false;
+  // Set up mouseenter/mouseleave ONCE (not per-request) to avoid duplicate listeners
+  [resPanel,inputBar,dtPanel].forEach(function(el){
+    if(!el) return;
+    el.addEventListener('mouseenter',function(){if(clickThroughActive)window.zap.setIgnoreMouseEvents(false)});
+    el.addEventListener('mouseleave',function(){if(clickThroughActive)window.zap.setIgnoreMouseEvents(true,{forward:true})});
+  });
   function enableClickThrough(){
+    clickThroughActive=true;
     window.zap.setIgnoreMouseEvents(true,{forward:true});
-    // The response panel and input bar need to receive mouse events
-    [resPanel,inputBar,dtPanel].forEach(function(el){
-      if(!el) return;
-      el.addEventListener('mouseenter',function(){window.zap.setIgnoreMouseEvents(false)});
-      el.addEventListener('mouseleave',function(){window.zap.setIgnoreMouseEvents(true,{forward:true})});
-    });
   }
   function disableClickThrough(){
+    clickThroughActive=false;
     window.zap.setIgnoreMouseEvents(false);
   }
 
