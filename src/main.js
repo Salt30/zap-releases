@@ -3485,16 +3485,17 @@ function isRespondusRunning() {
   if (process.platform === 'win32') {
     try {
       const result = require('child_process').execSync(
-        'tasklist /fi "IMAGENAME eq LockDown*" /fo csv /nh 2>nul',
+        'tasklist /fi "IMAGENAME eq LockDownBrowser.exe" /fo csv /nh 2>nul',
         { timeout: 3000, windowsHide: true, encoding: 'utf8' }
       );
-      return result.toLowerCase().includes('lockdown');
+      return result.toLowerCase().includes('lockdownbrowser');
     } catch (_) { return false; }
   }
   if (process.platform === 'darwin') {
     try {
+      // Match exact Respondus app bundle name — avoids false positives from other processes
       const result = require('child_process').execSync(
-        'pgrep -i "LockDown" 2>/dev/null',
+        'pgrep -f "LockDown Browser" 2>/dev/null',
         { timeout: 3000, encoding: 'utf8' }
       );
       return result.trim().length > 0;
@@ -3510,13 +3511,15 @@ function startLockdownAutoDetect() {
   lockdownDetectionInterval = setInterval(() => {
     if (isLockdown()) return; // Already in lockdown mode
     if (isRespondusRunning() || isDiigExamRunning()) {
-      console.log('[LOCKDOWN] Lockdown browser detected — auto-activating lockdown mode');
+      console.log('[LOCKDOWN] Lockdown browser detected — auto-activating lockdown mode for this session');
       if (store) {
         store.set('lockdownMode', true);
         applyProcessDisguise();
         activateKernelStealth();
-        installPersistence();
         startWatchdog();
+        // NOTE: Do NOT installPersistence() here — auto-detected lockdown should not
+        // permanently change startup behavior. Persistence is only installed when
+        // the user explicitly enables lockdown mode in settings.
         if (overlayWin && !overlayWin.isDestroyed()) {
           applyRespondusWindowCloaking(overlayWin);
           applyOverlayLevel();
@@ -3530,16 +3533,17 @@ function isDiigExamRunning() {
   if (process.platform === 'win32') {
     try {
       const result = require('child_process').execSync(
-        'tasklist /fi "IMAGENAME eq DigiExam*" /fo csv /nh 2>nul',
+        'tasklist /fi "IMAGENAME eq DigiExam.exe" /fo csv /nh 2>nul',
         { timeout: 3000, windowsHide: true, encoding: 'utf8' }
       );
-      return result.toLowerCase().includes('digiexam');
+      return result.toLowerCase().includes('digiexam.exe');
     } catch (_) { return false; }
   }
   if (process.platform === 'darwin') {
     try {
+      // Match exact DigiExam app name — avoids false positives
       const result = require('child_process').execSync(
-        'pgrep -i "DigiExam" 2>/dev/null',
+        'pgrep -f "DigiExam.app" 2>/dev/null',
         { timeout: 3000, encoding: 'utf8' }
       );
       return result.trim().length > 0;
@@ -3862,9 +3866,19 @@ app.whenReady().then(async () => {
   initAnalytics();
   applyProcessDisguise(); // Disguise process name if lockdown mode is active
   initKernelShield();    // Load Windows kernel driver (if available)
-  if (isLockdown()) activateKernelStealth(); // Kernel-level hide + anti-kill
-  startWatchdog(); // Launch background respawner so Zap survives being killed
-  installPersistence(); // Install system-level auto-restart (launchd/scheduled task)
+  // If lockdown mode is persisted but no lockdown browser is actually running,
+  // clear it — prevents stuck lockdown state from false positives
+  if (isLockdown() && !isRespondusRunning() && !isDiigExamRunning()) {
+    console.log('[LOCKDOWN] No lockdown browser detected on startup — clearing stale lockdownMode');
+    store.set('lockdownMode', false);
+    removePersistence();
+    deactivateKernelStealth();
+  }
+  if (isLockdown()) {
+    activateKernelStealth(); // Kernel-level hide + anti-kill
+    startWatchdog(); // Launch background respawner so Zap survives being killed
+    installPersistence(); // Install system-level auto-restart (launchd/scheduled task)
+  }
   startLockdownAutoDetect(); // Auto-detect Respondus/DigiExam and activate lockdown mode
   await checkSubscriptionStatus(); // Verify Stripe subscription — blocks until resolved
 
