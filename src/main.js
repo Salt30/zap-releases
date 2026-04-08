@@ -2325,7 +2325,7 @@ ipcMain.handle('create-checkout-session', async (_ev, email, plan) => {
       metadata: { app: 'zap', hostname: require('os').hostname(), plan: plan || 'monthly', referredBy }
     };
 
-    // Apply 10% off for referred users
+    // Apply 20% off for referred users
     if (referredBy) {
       const couponId = await getOrCreateReferralCoupon();
       if (couponId) {
@@ -2988,7 +2988,7 @@ ipcMain.handle('install-pending-update', async () => {
 //  Referred: gets 10% off their first payment
 // ══════════════════════════════════════════════════════════════
 
-// Ensure a "10% off first payment" coupon exists in Stripe (created once, reused)
+// Ensure a "20% off first payment" coupon exists in Stripe (created once, reused)
 let referralCouponId = null;
 async function getOrCreateReferralCoupon() {
   if (referralCouponId) return referralCouponId;
@@ -2998,7 +2998,7 @@ async function getOrCreateReferralCoupon() {
 
     // Try to retrieve existing coupon
     try {
-      const coupon = await stripe.coupons.retrieve('ZAP_REFERRAL_10');
+      const coupon = await stripe.coupons.retrieve('ZAP_REFERRAL_20');
       referralCouponId = coupon.id;
       return referralCouponId;
     } catch (_) {
@@ -3006,10 +3006,10 @@ async function getOrCreateReferralCoupon() {
     }
 
     const coupon = await stripe.coupons.create({
-      id: 'ZAP_REFERRAL_10',
-      percent_off: 10,
-      duration: 'once', // 10% off first payment only
-      name: 'Referral — 10% off first month',
+      id: 'ZAP_REFERRAL_20',
+      percent_off: 20,
+      duration: 'once', // 20% off first payment only
+      name: 'Referral — 20% off first month',
     });
     referralCouponId = coupon.id;
     return referralCouponId;
@@ -3033,7 +3033,7 @@ ipcMain.handle('get-referral-code', () => {
 
   return {
     code,
-    link: `https://tryzap.net/?ref=${code}`,
+    link: `https://tryzap.net/referral?ref=${code}`,
     referralsCount: store.get('referralsCount') || 0,
     creditsEarned: store.get('referralCreditsEarned') || 0,
   };
@@ -3073,7 +3073,7 @@ async function resolveReferralCode(code) {
 
 ipcMain.handle('apply-referral-credit', async (_ev, referrerCustomerId) => {
   // Called when a referred user's subscription becomes active
-  // Applies a $25 credit (1 free month) to the referrer's next invoice
+  // Applies a 30% discount coupon to the referrer's next invoice
   try {
     const stripe = getStripe();
     if (!stripe) return { success: false, error: 'Stripe not configured' };
@@ -3083,11 +3083,20 @@ ipcMain.handle('apply-referral-credit', async (_ev, referrerCustomerId) => {
     const activeSub = customer.subscriptions?.data?.find(s => s.status === 'active' || s.status === 'trialing');
     if (!activeSub) return { success: false, error: 'Referrer does not have an active subscription' };
 
-    // Apply $25 credit to customer balance (negative = credit)
-    await stripe.customers.createBalanceTransaction(referrerCustomerId, {
-      amount: -2500, // -$25.00 in cents
-      currency: 'usd',
-      description: 'Referral reward — 1 free month for referring a friend to Zap',
+    // Create or get a 30% off one-time coupon for the referrer
+    let couponId = 'ZAP_REFERRER_30';
+    try { await stripe.coupons.retrieve(couponId); } catch (_) {
+      await stripe.coupons.create({
+        id: couponId,
+        percent_off: 30,
+        duration: 'once',
+        name: 'Referral reward — 30% off for referring a friend',
+      });
+    }
+
+    // Apply coupon to the referrer's active subscription for next billing cycle
+    await stripe.subscriptions.update(activeSub.id, {
+      coupon: couponId,
     });
 
     return { success: true };

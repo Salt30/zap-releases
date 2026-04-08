@@ -62,6 +62,8 @@ contextBridge.exposeInMainWorld('zap', {
   },
 
   checkPermissions: () => ipcRenderer.invoke('check-permissions'),
+  getReferralCode: () => ipcRenderer.invoke('get-referral-code'),
+  getReferralStats: () => ipcRenderer.invoke('get-referral-stats'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   openExternal:  (url) => ipcRenderer.invoke('open-external', url),
   forceClose:    ()    => ipcRenderer.send('force-close'),

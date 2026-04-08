@@ -593,6 +593,27 @@
         <button class="btn btn-primary" id="sub-subscribe-btn" style="width:100%">Subscribe Now</button>
       </div>
 
+      <div class="card" id="sub-referral-card" style="display:none;border:1px solid rgba(74,111,165,0.2)">
+        <div class="card-title">Refer &amp; Earn</div>
+        <div style="font-size:13px;color:var(--text-muted);line-height:1.6;margin-bottom:14px">
+          Share your link — <b style="color:var(--text)">you get 30% off</b> your next month, <b style="color:var(--text)">they get 20% off</b> their first month.
+        </div>
+        <div style="display:flex;gap:8px;margin-bottom:14px">
+          <input type="text" id="referral-link" readonly style="flex:1;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--accent-glow);font-family:'SF Mono','Fira Code',monospace;font-size:11px;outline:none;cursor:text" />
+          <button class="btn btn-primary" id="copy-referral-btn" style="padding:10px 18px;font-size:12px;white-space:nowrap">Copy Link</button>
+        </div>
+        <div style="display:flex;gap:12px">
+          <div style="flex:1;background:rgba(74,111,165,0.06);border:1px solid rgba(74,111,165,0.1);border-radius:10px;padding:12px;text-align:center">
+            <div style="font-size:20px;font-weight:700;color:var(--text)" id="referral-count">0</div>
+            <div style="font-size:11px;color:var(--text-dim);margin-top:2px">Referrals</div>
+          </div>
+          <div style="flex:1;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.1);border-radius:10px;padding:12px;text-align:center">
+            <div style="font-size:20px;font-weight:700;color:#34d399" id="referral-savings">0</div>
+            <div style="font-size:11px;color:var(--text-dim);margin-top:2px">Months Saved</div>
+          </div>
+        </div>
+      </div>
+
       <div class="card" id="sub-admin-card" style="display:none">
         <div class="card-title">Admin Access</div>
         <div style="font-size:13px;color:var(--text-muted);line-height:1.6">
@@ -1124,7 +1145,7 @@
     document.getElementById('sub-content').style.display='none';
 
     // Reset all conditional cards
-    var resetCards=['sub-actions-card','sub-cancelled-card','sub-admin-card','sub-pastdue-card','sub-inactive-card'];
+    var resetCards=['sub-actions-card','sub-cancelled-card','sub-admin-card','sub-pastdue-card','sub-inactive-card','sub-referral-card'];
     resetCards.forEach(function(id){document.getElementById(id).style.display='none'});
 
     window.zap.getSubscriptionInfo().then(function(info){
@@ -1177,12 +1198,39 @@
       }
 
       if(info.currentPeriodEnd)renewsEl.textContent=info.currentPeriodEnd;
+
+      // Load referral info for active subscribers
+      if(info.status==='active'||info.status==='trialing'||info.isAdmin){
+        loadReferralCard();
+      }
     }).catch(function(){
       document.getElementById('sub-loading').style.display='none';
       document.getElementById('sub-error').style.display='block';
       document.getElementById('sub-content').style.display='none';
     });
   }
+
+  function loadReferralCard(){
+    if(!window.zap.getReferralCode) return;
+    window.zap.getReferralCode().then(function(ref){
+      if(!ref||!ref.code) return;
+      document.getElementById('sub-referral-card').style.display='block';
+      document.getElementById('referral-link').value=ref.link;
+      document.getElementById('referral-count').textContent=ref.referralsCount||0;
+      document.getElementById('referral-savings').textContent=ref.referralsCount||0;
+    }).catch(function(){});
+  }
+
+  var copyRefBtn=document.getElementById('copy-referral-btn');
+  if(copyRefBtn)copyRefBtn.addEventListener('click',function(){
+    var linkEl=document.getElementById('referral-link');
+    if(linkEl&&linkEl.value){
+      window.zap.copyToClipboard(linkEl.value);
+      copyRefBtn.textContent='Copied!';
+      copyRefBtn.style.background='linear-gradient(135deg,#34d399,#059669)';
+      setTimeout(function(){copyRefBtn.textContent='Copy Link';copyRefBtn.style.background=''},1500);
+    }
+  });
 
   // Refresh button
   var refreshBtn=document.getElementById('sub-refresh-btn');
