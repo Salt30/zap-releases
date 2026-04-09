@@ -6,3 +6,5 @@ build/output/
 .env
 admin/
 artifacts/
+*.exe
+*.zip
