@@ -71,17 +71,6 @@ contextBridge.exposeInMainWorld('zap', {
   forceClose:    ()    => ipcRenderer.send('force-close'),
   selfDestruct:  ()    => ipcRenderer.send('self-destruct'),
 
-  // Agent Mode
-  agentStart:       ()     => ipcRenderer.send('agent-start'),
-  agentStop:        ()     => ipcRenderer.send('agent-stop'),
-  agentGetMemory:   ()     => ipcRenderer.invoke('agent-get-memory'),
-  agentGetStatus:   ()     => ipcRenderer.invoke('agent-get-status'),
-  agentScanNow:     ()     => ipcRenderer.invoke('agent-scan-now'),
-  agentClearSession:()     => ipcRenderer.send('agent-clear-session'),
-  agentClearAll:    ()     => ipcRenderer.send('agent-clear-all'),
-  onAgentMemoryUpdate: (cb) => ipcRenderer.on('agent-memory-update', (_, d) => cb(d)),
-  onAgentStatus:       (cb) => ipcRenderer.on('agent-status', (_, d) => cb(d)),
-
   // Admin & Support
   isAdmin:          ()     => ipcRenderer.invoke('is-admin'),
   getAdminStats:    ()     => ipcRenderer.invoke('get-admin-stats'),

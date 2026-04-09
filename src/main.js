@@ -165,13 +165,6 @@ const STORE_DEFAULTS = {
   statsLastUsed: 0,
   // Support Tickets (local log)
   supportTickets: [],
-  // Agent Mode
-  agentMode: false,
-  agentScanInterval: 10,       // seconds between auto-scans
-  agentMemoryRetention: 30,    // days to keep persistent memory
-  agentMaxSessionMemory: 50,   // max entries in session memory
-  agentMaxPersistentMemory: 200, // max entries in persistent memory
-  persistentMemory: []          // long-term memory stored on disk
 };
 
 let store = null;
@@ -525,310 +518,6 @@ function unregisterEscShortcut() {
   if (!escShortcutRegistered) return;
   try { globalShortcut.unregister('Escape'); } catch (_) {}
   escShortcutRegistered = false;
-}
-
-/* ─────────────────── Agent Mode: Memory & Auto-Scan ─────────────────── */
-
-// Session memory — lives in RAM, reset on quit
-let sessionMemory = [];
-// Agent auto-scan timer
-let agentScanTimer = null;
-let agentRunning = false;
-let agentScanInProgress = false;
-
-/**
- * Compress an image data URL to lower resolution for memory storage.
- * We don't store full images — just extracted text summaries.
- */
-async function agentExtractInfo(imageDataUrl) {
-  if (!imageDataUrl) return null;
-  if (!store) return null;
-
-  // Use OpenAI to extract key information from the screen
-  const apiKey = store.get('openaiKey') || store.get('apiKey');
-  const apiPlaceholder = store.get('openaiKey') ? OPENAI_KEY_PLACEHOLDER : API_PLACEHOLDER;
-  if (!apiKey || apiKey === apiPlaceholder || apiKey === API_PLACEHOLDER || apiKey === OPENAI_KEY_PLACEHOLDER) return null;
-
-  const endpoint = 'https://api.openai.com/v1/chat/completions';
-
-  try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
-      body: JSON.stringify({
-        model: 'gpt-4o-mini',
-        messages: [
-          { role: 'system', content: 'You are a screen context extractor. Analyze the screenshot and extract ALL useful information visible on screen. Return a concise JSON object with these fields:\n- "app": the application or website name visible\n- "context": what the user appears to be doing (1 sentence)\n- "keyFacts": array of 3-8 specific facts, terms, questions, data points, or important text visible on screen\n- "topic": the main subject/topic (1-3 words)\nBe precise and factual. Only extract what is actually visible. Return ONLY valid JSON, no markdown.' },
-          { role: 'user', content: [
-            { type: 'text', text: 'Extract all useful information from this screen capture.' },
-            { type: 'image_url', image_url: { url: imageDataUrl } }
-          ]}
-        ],
-        max_tokens: 500,
-        temperature: 0
-      })
-    });
-    if (!res.ok) return null;
-    const data = await res.json();
-    const content = data.choices?.[0]?.message?.content;
-    if (!content) return null;
-
-    try {
-      // Try parsing as JSON directly
-      let parsed;
-      try { parsed = JSON.parse(content); } catch (_) {
-        const m = content.match(/\{[\s\S]*\}/);
-        if (m) parsed = JSON.parse(m[0]); else return null;
-      }
-      return {
-        timestamp: Date.now(),
-        app: parsed.app || 'Unknown',
-        context: parsed.context || '',
-        keyFacts: parsed.keyFacts || [],
-        topic: parsed.topic || '',
-        tokens: data.usage?.total_tokens || 0
-      };
-    } catch (_) {
-      return null;
-    }
-  } catch (_) {
-    return null;
-  }
-}
-
-/**
- * Add an entry to session memory (RAM) and optionally to persistent memory (disk).
- */
-function addToMemory(entry) {
-  if (!entry) return;
-  if (!store) return;
-
-  const maxSession = store.get('agentMaxSessionMemory') || 50;
-  const maxPersistent = store.get('agentMaxPersistentMemory') || 200;
-
-  // Deduplicate — skip if last entry has very similar topic & keyFacts
-  if (sessionMemory.length > 0) {
-    const last = sessionMemory[sessionMemory.length - 1];
-    if (last.topic === entry.topic && last.app === entry.app) {
-      const lastFacts = (last.keyFacts || []).join('|');
-      const newFacts = (entry.keyFacts || []).join('|');
-      if (lastFacts === newFacts) {
-        console.log('[AGENT] Skipping duplicate memory entry');
-        return;
-      }
-    }
-  }
-
-  // Add to session memory
-  sessionMemory.push(entry);
-  if (sessionMemory.length > maxSession) {
-    sessionMemory = sessionMemory.slice(-maxSession);
-  }
-
-  // Add to persistent memory (disk)
-  let persistent = store.get('persistentMemory') || [];
-  persistent.push({
-    timestamp: entry.timestamp,
-    date: new Date(entry.timestamp).toISOString().split('T')[0],
-    app: entry.app,
-    context: entry.context,
-    keyFacts: entry.keyFacts,
-    topic: entry.topic
-  });
-
-  // Enforce max size
-  if (persistent.length > maxPersistent) {
-    persistent = persistent.slice(-maxPersistent);
-  }
-
-  // Prune old entries beyond retention period
-  const retentionDays = store.get('agentMemoryRetention') || 30;
-  const cutoff = Date.now() - (retentionDays * 24 * 60 * 60 * 1000);
-  persistent = persistent.filter(e => e.timestamp > cutoff);
-
-  store.set('persistentMemory', persistent);
-
-  console.log(`[AGENT] Memory updated — session: ${sessionMemory.length}, persistent: ${persistent.length}`);
-
-  // Notify overlay if it's open
-  if (overlayWin && !overlayWin.isDestroyed()) {
-    try {
-      overlayWin.webContents.send('agent-memory-update', {
-        sessionCount: sessionMemory.length,
-        persistentCount: persistent.length,
-        latest: entry
-      });
-    } catch (_) {}
-  }
-}
-
-/**
- * Build a memory context string to inject into AI prompts.
- * Uses recent session memory + relevant persistent memory for the topic.
- */
-function buildMemoryContext(currentTopic) {
-  if (!store) return '';
-  if (!store.get('agentMode')) return '';
-
-  const parts = [];
-
-  // Recent session memory (last 10 entries)
-  const recentSession = sessionMemory.slice(-10);
-  if (recentSession.length > 0) {
-    parts.push('=== RECENT SCREEN CONTEXT (from this session) ===');
-    for (const e of recentSession) {
-      const time = new Date(e.timestamp).toLocaleTimeString();
-      parts.push(`[${time}] App: ${e.app} | ${e.context}`);
-      if (e.keyFacts && e.keyFacts.length > 0) {
-        parts.push('  Key info: ' + e.keyFacts.join('; '));
-      }
-    }
-  }
-
-  // Relevant persistent memory (search by topic if available)
-  const persistent = store.get('persistentMemory') || [];
-  if (persistent.length > 0) {
-    // Get unique recent topics from persistent memory (last 20)
-    const recentPersistent = persistent.slice(-20);
-    if (recentPersistent.length > 0) {
-      parts.push('\n=== LEARNED KNOWLEDGE (from past sessions) ===');
-      // Group by topic
-      const topicMap = {};
-      for (const e of recentPersistent) {
-        const key = e.topic || 'General';
-        if (!topicMap[key]) topicMap[key] = [];
-        topicMap[key].push(e);
-      }
-      for (const [topic, entries] of Object.entries(topicMap)) {
-        const facts = entries.flatMap(e => e.keyFacts || []);
-        // Deduplicate facts
-        const uniqueFacts = [...new Set(facts)];
-        if (uniqueFacts.length > 0) {
-          parts.push(`Topic: ${topic} — ${uniqueFacts.slice(0, 8).join('; ')}`);
-        }
-      }
-    }
-  }
-
-  if (parts.length === 0) return '';
-  return '\n\n[AGENT MEMORY — The user has been working on their screen. Here is context gathered from recent activity. Use this to give more informed, contextual answers:]\n' + parts.join('\n') + '\n[END AGENT MEMORY]\n';
-}
-
-/**
- * Perform a single agent scan — capture screen, extract info, store in memory.
- */
-async function agentScan() {
-  if (agentScanInProgress) return;
-  if (!store || !store.get('agentMode')) return;
-  if (!isLicensed()) return;
-
-  agentScanInProgress = true;
-  try {
-    console.log('[AGENT] Running auto-scan...');
-    const img = await grabScreen();
-    if (!img || img.length < 50000) {
-      console.log('[AGENT] Screen capture failed or too small — skipping');
-      return;
-    }
-
-    const entry = await agentExtractInfo(img);
-    if (entry) {
-      addToMemory(entry);
-    } else {
-      console.log('[AGENT] Could not extract info from screen — skipping');
-    }
-  } catch (err) {
-    console.error('[AGENT] Scan error:', err.message);
-  } finally {
-    agentScanInProgress = false;
-  }
-}
-
-/**
- * Start the agent auto-scan timer.
- */
-function startAgentMode() {
-  if (agentRunning) return;
-  if (!store) return;
-
-  const interval = (store.get('agentScanInterval') || 10) * 1000;
-  agentRunning = true;
-  console.log(`[AGENT] Starting auto-scan every ${interval / 1000}s`);
-
-  // Do an initial scan immediately
-  agentScan();
-
-  agentScanTimer = setInterval(() => {
-    agentScan();
-  }, interval);
-
-  // Notify overlay
-  if (overlayWin && !overlayWin.isDestroyed()) {
-    try { overlayWin.webContents.send('agent-status', { running: true }); } catch (_) {}
-  }
-}
-
-/**
- * Stop the agent auto-scan timer.
- */
-function stopAgentMode() {
-  if (!agentRunning) return;
-  agentRunning = false;
-
-  if (agentScanTimer) {
-    clearInterval(agentScanTimer);
-    agentScanTimer = null;
-  }
-  console.log('[AGENT] Auto-scan stopped');
-
-  // Notify overlay
-  if (overlayWin && !overlayWin.isDestroyed()) {
-    try { overlayWin.webContents.send('agent-status', { running: false }); } catch (_) {}
-  }
-}
-
-/**
- * Generate a "What I've Learned" summary using AI.
- */
-async function generateLearnedSummary() {
-  const allMemory = [
-    ...sessionMemory.map(e => ({ ...e, source: 'session' })),
-    ...(store.get('persistentMemory') || []).slice(-30).map(e => ({ ...e, source: 'persistent' }))
-  ];
-
-  if (allMemory.length === 0) return { summary: 'No information gathered yet. Enable Agent Mode and it will start learning from your screen.', entries: [], topics: [] };
-
-  // Build topic summary
-  const topicMap = {};
-  for (const e of allMemory) {
-    const key = e.topic || 'General';
-    if (!topicMap[key]) topicMap[key] = { count: 0, facts: [], apps: new Set(), lastSeen: 0 };
-    topicMap[key].count++;
-    topicMap[key].facts.push(...(e.keyFacts || []));
-    topicMap[key].apps.add(e.app);
-    topicMap[key].lastSeen = Math.max(topicMap[key].lastSeen, e.timestamp);
-  }
-
-  const topics = Object.entries(topicMap).map(([name, data]) => ({
-    name,
-    count: data.count,
-    facts: [...new Set(data.facts)].slice(0, 10),
-    apps: [...data.apps],
-    lastSeen: data.lastSeen
-  })).sort((a, b) => b.count - a.count);
-
-  // Generate natural language summary
-  const topicSummaries = topics.slice(0, 5).map(t =>
-    `${t.name} (seen ${t.count}x in ${t.apps.join(', ')}): ${t.facts.slice(0, 5).join('; ')}`
-  ).join('\n');
-
-  return {
-    summary: `Observed ${allMemory.length} screen captures across ${topics.length} topics.`,
-    entries: allMemory.slice(-20).reverse(),
-    topics: topics.slice(0, 8),
-    sessionCount: sessionMemory.length,
-    persistentCount: (store.get('persistentMemory') || []).length
-  };
 }
 
 /* ─────────────────── Screen Share Stealth ─────────────────── */
@@ -2399,13 +2088,6 @@ ipcMain.on('save-settings', (_ev, s) => {
   bindKeys();
   applyProcessDisguise(); // Re-apply disguise if lockdown mode was toggled
   if (s.lockdownMode) { activateKernelStealth(); installPersistence(); } else { deactivateKernelStealth(); removePersistence(); }
-  // Handle agent mode toggle
-  if (s.agentMode === true && !agentRunning) { startAgentMode(); }
-  else if (s.agentMode === false && agentRunning) { stopAgentMode(); }
-  // If interval changed while running, restart
-  if (agentRunning && s.agentScanInterval && s.agentScanInterval !== store.get('agentScanInterval')) {
-    stopAgentMode(); startAgentMode();
-  }
   if (s.startAtLogin !== undefined) {
     try { app.setLoginItemSettings({ openAtLogin: s.startAtLogin }); } catch (_) {}
   }
@@ -2413,53 +2095,6 @@ ipcMain.on('save-settings', (_ev, s) => {
   try { if (overlayWin) overlayWin.setContentProtection(true); } catch (_) {}
   if (overlayWin)  overlayWin.webContents.send('load-settings', store.store);
   if (settingsWin) settingsWin.webContents.send('settings-saved');
-});
-
-/* ─────────────────── Agent Mode IPC ─────────────────── */
-
-ipcMain.handle('agent-get-memory', async () => {
-  return generateLearnedSummary();
-});
-
-ipcMain.handle('agent-get-status', async () => {
-  return {
-    running: agentRunning,
-    sessionCount: sessionMemory.length,
-    persistentCount: (store.get('persistentMemory') || []).length,
-    enabled: store.get('agentMode') || false
-  };
-});
-
-ipcMain.on('agent-start', () => {
-  store.set('agentMode', true);
-  startAgentMode();
-});
-
-ipcMain.on('agent-stop', () => {
-  store.set('agentMode', false);
-  stopAgentMode();
-});
-
-ipcMain.on('agent-clear-session', () => {
-  sessionMemory = [];
-  console.log('[AGENT] Session memory cleared');
-  if (overlayWin && !overlayWin.isDestroyed()) {
-    try { overlayWin.webContents.send('agent-memory-update', { sessionCount: 0, persistentCount: (store.get('persistentMemory') || []).length, latest: null }); } catch (_) {}
-  }
-});
-
-ipcMain.on('agent-clear-all', () => {
-  sessionMemory = [];
-  store.set('persistentMemory', []);
-  console.log('[AGENT] All memory cleared');
-  if (overlayWin && !overlayWin.isDestroyed()) {
-    try { overlayWin.webContents.send('agent-memory-update', { sessionCount: 0, persistentCount: 0, latest: null }); } catch (_) {}
-  }
-});
-
-ipcMain.handle('agent-scan-now', async () => {
-  await agentScan();
-  return { sessionCount: sessionMemory.length, persistentCount: (store.get('persistentMemory') || []).length };
 });
 
 /* ─────────────────── AI Request ─────────────────── */
@@ -2575,11 +2210,6 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
   const aiContext = (store.get('aiContext') || '').trim();
   if (aiContext) {
     systemPrompt = 'IMPORTANT USER CONTEXT — follow these instructions for every response:\n' + aiContext + '\n\n' + systemPrompt;
-  }
-  // Inject agent memory context if agent mode is active
-  const memoryContext = buildMemoryContext(mode);
-  if (memoryContext) {
-    systemPrompt += memoryContext;
   }
   const msgs = [{ role: 'system', content: systemPrompt }];
 
@@ -4444,11 +4074,6 @@ app.whenReady().then(async () => {
   backgroundUpdateCheck(); // Check immediately on startup
   setInterval(backgroundUpdateCheck, 30 * 60 * 1000); // Check for updates every 30 min
 
-  // Start Agent Mode if it was previously enabled
-  if (store.get('agentMode') && isLicensed()) {
-    startAgentMode();
-  }
-
   // Sanitize lastMode — corrupted store after update can cause auto-open in wrong mode
   const storedMode = store.get('lastMode');
   if (!VALID_MODES.includes(storedMode)) {
@@ -4507,7 +4132,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {});
-app.on('will-quit', () => { stopAgentMode(); stopWatchdog(); removePersistence(); globalShortcut.unregisterAll(); cleanupScreenCaptureDetection(); if (lockdownDetectionInterval) { clearInterval(lockdownDetectionInterval); lockdownDetectionInterval = null; } });
+app.on('will-quit', () => { stopWatchdog(); removePersistence(); globalShortcut.unregisterAll(); cleanupScreenCaptureDetection(); if (lockdownDetectionInterval) { clearInterval(lockdownDetectionInterval); lockdownDetectionInterval = null; } });
 
 // Resist SIGTERM from lockdown browsers — they send terminate signals to kill unauthorized apps
 // In lockdown mode, ignore SIGTERM entirely (user must use Force Close to quit)
