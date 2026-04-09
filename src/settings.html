@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zap Settings</title>
+<title>Zap Pro Settings</title>
 <style>
   :root{--accent:#4a6fa5;--accent-glow:#5b82bd;--accent-dim:#3a5a8a;--bg-deep:#0a0a12;--bg:#0f0f1a;--bg-card:rgba(18,18,35,0.85);--bg-card-hover:rgba(24,24,45,0.9);--bg-input:rgba(10,10,22,0.9);--text:#f5f0e8;--text-muted:#b8b0a0;--text-dim:#6e6a60;--border:rgba(74,111,165,0.15);--border-card:rgba(74,111,165,0.12);--glow:rgba(74,111,165,0.08)}
   *{margin:0;padding:0;box-sizing:border-box}
@@ -97,7 +97,7 @@
 
 <div class="header">
   <div class="logo">&#9889;</div>
-  <h1>Zap</h1>
+  <h1>Zap Pro</h1>
   <span class="version">v...</span>
   <button class="update-badge" id="header-update-btn">Update Available</button>
 </div>
@@ -119,7 +119,7 @@
   <div class="tab-panel active" id="tab-home">
     <div class="card" style="text-align:center;padding:30px 22px 24px">
       <div style="font-size:44px;margin-bottom:8px;filter:drop-shadow(0 0 20px rgba(74,111,165,0.4))">&#9889;</div>
-      <div style="font-size:22px;font-weight:700;margin-bottom:4px">Welcome to <span style="color:var(--accent-glow)">Zap</span></div>
+      <div style="font-size:22px;font-weight:700;margin-bottom:4px">Welcome to <span style="color:var(--accent-glow)">Zap Pro</span></div>
       <div style="font-size:13px;color:var(--text-dim);margin-bottom:20px">The invisible AI overlay that lives on your screen</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:left">
         <div style="background:rgba(74,111,165,0.06);border:1px solid rgba(74,111,165,0.1);border-radius:10px;padding:12px">
@@ -226,7 +226,7 @@
         <div class="toggle" id="toggle-simple" data-key="simpleMode"><div class="thumb"></div></div>
       </div>
       <div class="toggle-row">
-        <div class="toggle-info"><div class="toggle-label">Start at Login</div><div class="toggle-desc">Launch Zap automatically when your computer starts</div></div>
+        <div class="toggle-info"><div class="toggle-label">Start at Login</div><div class="toggle-desc">Launch Zap Pro automatically when your computer starts</div></div>
         <div class="toggle" id="toggle-startup" data-key="startAtLogin"><div class="thumb"></div></div>
       </div>
     </div>
@@ -287,7 +287,7 @@
       <div class="toggle-row" style="border-bottom:none">
         <div class="toggle-info">
           <div class="toggle-label">Enable Stealth Mode</div>
-          <div class="toggle-desc">Stay completely invisible and undetectable while using Zap</div>
+          <div class="toggle-desc">Stay completely invisible and undetectable while using Zap Pro</div>
         </div>
         <div class="toggle" id="toggle-lockdown" data-key="lockdownMode"><div class="thumb"></div></div>
       </div>
@@ -301,15 +301,15 @@
             </div>
             <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:6px">
               <span style="background:rgba(239,68,68,0.15);color:#f87171;padding:1px 8px;border-radius:4px;font-weight:700;font-size:11px;flex-shrink:0">2</span>
-              <span>Open Zap and <strong style="color:var(--text)">activate the overlay</strong> (Alt+1 or your hotkey)</span>
+              <span>Open Zap Pro and <strong style="color:var(--text)">activate the overlay</strong> (Alt+1 or your hotkey)</span>
             </div>
             <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:6px">
               <span style="background:rgba(239,68,68,0.15);color:#f87171;padding:1px 8px;border-radius:4px;font-weight:700;font-size:11px;flex-shrink:0">3</span>
-              <span><strong style="color:var(--text)">Then</strong> open the app you want to use Zap with</span>
+              <span><strong style="color:var(--text)">Then</strong> open the app you want to use Zap Pro with</span>
             </div>
             <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:6px">
               <span style="background:rgba(239,68,68,0.15);color:#f87171;padding:1px 8px;border-radius:4px;font-weight:700;font-size:11px;flex-shrink:0">4</span>
-              <span>Use <strong style="color:var(--text)">stealth hotkeys</strong> to control Zap (see below)</span>
+              <span>Use <strong style="color:var(--text)">stealth hotkeys</strong> to control Zap Pro (see below)</span>
             </div>
             <div style="display:flex;gap:10px;align-items:flex-start">
               <span style="background:rgba(239,68,68,0.15);color:#f87171;padding:1px 8px;border-radius:4px;font-weight:700;font-size:11px;flex-shrink:0">5</span>
@@ -426,10 +426,51 @@
       <div class="toggle-row">
         <div class="toggle-info">
           <div class="toggle-label">Continuous Mode</div>
-          <div class="toggle-desc">Replaces the full-screen overlay with a small floating widget. Click through to your exam while Zap stays on top. Press your hotkey or the Scan button to capture — no drag needed.</div>
+          <div class="toggle-desc">Replaces the full-screen overlay with a small floating widget. Click through to your exam while Zap Pro stays on top. Press your hotkey or the Scan button to capture — no drag needed.</div>
         </div>
         <div class="toggle" id="toggle-continuousMode" data-key="continuousMode"><div class="thumb"></div></div>
       </div>
+    </div>
+
+    <div class="card" style="border-color:rgba(99,102,241,0.2);background:rgba(99,102,241,0.03)">
+      <div class="card-title" style="color:#818cf8">Agent Mode</div>
+      <div class="toggle-row">
+        <div class="toggle-info">
+          <div class="toggle-label">Enable Agent Mode</div>
+          <div class="toggle-desc">Silently captures your screen at regular intervals and builds a memory of what you're working on. AI answers become smarter because they know your context.</div>
+        </div>
+        <div class="toggle" id="toggle-agentMode" data-key="agentMode"><div class="thumb"></div></div>
+      </div>
+      <div id="agent-details" style="display:none;margin-top:14px;border-top:1px solid rgba(99,102,241,0.1);padding-top:14px">
+        <div class="field" style="margin-bottom:14px">
+          <label>Scan Interval (seconds)</label>
+          <select id="setting-agentScanInterval">
+            <option value="5">Every 5 seconds</option>
+            <option value="10">Every 10 seconds (Recommended)</option>
+            <option value="15">Every 15 seconds</option>
+            <option value="30">Every 30 seconds</option>
+            <option value="60">Every 60 seconds</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:14px">
+          <label>Memory Retention</label>
+          <select id="setting-agentMemoryRetention">
+            <option value="7">7 days</option>
+            <option value="14">14 days</option>
+            <option value="30">30 days (Recommended)</option>
+            <option value="90">90 days</option>
+            <option value="365">1 year</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:12px">
+          <button class="btn" id="agent-clear-session-btn" style="flex:1;padding:8px;font-size:12px;background:rgba(99,102,241,0.1);border:1px solid rgba(99,102,241,0.25);color:#818cf8;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:600;transition:all .15s">Clear Session Memory</button>
+          <button class="btn" id="agent-clear-all-btn" style="flex:1;padding:8px;font-size:12px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.25);color:#ef4444;border-radius:8px;cursor:pointer;font-family:inherit;font-weight:600;transition:all .15s">Clear All Memory</button>
+        </div>
+        <div id="agent-memory-stats" style="margin-top:12px;font-size:11px;color:var(--text-dim);text-align:center"></div>
+      </div>
+    </div>
+
+    <div class="card">
       <div class="field">
         <label>Font Family</label>
         <select id="setting-fontFamily">
@@ -445,7 +486,7 @@
   </div>
 
   <div class="tab-panel" id="tab-hotkeys">
-    <div class="info-callout">Click any hotkey field, then press your desired key combination to record it. These shortcuts work system-wide — even when Zap is in the background.</div>
+    <div class="info-callout">Click any hotkey field, then press your desired key combination to record it. These shortcuts work system-wide — even when Zap Pro is in the background.</div>
 
     <div class="card">
       <div class="card-title">Overlay</div>
@@ -510,7 +551,7 @@
     <div class="card">
       <div class="card-title">App</div>
       <div class="hotkey-field">
-        <div class="hotkey-label"><span class="mode-dot" style="background:var(--accent-glow)"></span>Open Zap App</div>
+        <div class="hotkey-label"><span class="mode-dot" style="background:var(--accent-glow)"></span>Open Zap Pro App</div>
         <div class="hotkey-input-wrap"><input type="text" id="hk-hotkeyApp" readonly value="Alt+M" data-setting="hotkeyApp" /></div>
       </div>
       <div class="hotkey-field">
@@ -595,7 +636,7 @@
       <div class="card" id="sub-inactive-card" style="display:none">
         <div class="card-title">No Active Subscription</div>
         <div style="font-size:13px;color:var(--text-muted);line-height:1.6;margin-bottom:14px" id="sub-inactive-text">
-          You don't have an active subscription. Subscribe to unlock full access to Zap.
+          You don't have an active subscription. Subscribe to unlock full access to Zap Pro.
         </div>
         <button class="btn btn-primary" id="sub-subscribe-btn" style="width:100%">Subscribe Now</button>
       </div>
@@ -665,7 +706,7 @@
   <div class="tab-panel" id="tab-permissions">
     <div class="card" style="padding:24px 22px 20px">
       <div class="card-title">System Permissions</div>
-      <div style="font-size:12px;color:var(--text-dim);margin-bottom:18px;line-height:1.5">Zap needs these permissions to capture your screen and control input. If a permission is missing, click the button to open System Settings.</div>
+      <div style="font-size:12px;color:var(--text-dim);margin-bottom:18px;line-height:1.5">Zap Pro needs these permissions to capture your screen and control input. If a permission is missing, click the button to open System Settings.</div>
       <div id="perm-list" style="display:flex;flex-direction:column;gap:10px">
         <div class="perm-item" id="perm-screen">
           <div class="perm-icon" id="perm-screen-icon">&#8987;</div>
@@ -693,7 +734,7 @@
         <div style="margin-bottom:10px"><b style="color:var(--text)">1.</b> Open <b style="color:var(--accent-glow)">System Settings</b> on your Mac</div>
         <div style="margin-bottom:10px"><b style="color:var(--text)">2.</b> Go to <b style="color:var(--accent-glow)">Privacy &amp; Security</b></div>
         <div style="margin-bottom:10px"><b style="color:var(--text)">3.</b> Click <b style="color:var(--accent-glow)">Screen Recording</b> or <b style="color:var(--accent-glow)">Accessibility</b></div>
-        <div><b style="color:var(--text)">4.</b> Find <b style="color:var(--accent-glow)">Zap</b> in the list and toggle it <b style="color:#34d399">ON</b></div>
+        <div><b style="color:var(--text)">4.</b> Find <b style="color:var(--accent-glow)">Zap Pro</b> in the list and toggle it <b style="color:#34d399">ON</b></div>
       </div>
     </div>
   </div>
@@ -730,8 +771,8 @@
     </div>
     <div class="card" style="border:1px solid rgba(239,68,68,0.2);background:rgba(239,68,68,0.04)">
       <div class="card-title" style="color:#ef4444">Force Close</div>
-      <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.5">Immediately kills Zap and all related processes (overlay, watchdog, pinned windows). Useful before installing an update or if something gets stuck.</div>
-      <button class="btn" id="force-close-btn" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#ef4444;font-weight:600;width:100%;padding:10px;font-size:13px;cursor:pointer;border-radius:8px;transition:all .15s" onmouseover="this.style.background='rgba(239,68,68,0.22)'" onmouseout="this.style.background='rgba(239,68,68,0.12)'">Force Close Zap</button>
+      <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.5">Immediately kills Zap Pro and all related processes (overlay, watchdog, pinned windows). Useful before installing an update or if something gets stuck.</div>
+      <button class="btn" id="force-close-btn" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#ef4444;font-weight:600;width:100%;padding:10px;font-size:13px;cursor:pointer;border-radius:8px;transition:all .15s" onmouseover="this.style.background='rgba(239,68,68,0.22)'" onmouseout="this.style.background='rgba(239,68,68,0.12)'">Force Close Zap Pro</button>
     </div>
   </div>
 </div>
@@ -776,6 +817,17 @@
     var ldToggle=document.getElementById('toggle-lockdown');
     var ldDetails=document.getElementById('lockdown-details');
     if(ldToggle&&ldDetails)ldDetails.style.display=ldToggle.classList.contains('active')?'block':'none';
+    // Show agent details if agent mode active
+    var agToggle=document.getElementById('toggle-agentMode');
+    var agDetails=document.getElementById('agent-details');
+    if(agToggle&&agDetails)agDetails.style.display=agToggle.classList.contains('active')?'block':'none';
+    // Set agent interval/retention selects
+    var agInt=document.getElementById('setting-agentScanInterval');
+    if(agInt&&s.agentScanInterval)agInt.value=String(s.agentScanInterval);
+    var agRet=document.getElementById('setting-agentMemoryRetention');
+    if(agRet&&s.agentMemoryRetention)agRet.value=String(s.agentMemoryRetention);
+    // Load agent memory stats (deferred since agent IIFE runs after this)
+    setTimeout(function(){if(window.loadAgentStats)window.loadAgentStats()},100);
   }
 
   function updateVals(){
@@ -819,6 +871,11 @@
         var details=document.getElementById('lockdown-details');
         if(details)details.style.display=tog.classList.contains('active')?'block':'none';
       }
+      // Show/hide agent mode details
+      if(tog.id==='toggle-agentMode'){
+        var agentDetails=document.getElementById('agent-details');
+        if(agentDetails)agentDetails.style.display=tog.classList.contains('active')?'block':'none';
+      }
     });
   });
 
@@ -831,14 +888,41 @@
     });
   });
 
+  // Map physical key codes (e.code) to Electron-compatible key names
+  // This fixes macOS Alt/Option producing special characters (e.g. Alt+1 → ¡)
+  var codeToKey={
+    'Digit0':'0','Digit1':'1','Digit2':'2','Digit3':'3','Digit4':'4',
+    'Digit5':'5','Digit6':'6','Digit7':'7','Digit8':'8','Digit9':'9',
+    'KeyA':'A','KeyB':'B','KeyC':'C','KeyD':'D','KeyE':'E','KeyF':'F',
+    'KeyG':'G','KeyH':'H','KeyI':'I','KeyJ':'J','KeyK':'K','KeyL':'L',
+    'KeyM':'M','KeyN':'N','KeyO':'O','KeyP':'P','KeyQ':'Q','KeyR':'R',
+    'KeyS':'S','KeyT':'T','KeyU':'U','KeyV':'V','KeyW':'W','KeyX':'X',
+    'KeyY':'Y','KeyZ':'Z',
+    'Minus':'-','Equal':'=','BracketLeft':'[','BracketRight':']',
+    'Backslash':'\\','Semicolon':';','Quote':"'",
+    'Comma':',','Period':'.','Slash':'/',
+    'Backquote':'`','Space':'Space',
+    'ArrowUp':'Up','ArrowDown':'Down','ArrowLeft':'Left','ArrowRight':'Right',
+    'Enter':'Enter','Escape':'Escape','Backspace':'Backspace','Tab':'Tab',
+    'Delete':'Delete','Home':'Home','End':'End','PageUp':'PageUp','PageDown':'PageDown',
+    'F1':'F1','F2':'F2','F3':'F3','F4':'F4','F5':'F5','F6':'F6',
+    'F7':'F7','F8':'F8','F9':'F9','F10':'F10','F11':'F11','F12':'F12'
+  };
+
   document.addEventListener('keydown',function(e){
     if(!activeHK)return;
     e.preventDefault();e.stopPropagation();
     var p=[];
     if(e.metaKey)p.push('Command');if(e.ctrlKey)p.push('Control');if(e.shiftKey)p.push('Shift');if(e.altKey)p.push('Alt');
-    var k=e.key;
+    // Use e.code (physical key) when Alt is held to avoid macOS Option key character mapping
+    // e.g. Alt+1 produces e.key='¡' on Mac, but e.code='Digit1' which is correct
+    var k=(e.altKey||e.metaKey)?codeToKey[e.code]:null;
+    if(!k){
+      k=e.key;
+      if(k.length===1)k=k.toUpperCase();
+    }
     if(!['Control','Shift','Alt','Meta'].includes(k)){
-      p.push(k.length===1?k.toUpperCase():k);
+      p.push(k);
       activeHK.value=p.join('+');activeHK.classList.remove('recording');activeHK=null;
     }
   });
@@ -864,6 +948,9 @@
       overlayOpacity:parseInt(document.getElementById('setting-overlayOpacity').value)||0,
       ghostAnswer:document.getElementById('toggle-ghostAnswer').classList.contains('active'),
       continuousMode:document.getElementById('toggle-continuousMode').classList.contains('active'),
+      agentMode:document.getElementById('toggle-agentMode').classList.contains('active'),
+      agentScanInterval:parseInt(document.getElementById('setting-agentScanInterval').value)||10,
+      agentMemoryRetention:parseInt(document.getElementById('setting-agentMemoryRetention').value)||30,
       fontFamily:document.getElementById('setting-fontFamily').value,
       dripSpeed:40,
       dripWPM:parseInt(document.getElementById('setting-dripWPM').value)||45,
@@ -1201,7 +1288,7 @@
         // inactive / never subscribed / unknown
         badge.style.background='rgba(110,106,96,0.1)';badge.style.color='var(--text-dim)';badge.textContent='\u25CF Inactive';
         document.getElementById('sub-inactive-card').style.display='block';
-        document.getElementById('sub-inactive-text').textContent="You don't have an active subscription. Subscribe to unlock full access to Zap.";
+        document.getElementById('sub-inactive-text').textContent="You don't have an active subscription. Subscribe to unlock full access to Zap Pro.";
         renewsRow.style.display='none';
       }
 
@@ -1364,6 +1451,32 @@
   var rb=document.getElementById('perm-refresh-btn');
   if(rb)rb.addEventListener('click',checkPerms);
   checkPerms();
+})();
+
+// Agent Mode controls
+(function(){
+  async function loadAgentStats(){
+    try{
+      var status=await window.zap.agentGetStatus();
+      var el=document.getElementById('agent-memory-stats');
+      if(el)el.textContent='Session: '+status.sessionCount+' entries | Persistent: '+status.persistentCount+' entries'+(status.running?' | ● Scanning':'');
+    }catch(_){}
+  }
+  window.loadAgentStats=loadAgentStats;
+
+  var clearSessionBtn=document.getElementById('agent-clear-session-btn');
+  if(clearSessionBtn)clearSessionBtn.addEventListener('click',function(){
+    window.zap.agentClearSession();
+    loadAgentStats();
+  });
+
+  var clearAllBtn=document.getElementById('agent-clear-all-btn');
+  if(clearAllBtn)clearAllBtn.addEventListener('click',function(){
+    if(confirm('Clear ALL agent memory (session + persistent)? This cannot be undone.')){
+      window.zap.agentClearAll();
+      loadAgentStats();
+    }
+  });
 })();
 </script>
 </body>

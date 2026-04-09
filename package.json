@@ -1,7 +1,7 @@
 {
   "name": "zap",
-  "version": "3.26.10",
-  "description": "Zap — AI Screen Overlay",
+  "version": "3.26.11",
+  "description": "Zap Pro — AI Screen Overlay",
   "main": "src/main.js",
   "author": {
     "name": "Zap",
@@ -15,7 +15,7 @@
   },
   "build": {
     "appId": "com.zap.app",
-    "productName": "Zap",
+    "productName": "Zap Pro",
     "directories": {
       "output": "dist"
     },
@@ -70,8 +70,8 @@
       "entitlementsInherit": "build/entitlements.mac.plist",
       "extendInfo": {
         "LSUIElement": true,
-        "NSScreenCaptureDescription": "Zap needs screen recording access to capture and analyze content on your screen.",
-        "NSAppleEventsUsageDescription": "Zap needs accessibility access for the Drip Type feature to type text into other applications."
+        "NSScreenCaptureDescription": "Zap Pro needs screen recording access to capture and analyze content on your screen.",
+        "NSAppleEventsUsageDescription": "Zap Pro needs accessibility access for the Drip Type feature to type text into other applications."
       }
     },
     "win": {
@@ -94,7 +94,7 @@
     "linux": {
       "icon": "assets/icon.png",
       "category": "Education",
-      "maintainer": "Zap <support@tryzap.net>",
+      "maintainer": "Zap Pro <support@tryzap.net>",
       "target": [
         {
           "target": "deb",
@@ -119,7 +119,7 @@
         }
       ],
       "desktop": {
-        "Name": "Zap",
+        "Name": "Zap Pro",
         "Comment": "AI Screen Overlay",
         "Categories": "Education;Utility;",
         "StartupWMClass": "zap"

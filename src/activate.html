@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Activate Zap</title>
+<title>Activate Zap Pro</title>
 <style>
   :root{--accent:#4a6fa5;--accent-glow:#5b82bd;--accent-dim:#3a5a8a;--bg-deep:#0a0a12;--bg-card:rgba(18,18,35,0.85);--bg-input:rgba(10,10,22,0.9);--text:#f5f0e8;--text-muted:#b8b0a0;--text-dim:#6e6a60;--border:rgba(74,111,165,0.15);--border-card:rgba(74,111,165,0.12);--green:#6ec87a;--red:#ef4444;--orange:#f59e0b}
   *{margin:0;padding:0;box-sizing:border-box}
@@ -78,7 +78,7 @@
 <body>
 
 <div class="logo">&#9889;</div>
-<div class="title">Activate <span>Zap</span></div>
+<div class="title">Activate <span>Zap Pro</span></div>
 
 <div style="font-size:14px;color:var(--text-dim);margin:14px 0 28px;text-align:center">Subscribe to unlock full access</div>
 
@@ -128,7 +128,7 @@
   </div>
 </div>
 
-<div class="skip-text" id="skip-text">A subscription is required to use Zap.</div>
+<div class="skip-text" id="skip-text">A subscription is required to use Zap Pro.</div>
 
 <script>
 (function(){
@@ -187,7 +187,7 @@
       subscribeBtn.disabled = true;
       emailInput.disabled = true;
       emailInput.value = s.email || '';
-      document.getElementById('skip-text').innerHTML = 'Please accept the terms above to continue using Zap.';
+      document.getElementById('skip-text').innerHTML = 'Please accept the terms above to continue using Zap Pro.';
       // Show a dedicated accept button
       var acceptBtn = document.createElement('button');
       acceptBtn.className = 'subscribe-btn';
@@ -200,7 +200,7 @@
           return;
         }
         await window.zap.acceptTerms();
-        statusEl.textContent = 'Terms accepted! Zap is ready.';
+        statusEl.textContent = 'Terms accepted! Zap Pro is ready.';
         statusEl.className = 'status success';
         acceptBtn.textContent = 'Done!';
         acceptBtn.disabled = true;

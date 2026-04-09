@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zap Overlay</title>
+<title>Zap Pro Overlay</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
   :root {
@@ -157,6 +157,37 @@
   #cw-status{font-size:10px;color:var(--text-dim);text-align:center;min-height:14px;transition:color .2s}
   #cw-status.success{color:#22c55e}
   #cw-status.error{color:#ef4444}
+
+  /* Agent Mode: What I've Learned Panel */
+  #agent-panel{position:fixed;top:12px;left:12px;z-index:350;display:none;flex-direction:column;width:320px;max-height:70vh;background:var(--bg-solid);backdrop-filter:blur(60px) saturate(200%);-webkit-backdrop-filter:blur(60px) saturate(200%);border:1px solid rgba(99,102,241,0.25);border-radius:16px;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,.5),0 0 0 0.5px rgba(99,102,241,0.15);animation:widgetIn .35s cubic-bezier(.16,1,.3,1)}
+  #agent-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;background:rgba(99,102,241,0.08);border-bottom:1px solid rgba(99,102,241,0.15);cursor:move}
+  #agent-header .agent-title{font-size:12px;font-weight:700;color:#818cf8;letter-spacing:.3px;display:flex;align-items:center;gap:6px}
+  #agent-header .agent-title .agent-dot{width:6px;height:6px;border-radius:50%;background:#818cf8;animation:pulse 2s infinite}
+  #agent-header .agent-title .agent-dot.inactive{background:var(--text-dim);animation:none}
+  #agent-close{background:none;border:none;color:var(--text-dim);font-size:16px;cursor:pointer;padding:2px 6px;border-radius:6px;transition:all .15s}
+  #agent-close:hover{color:var(--text);background:rgba(255,255,255,0.08)}
+  #agent-body{overflow-y:auto;max-height:calc(70vh - 44px);padding:12px 14px}
+  #agent-body::-webkit-scrollbar{width:4px}
+  #agent-body::-webkit-scrollbar-thumb{background:rgba(99,102,241,0.3);border-radius:2px}
+  .agent-summary{font-size:11px;color:var(--text-muted);margin-bottom:12px;line-height:1.5;padding:8px 10px;background:rgba(99,102,241,0.06);border-radius:10px;border:1px solid rgba(99,102,241,0.1)}
+  .agent-topic{margin-bottom:10px;padding:8px 10px;background:rgba(255,255,255,0.03);border:1px solid rgba(255,255,255,0.06);border-radius:10px}
+  .agent-topic-name{font-size:11px;font-weight:700;color:var(--accent);margin-bottom:4px;display:flex;justify-content:space-between;align-items:center}
+  .agent-topic-name .topic-count{font-size:9px;color:var(--text-dim);font-weight:500;background:rgba(255,255,255,0.06);padding:1px 6px;border-radius:8px}
+  .agent-topic-facts{font-size:10px;color:var(--text-dim);line-height:1.6}
+  .agent-topic-facts li{margin-bottom:2px;list-style:none;padding-left:10px;position:relative}
+  .agent-topic-facts li::before{content:'•';position:absolute;left:0;color:rgba(99,102,241,0.5)}
+  .agent-entry{margin-bottom:8px;padding:6px 10px;background:rgba(255,255,255,0.02);border-left:2px solid rgba(99,102,241,0.3);border-radius:0 8px 8px 0;font-size:10px}
+  .agent-entry-time{color:var(--text-dim);font-size:9px;margin-bottom:2px}
+  .agent-entry-app{color:#818cf8;font-weight:600}
+  .agent-entry-context{color:var(--text-muted)}
+  .agent-tab-row{display:flex;gap:2px;margin-bottom:10px;background:rgba(99,102,241,0.06);border-radius:8px;padding:2px}
+  .agent-tab{flex:1;padding:5px 0;text-align:center;font-size:10px;font-weight:600;color:var(--text-dim);border-radius:6px;cursor:pointer;transition:all .15s;border:none;background:none;font-family:inherit}
+  .agent-tab.active{background:rgba(99,102,241,0.2);color:#818cf8}
+  .agent-tab:hover{color:var(--text-muted)}
+  .agent-section{display:none}
+  .agent-section.active{display:block}
+  #agent-empty{text-align:center;padding:24px 16px;color:var(--text-dim);font-size:12px}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
 </style>
 </head>
 <body>
@@ -164,7 +195,7 @@
 <div id="capture-layer"></div>
 <div id="selection"><div id="selection-label"></div></div>
 <div id="mode-indicator">Answer</div>
-<button id="open-app-btn" title="Open Zap App" style="position:fixed;top:12px;right:52px;z-index:100;width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:var(--glass);backdrop-filter:blur(40px) saturate(180%);-webkit-backdrop-filter:blur(40px) saturate(180%);border:1px solid var(--glass-border);border-radius:10px;color:var(--text-dim);font-size:14px;cursor:pointer;transition:all .15s;box-shadow:0 2px 12px rgba(0,0,0,0.2),inset 0 1px 0 var(--glass-glow)">&#9889;</button>
+<button id="open-app-btn" title="Open Zap Pro App" style="position:fixed;top:12px;right:52px;z-index:100;width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:var(--glass);backdrop-filter:blur(40px) saturate(180%);-webkit-backdrop-filter:blur(40px) saturate(180%);border:1px solid var(--glass-border);border-radius:10px;color:var(--text-dim);font-size:14px;cursor:pointer;transition:all .15s;box-shadow:0 2px 12px rgba(0,0,0,0.2),inset 0 1px 0 var(--glass-glow)">&#9889;</button>
 <button id="settings-btn" title="Settings">&#9881;</button>
 <div id="instructions">Drag to select &middot; <kbd>Tab</kbd> type question &middot; <kbd>Esc</kbd> close</div>
 <button id="add-capture-btn" title="Capture another screen to include" style="position:fixed;bottom:28px;right:20px;z-index:100;display:none;width:36px;height:36px;align-items:center;justify-content:center;background:var(--glass);backdrop-filter:blur(40px) saturate(180%);-webkit-backdrop-filter:blur(40px) saturate(180%);border:1px solid var(--glass-border);border-radius:10px;color:var(--accent);font-size:18px;font-weight:700;cursor:pointer;transition:all .15s;box-shadow:0 2px 12px rgba(0,0,0,0.2),inset 0 1px 0 var(--glass-glow)">+</button>
@@ -190,7 +221,7 @@
     <button class="dt-close" id="dt-close-btn">Close</button>
   </div>
   <div class="dt-body">
-    <div class="dt-desc">Paste the text you want typed below. Zap will hide, switch to your previous app, and type it out character by character — like a real human, complete with natural speed variation and occasional typos that get corrected.</div>
+    <div class="dt-desc">Paste the text you want typed below. Zap Pro will hide, switch to your previous app, and type it out character by character — like a real human, complete with natural speed variation and occasional typos that get corrected.</div>
     <textarea id="dt-textarea" placeholder="Paste or type your text here..."></textarea>
   </div>
   <div class="dt-footer">
@@ -203,7 +234,7 @@
 <!-- Continuous Mode: Floating Widget -->
 <div id="continuous-widget">
   <div id="cw-header">
-    <span class="cw-title"><span class="cw-dot"></span> Zap</span>
+    <span class="cw-title"><span class="cw-dot"></span> Zap Pro</span>
     <button id="cw-close" title="Close">&times;</button>
   </div>
   <div id="cw-body">
@@ -220,9 +251,31 @@
       </select>
     </div>
     <button id="cw-scan-btn">Scan Screen <span class="cw-hotkey">hotkey</span></button>
+    <button id="cw-agent-btn" style="display:none;width:100%;padding:6px;border:1px solid rgba(99,102,241,0.25);border-radius:8px;background:rgba(99,102,241,0.1);color:#818cf8;font-size:11px;font-weight:600;cursor:pointer;font-family:inherit;transition:all .15s" title="Show What I've Learned">&#129504; What I've Learned</button>
     <div id="cw-status"></div>
   </div>
 </div>
+
+<!-- Agent Mode: What I've Learned Panel -->
+<div id="agent-panel">
+  <div id="agent-header">
+    <span class="agent-title"><span class="agent-dot" id="agent-dot"></span> What I've Learned</span>
+    <button id="agent-close">&times;</button>
+  </div>
+  <div id="agent-body">
+    <div class="agent-tab-row">
+      <button class="agent-tab active" data-tab="topics">Topics</button>
+      <button class="agent-tab" data-tab="timeline">Timeline</button>
+    </div>
+    <div class="agent-section active" id="agent-topics-section">
+      <div id="agent-empty">Agent Mode is gathering information...<br><span style="font-size:10px;color:var(--text-dim)">It will learn from your screen automatically</span></div>
+    </div>
+    <div class="agent-section" id="agent-timeline-section"></div>
+  </div>
+</div>
+
+<!-- Agent Mode: Toggle Button -->
+<button id="agent-toggle-btn" style="position:fixed;top:12px;left:12px;z-index:100;display:none;align-items:center;gap:5px;padding:5px 12px;background:rgba(99,102,241,0.15);backdrop-filter:blur(40px);-webkit-backdrop-filter:blur(40px);border:1px solid rgba(99,102,241,0.25);border-radius:10px;color:#818cf8;font-size:11px;font-weight:600;cursor:pointer;transition:all .15s;font-family:inherit;box-shadow:0 2px 12px rgba(0,0,0,0.2)"><span id="agent-btn-dot" style="width:6px;height:6px;border-radius:50%;background:#818cf8;animation:pulse 2s infinite"></span> Agent</button>
 
 <!-- Lite Tier: Scan Counter Badge -->
 <div id="scan-counter"><span class="count" id="scan-count-num">25</span> scans left</div>
@@ -232,7 +285,7 @@
   <div id="mode-locked-card">
     <span class="lock-icon">&#128274;</span>
     <div class="lock-title" id="lock-mode-name">Pro Mode</div>
-    <div class="lock-subtitle" id="lock-message">This mode requires Zap Pro.</div>
+    <div class="lock-subtitle" id="lock-message">This mode requires a Zap Pro upgrade.</div>
     <div class="lock-modes">Lite includes: <strong style="color:var(--accent)">Answer</strong>, <strong style="color:var(--accent)">Drip Type</strong>, <strong style="color:var(--accent)">Translate</strong></div>
     <button class="upgrade-btn" id="lock-upgrade-btn">Upgrade to Pro</button>
     <button class="dismiss-btn" id="lock-dismiss-btn">Go Back</button>
@@ -297,6 +350,8 @@
     if(s.continuousMode && !s.lockdownMode && currentMode!=='driptype' && currentMode!=='autopilot'){
       enterContinuousMode();
     }
+    // Agent mode: show/hide agent button
+    updateAgentUI();
   });
 
   window.zap.onSetMode(function(m){setMode(m)});
@@ -361,7 +416,7 @@
 
   window.zap.onModeLocked(function(d){
     lockModeName.textContent=(d.mode?d.mode.charAt(0).toUpperCase()+d.mode.slice(1):'This')+ ' Mode';
-    lockMessage.textContent=d.message||'This mode requires Zap Pro.';
+    lockMessage.textContent=d.message||'This mode requires a Zap Pro upgrade.';
     lockOverlay.style.display='flex';
     // Trigger shake animation
     lockCard.classList.remove('shake');
@@ -663,7 +718,9 @@
   var clickThroughActive=false;
   // Set up mouseenter/mouseleave ONCE (not per-request) to avoid duplicate listeners
   var cwWidget=$('continuous-widget');
-  [resPanel,inputBar,dtPanel,cwWidget].forEach(function(el){
+  var agentPanel=document.getElementById('agent-panel');
+  var agentToggleBtn=document.getElementById('agent-toggle-btn');
+  [resPanel,inputBar,dtPanel,cwWidget,agentPanel,agentToggleBtn].forEach(function(el){
     if(!el) return;
     el.addEventListener('mouseenter',function(){if(clickThroughActive)window.zap.setIgnoreMouseEvents(false)});
     el.addEventListener('mouseleave',function(){if(clickThroughActive)window.zap.setIgnoreMouseEvents(true,{forward:true})});
@@ -778,6 +835,146 @@
     if(continuousMode&&!cwScanBtn.disabled) cwScanBtn.click();
   });
 
+  // ── Agent Mode: "What I've Learned" Panel ──
+
+  var agentPanelVisible=false;
+  var agentPanelEl=document.getElementById('agent-panel');
+  var agentCloseBtn=document.getElementById('agent-close');
+  var agentToggle=document.getElementById('agent-toggle-btn');
+  var agentDot=document.getElementById('agent-dot');
+  var agentBtnDot=document.getElementById('agent-btn-dot');
+  var agentTopicsSection=document.getElementById('agent-topics-section');
+  var agentTimelineSection=document.getElementById('agent-timeline-section');
+  var agentEmptyEl=document.getElementById('agent-empty');
+
+  function showAgentPanel(){
+    agentPanelEl.style.display='flex';
+    agentPanelVisible=true;
+    agentToggle.style.display='none';
+    refreshAgentPanel();
+  }
+
+  function hideAgentPanel(){
+    agentPanelEl.style.display='none';
+    agentPanelVisible=false;
+    if(settings&&settings.agentMode)agentToggle.style.display='flex';
+  }
+
+  async function refreshAgentPanel(){
+    try{
+      var data=await window.zap.agentGetMemory();
+      if(!data) return;
+
+      // Update summary
+      agentEmptyEl.style.display=(data.topics&&data.topics.length>0)?'none':'block';
+
+      // Topics tab
+      if(data.topics&&data.topics.length>0){
+        var html='<div class="agent-summary">'+esc(data.summary)+'</div>';
+        for(var i=0;i<data.topics.length;i++){
+          var t=data.topics[i];
+          html+='<div class="agent-topic">';
+          html+='<div class="agent-topic-name">'+esc(t.name)+'<span class="topic-count">'+t.count+'x in '+esc(t.apps.join(', '))+'</span></div>';
+          if(t.facts&&t.facts.length>0){
+            html+='<ul class="agent-topic-facts">';
+            for(var j=0;j<Math.min(t.facts.length,6);j++){
+              html+='<li>'+esc(t.facts[j])+'</li>';
+            }
+            html+='</ul>';
+          }
+          html+='</div>';
+        }
+        agentTopicsSection.innerHTML=html;
+      }
+
+      // Timeline tab
+      if(data.entries&&data.entries.length>0){
+        var thtml='';
+        for(var k=0;k<data.entries.length;k++){
+          var e=data.entries[k];
+          var time=new Date(e.timestamp).toLocaleTimeString();
+          thtml+='<div class="agent-entry">';
+          thtml+='<div class="agent-entry-time">'+time+(e.source==='persistent'?' (past)':'')+'</div>';
+          thtml+='<span class="agent-entry-app">'+esc(e.app)+'</span> — ';
+          thtml+='<span class="agent-entry-context">'+esc(e.context)+'</span>';
+          thtml+='</div>';
+        }
+        agentTimelineSection.innerHTML=thtml;
+      }else{
+        agentTimelineSection.innerHTML='<div id="agent-empty" style="display:block">No entries yet</div>';
+      }
+    }catch(_){}
+  }
+
+  // Tab switching
+  document.querySelectorAll('.agent-tab').forEach(function(tab){
+    tab.addEventListener('click',function(){
+      document.querySelectorAll('.agent-tab').forEach(function(t){t.classList.remove('active')});
+      document.querySelectorAll('.agent-section').forEach(function(s){s.classList.remove('active')});
+      tab.classList.add('active');
+      var target=document.getElementById('agent-'+tab.dataset.tab+'-section');
+      if(target)target.classList.add('active');
+    });
+  });
+
+  agentCloseBtn.addEventListener('click',function(){hideAgentPanel()});
+  agentToggle.addEventListener('click',function(){showAgentPanel()});
+
+  // Agent panel draggable
+  (function(){
+    var dragging=false,ox=0,oy=0;
+    var hdr=document.getElementById('agent-header');
+    hdr.addEventListener('mousedown',function(e){
+      dragging=true;
+      var rect=agentPanelEl.getBoundingClientRect();
+      ox=e.clientX-rect.left;oy=e.clientY-rect.top;
+      e.preventDefault();
+    });
+    document.addEventListener('mousemove',function(e){
+      if(!dragging)return;
+      agentPanelEl.style.left=(e.clientX-ox)+'px';agentPanelEl.style.top=(e.clientY-oy)+'px';
+    });
+    document.addEventListener('mouseup',function(){dragging=false});
+  })();
+
+  // Listen for agent memory updates
+  window.zap.onAgentMemoryUpdate(function(data){
+    if(agentPanelVisible) refreshAgentPanel();
+    // Flash the agent dot
+    if(agentBtnDot) agentBtnDot.style.background='#22c55e';
+    setTimeout(function(){if(agentBtnDot)agentBtnDot.style.background='#818cf8'},800);
+  });
+
+  // Listen for agent status changes
+  window.zap.onAgentStatus(function(data){
+    if(data.running){
+      if(agentDot)agentDot.classList.remove('inactive');
+      if(agentBtnDot)agentBtnDot.style.animation='pulse 2s infinite';
+    }else{
+      if(agentDot)agentDot.classList.add('inactive');
+      if(agentBtnDot)agentBtnDot.style.animation='none';
+    }
+  });
+
+  // Show agent toggle button if agent mode is enabled in settings
+  var cwAgentBtn=document.getElementById('cw-agent-btn');
+  if(cwAgentBtn){
+    cwAgentBtn.addEventListener('click',function(){showAgentPanel()});
+  }
+
+  function updateAgentUI(){
+    if(settings&&settings.agentMode){
+      if(!agentPanelVisible)agentToggle.style.display='flex';
+      if(agentDot)agentDot.classList.remove('inactive');
+      if(cwAgentBtn)cwAgentBtn.style.display='block';
+    }else{
+      agentToggle.style.display='none';
+      agentPanelEl.style.display='none';
+      agentPanelVisible=false;
+      if(cwAgentBtn)cwAgentBtn.style.display='none';
+    }
+  }
+
   // ── Autopilot Mode — fully automatic, no user interaction needed ──
 
   async function handleAutopilotResponse(raw){
@@ -818,7 +1015,7 @@
   function showAutopilotResults(result){
     if(!result)return;
     if(result.error==='accessibility_not_granted'){
-      resBody.className='';resBody.innerHTML='<div class="error-msg" style="text-align:center;padding:14px 0"><div style="font-size:28px;margin-bottom:8px">&#128274;</div><div style="font-size:13px;font-weight:600;color:#facc15;margin-bottom:6px">Accessibility Permission Required</div><div style="font-size:11px;color:rgba(255,255,255,0.55);line-height:1.5">Go to <b>System Settings → Privacy &amp; Security → Accessibility</b> and enable <b>Zap</b>. Then press Alt+4 to try again.</div></div>';
+      resBody.className='';resBody.innerHTML='<div class="error-msg" style="text-align:center;padding:14px 0"><div style="font-size:28px;margin-bottom:8px">&#128274;</div><div style="font-size:13px;font-weight:600;color:#facc15;margin-bottom:6px">Accessibility Permission Required</div><div style="font-size:11px;color:rgba(255,255,255,0.55);line-height:1.5">Go to <b>System Settings → Privacy &amp; Security → Accessibility</b> and enable <b>Zap Pro</b>. Then press Alt+4 to try again.</div></div>';
       return;
     }
     var filled=result.filled||0, total=result.total||0;

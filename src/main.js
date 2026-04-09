@@ -46,7 +46,7 @@ function verifyLicense(storeRef) {
 
 /* ─────────────────── Single Instance Lock ─────────────────── */
 
-// Prevent multiple Zap processes from running simultaneously.
+// Prevent multiple Zap Pro processes from running simultaneously.
 // If a second instance launches, focus the existing window and exit the duplicate.
 const gotTheLock = app.requestSingleInstanceLock();
 if (!gotTheLock) {
@@ -164,7 +164,14 @@ const STORE_DEFAULTS = {
   statsTotalRequests: 0,
   statsLastUsed: 0,
   // Support Tickets (local log)
-  supportTickets: []
+  supportTickets: [],
+  // Agent Mode
+  agentMode: false,
+  agentScanInterval: 10,       // seconds between auto-scans
+  agentMemoryRetention: 30,    // days to keep persistent memory
+  agentMaxSessionMemory: 50,   // max entries in session memory
+  agentMaxPersistentMemory: 200, // max entries in persistent memory
+  persistentMemory: []          // long-term memory stored on disk
 };
 
 let store = null;
@@ -226,7 +233,7 @@ function startPermissionHealthCheck() {
         if (overlayWin && !overlayWin.isDestroyed()) {
           overlayWin.webContents.send('permission-warning', {
             type: 'accessibility',
-            message: 'Accessibility permission was disabled. Hotkeys, Autopilot, and Drip Type won\'t work.\n\nFix: System Settings → Privacy & Security → Accessibility → toggle Zap ON'
+            message: 'Accessibility permission was disabled. Hotkeys, Autopilot, and Drip Type won\'t work.\n\nFix: System Settings → Privacy & Security → Accessibility → toggle Zap Pro ON'
           });
         }
       }
@@ -239,7 +246,7 @@ function startPermissionHealthCheck() {
         if (overlayWin && !overlayWin.isDestroyed()) {
           overlayWin.webContents.send('permission-warning', {
             type: 'screen-recording',
-            message: 'Screen Recording permission was disabled. Screenshots won\'t work.\n\nFix: System Settings → Privacy & Security → Screen Recording → toggle Zap ON'
+            message: 'Screen Recording permission was disabled. Screenshots won\'t work.\n\nFix: System Settings → Privacy & Security → Screen Recording → toggle Zap Pro ON'
           });
         }
       }
@@ -251,14 +258,31 @@ function startPermissionHealthCheck() {
 }
 
 // IPC handler for renderer to check permissions on demand
-ipcMain.handle('check-permissions', () => {
+// Uses a retry approach to work around macOS permission cache staleness after fresh installs
+ipcMain.handle('check-permissions', async () => {
   if (process.platform !== 'darwin') return { accessibility: true, screenRecording: true, platform: process.platform };
   const { systemPreferences } = require('electron');
-  return {
-    accessibility: systemPreferences.isTrustedAccessibilityClient(false),
-    screenRecording: systemPreferences.getMediaAccessStatus('screen') === 'granted',
-    platform: 'darwin'
-  };
+
+  let accessibility = systemPreferences.isTrustedAccessibilityClient(false);
+  let screenRecording = systemPreferences.getMediaAccessStatus('screen') === 'granted';
+
+  // macOS permission cache can be stale after granting in System Settings.
+  // If screen recording appears denied, try a real capture to verify (the API can lie)
+  if (!screenRecording) {
+    try {
+      const testSources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 100, height: 100 } });
+      if (testSources && testSources.length > 0) {
+        const testImg = testSources[0].thumbnail.toDataURL();
+        // If we got a real image (>1KB), permission is actually granted despite what the API says
+        if (testImg && testImg.length > 1000) {
+          screenRecording = true;
+          console.log('[PERMISSIONS] Screen recording API reported denied but capture succeeded — permission is actually granted');
+        }
+      }
+    } catch (_) {}
+  }
+
+  return { accessibility, screenRecording, platform: 'darwin' };
 });
 
 // ══════════════════════════════════════════════════════════════
@@ -503,6 +527,310 @@ function unregisterEscShortcut() {
   escShortcutRegistered = false;
 }
 
+/* ─────────────────── Agent Mode: Memory & Auto-Scan ─────────────────── */
+
+// Session memory — lives in RAM, reset on quit
+let sessionMemory = [];
+// Agent auto-scan timer
+let agentScanTimer = null;
+let agentRunning = false;
+let agentScanInProgress = false;
+
+/**
+ * Compress an image data URL to lower resolution for memory storage.
+ * We don't store full images — just extracted text summaries.
+ */
+async function agentExtractInfo(imageDataUrl) {
+  if (!imageDataUrl) return null;
+  if (!store) return null;
+
+  // Use OpenAI to extract key information from the screen
+  const apiKey = store.get('openaiKey') || store.get('apiKey');
+  const apiPlaceholder = store.get('openaiKey') ? OPENAI_KEY_PLACEHOLDER : API_PLACEHOLDER;
+  if (!apiKey || apiKey === apiPlaceholder || apiKey === API_PLACEHOLDER || apiKey === OPENAI_KEY_PLACEHOLDER) return null;
+
+  const endpoint = 'https://api.openai.com/v1/chat/completions';
+
+  try {
+    const res = await fetch(endpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          { role: 'system', content: 'You are a screen context extractor. Analyze the screenshot and extract ALL useful information visible on screen. Return a concise JSON object with these fields:\n- "app": the application or website name visible\n- "context": what the user appears to be doing (1 sentence)\n- "keyFacts": array of 3-8 specific facts, terms, questions, data points, or important text visible on screen\n- "topic": the main subject/topic (1-3 words)\nBe precise and factual. Only extract what is actually visible. Return ONLY valid JSON, no markdown.' },
+          { role: 'user', content: [
+            { type: 'text', text: 'Extract all useful information from this screen capture.' },
+            { type: 'image_url', image_url: { url: imageDataUrl } }
+          ]}
+        ],
+        max_tokens: 500,
+        temperature: 0
+      })
+    });
+    if (!res.ok) return null;
+    const data = await res.json();
+    const content = data.choices?.[0]?.message?.content;
+    if (!content) return null;
+
+    try {
+      // Try parsing as JSON directly
+      let parsed;
+      try { parsed = JSON.parse(content); } catch (_) {
+        const m = content.match(/\{[\s\S]*\}/);
+        if (m) parsed = JSON.parse(m[0]); else return null;
+      }
+      return {
+        timestamp: Date.now(),
+        app: parsed.app || 'Unknown',
+        context: parsed.context || '',
+        keyFacts: parsed.keyFacts || [],
+        topic: parsed.topic || '',
+        tokens: data.usage?.total_tokens || 0
+      };
+    } catch (_) {
+      return null;
+    }
+  } catch (_) {
+    return null;
+  }
+}
+
+/**
+ * Add an entry to session memory (RAM) and optionally to persistent memory (disk).
+ */
+function addToMemory(entry) {
+  if (!entry) return;
+  if (!store) return;
+
+  const maxSession = store.get('agentMaxSessionMemory') || 50;
+  const maxPersistent = store.get('agentMaxPersistentMemory') || 200;
+
+  // Deduplicate — skip if last entry has very similar topic & keyFacts
+  if (sessionMemory.length > 0) {
+    const last = sessionMemory[sessionMemory.length - 1];
+    if (last.topic === entry.topic && last.app === entry.app) {
+      const lastFacts = (last.keyFacts || []).join('|');
+      const newFacts = (entry.keyFacts || []).join('|');
+      if (lastFacts === newFacts) {
+        console.log('[AGENT] Skipping duplicate memory entry');
+        return;
+      }
+    }
+  }
+
+  // Add to session memory
+  sessionMemory.push(entry);
+  if (sessionMemory.length > maxSession) {
+    sessionMemory = sessionMemory.slice(-maxSession);
+  }
+
+  // Add to persistent memory (disk)
+  let persistent = store.get('persistentMemory') || [];
+  persistent.push({
+    timestamp: entry.timestamp,
+    date: new Date(entry.timestamp).toISOString().split('T')[0],
+    app: entry.app,
+    context: entry.context,
+    keyFacts: entry.keyFacts,
+    topic: entry.topic
+  });
+
+  // Enforce max size
+  if (persistent.length > maxPersistent) {
+    persistent = persistent.slice(-maxPersistent);
+  }
+
+  // Prune old entries beyond retention period
+  const retentionDays = store.get('agentMemoryRetention') || 30;
+  const cutoff = Date.now() - (retentionDays * 24 * 60 * 60 * 1000);
+  persistent = persistent.filter(e => e.timestamp > cutoff);
+
+  store.set('persistentMemory', persistent);
+
+  console.log(`[AGENT] Memory updated — session: ${sessionMemory.length}, persistent: ${persistent.length}`);
+
+  // Notify overlay if it's open
+  if (overlayWin && !overlayWin.isDestroyed()) {
+    try {
+      overlayWin.webContents.send('agent-memory-update', {
+        sessionCount: sessionMemory.length,
+        persistentCount: persistent.length,
+        latest: entry
+      });
+    } catch (_) {}
+  }
+}
+
+/**
+ * Build a memory context string to inject into AI prompts.
+ * Uses recent session memory + relevant persistent memory for the topic.
+ */
+function buildMemoryContext(currentTopic) {
+  if (!store) return '';
+  if (!store.get('agentMode')) return '';
+
+  const parts = [];
+
+  // Recent session memory (last 10 entries)
+  const recentSession = sessionMemory.slice(-10);
+  if (recentSession.length > 0) {
+    parts.push('=== RECENT SCREEN CONTEXT (from this session) ===');
+    for (const e of recentSession) {
+      const time = new Date(e.timestamp).toLocaleTimeString();
+      parts.push(`[${time}] App: ${e.app} | ${e.context}`);
+      if (e.keyFacts && e.keyFacts.length > 0) {
+        parts.push('  Key info: ' + e.keyFacts.join('; '));
+      }
+    }
+  }
+
+  // Relevant persistent memory (search by topic if available)
+  const persistent = store.get('persistentMemory') || [];
+  if (persistent.length > 0) {
+    // Get unique recent topics from persistent memory (last 20)
+    const recentPersistent = persistent.slice(-20);
+    if (recentPersistent.length > 0) {
+      parts.push('\n=== LEARNED KNOWLEDGE (from past sessions) ===');
+      // Group by topic
+      const topicMap = {};
+      for (const e of recentPersistent) {
+        const key = e.topic || 'General';
+        if (!topicMap[key]) topicMap[key] = [];
+        topicMap[key].push(e);
+      }
+      for (const [topic, entries] of Object.entries(topicMap)) {
+        const facts = entries.flatMap(e => e.keyFacts || []);
+        // Deduplicate facts
+        const uniqueFacts = [...new Set(facts)];
+        if (uniqueFacts.length > 0) {
+          parts.push(`Topic: ${topic} — ${uniqueFacts.slice(0, 8).join('; ')}`);
+        }
+      }
+    }
+  }
+
+  if (parts.length === 0) return '';
+  return '\n\n[AGENT MEMORY — The user has been working on their screen. Here is context gathered from recent activity. Use this to give more informed, contextual answers:]\n' + parts.join('\n') + '\n[END AGENT MEMORY]\n';
+}
+
+/**
+ * Perform a single agent scan — capture screen, extract info, store in memory.
+ */
+async function agentScan() {
+  if (agentScanInProgress) return;
+  if (!store || !store.get('agentMode')) return;
+  if (!isLicensed()) return;
+
+  agentScanInProgress = true;
+  try {
+    console.log('[AGENT] Running auto-scan...');
+    const img = await grabScreen();
+    if (!img || img.length < 50000) {
+      console.log('[AGENT] Screen capture failed or too small — skipping');
+      return;
+    }
+
+    const entry = await agentExtractInfo(img);
+    if (entry) {
+      addToMemory(entry);
+    } else {
+      console.log('[AGENT] Could not extract info from screen — skipping');
+    }
+  } catch (err) {
+    console.error('[AGENT] Scan error:', err.message);
+  } finally {
+    agentScanInProgress = false;
+  }
+}
+
+/**
+ * Start the agent auto-scan timer.
+ */
+function startAgentMode() {
+  if (agentRunning) return;
+  if (!store) return;
+
+  const interval = (store.get('agentScanInterval') || 10) * 1000;
+  agentRunning = true;
+  console.log(`[AGENT] Starting auto-scan every ${interval / 1000}s`);
+
+  // Do an initial scan immediately
+  agentScan();
+
+  agentScanTimer = setInterval(() => {
+    agentScan();
+  }, interval);
+
+  // Notify overlay
+  if (overlayWin && !overlayWin.isDestroyed()) {
+    try { overlayWin.webContents.send('agent-status', { running: true }); } catch (_) {}
+  }
+}
+
+/**
+ * Stop the agent auto-scan timer.
+ */
+function stopAgentMode() {
+  if (!agentRunning) return;
+  agentRunning = false;
+
+  if (agentScanTimer) {
+    clearInterval(agentScanTimer);
+    agentScanTimer = null;
+  }
+  console.log('[AGENT] Auto-scan stopped');
+
+  // Notify overlay
+  if (overlayWin && !overlayWin.isDestroyed()) {
+    try { overlayWin.webContents.send('agent-status', { running: false }); } catch (_) {}
+  }
+}
+
+/**
+ * Generate a "What I've Learned" summary using AI.
+ */
+async function generateLearnedSummary() {
+  const allMemory = [
+    ...sessionMemory.map(e => ({ ...e, source: 'session' })),
+    ...(store.get('persistentMemory') || []).slice(-30).map(e => ({ ...e, source: 'persistent' }))
+  ];
+
+  if (allMemory.length === 0) return { summary: 'No information gathered yet. Enable Agent Mode and it will start learning from your screen.', entries: [], topics: [] };
+
+  // Build topic summary
+  const topicMap = {};
+  for (const e of allMemory) {
+    const key = e.topic || 'General';
+    if (!topicMap[key]) topicMap[key] = { count: 0, facts: [], apps: new Set(), lastSeen: 0 };
+    topicMap[key].count++;
+    topicMap[key].facts.push(...(e.keyFacts || []));
+    topicMap[key].apps.add(e.app);
+    topicMap[key].lastSeen = Math.max(topicMap[key].lastSeen, e.timestamp);
+  }
+
+  const topics = Object.entries(topicMap).map(([name, data]) => ({
+    name,
+    count: data.count,
+    facts: [...new Set(data.facts)].slice(0, 10),
+    apps: [...data.apps],
+    lastSeen: data.lastSeen
+  })).sort((a, b) => b.count - a.count);
+
+  // Generate natural language summary
+  const topicSummaries = topics.slice(0, 5).map(t =>
+    `${t.name} (seen ${t.count}x in ${t.apps.join(', ')}): ${t.facts.slice(0, 5).join('; ')}`
+  ).join('\n');
+
+  return {
+    summary: `Observed ${allMemory.length} screen captures across ${topics.length} topics.`,
+    entries: allMemory.slice(-20).reverse(),
+    topics: topics.slice(0, 8),
+    sessionCount: sessionMemory.length,
+    persistentCount: (store.get('persistentMemory') || []).length
+  };
+}
+
 /* ─────────────────── Screen Share Stealth ─────────────────── */
 
 let screenBeingCaptured = false;
@@ -690,6 +1018,9 @@ function makeOverlay() {
     enforceContentProtection(overlayWin);
     applyRespondusWindowCloaking(overlayWin);
     registerEscShortcut();
+    // Safety: re-enable click-through on show so cursor isn't trapped
+    // The renderer's enableClickThrough() also does this, but belt-and-suspenders
+    try { overlayWin.setIgnoreMouseEvents(true, { forward: true }); } catch (_) {}
     // Double-apply after a short delay to catch any macOS resets
     setTimeout(() => enforceContentProtection(overlayWin), 50);
     setTimeout(() => enforceContentProtection(overlayWin), 200);
@@ -705,7 +1036,9 @@ function makeOverlay() {
   applyOverlayLevel();
   applyCloseResistance(overlayWin); // Resist external close attempts on Windows
 
-  overlayWin.setIgnoreMouseEvents(false);
+  // Default: enable click-through so the overlay doesn't trap the cursor
+  // The renderer will toggle this based on UI interactions (panels, inputs, etc.)
+  try { overlayWin.setIgnoreMouseEvents(true, { forward: true }); } catch (_) {}
   overlayWin.hide();
 
   overlayWin.on('closed', () => { overlayWin = null; });
@@ -722,7 +1055,7 @@ function makeSettings() {
   settingsWin = new BrowserWindow({
     width: 700, height: 800,
     resizable: true, minimizable: true, maximizable: false,
-    title: 'Zap Settings',
+    title: 'Zap Pro Settings',
     backgroundColor: '#0a0a12',
     webPreferences: {
       preload:          path.join(__dirname, 'preload.js'),
@@ -746,7 +1079,7 @@ function showFlashcards(cardsText) {
     width: 1024, height: 768,
     resizable: true, minimizable: true, maximizable: true,
     fullscreenable: true,
-    title: 'Zap Flashcards',
+    title: 'Zap Pro Flashcards',
     backgroundColor: '#0a0a12',
     show: false,
     webPreferences: {
@@ -919,9 +1252,13 @@ function isModeLocked(mode) {
   return !LITE_ALLOWED_MODES.includes(mode);
 }
 
+const VALID_MODES = ['answer','simple','translate','solve','essay','code','research','email','flashcards','autopilot','driptype'];
+
 function showWithMode(mode) {
   // Block overlay if not licensed
   if (!isLicensed()) { showActivate(); return; }
+  // Persist the last used mode (sanitized)
+  if (VALID_MODES.includes(mode)) store.set('lastMode', mode);
 
   // Lite tier: block restricted modes with locked animation
   if (isModeLocked(mode)) {
@@ -985,10 +1322,11 @@ function showWithMode(mode) {
       const scanStatus = checkScanLimit();
       overlayWin.webContents.send('scan-counter', { remaining: scanStatus.remaining, limit: scanStatus.limit, used: scanStatus.used });
     }
+    // Set overlayUp BEFORE showing so the Escape handler is immediately active
+    overlayUp = true;
     overlayWin.showInactive();
     // Re-enforce content protection AFTER show — critical for panel windows
     enforceContentProtection(overlayWin);
-    overlayUp = true;
     // In lockdown mode, start the keep-alive timer to stay above lockdown browsers
     if (isLockdown()) startLockdownKeepAlive();
   };
@@ -1027,9 +1365,9 @@ function instantAnswer() {
     overlayWin.webContents.send('set-mode', 'answer');
     overlayWin.webContents.send('screen-captured', img);
     overlayWin.webContents.send('load-settings', store.store);
+    overlayUp = true;
     overlayWin.showInactive();
     enforceContentProtection(overlayWin);
-    overlayUp = true;
     if (isLockdown()) startLockdownKeepAlive();
     // Trigger instant processing after a short delay for the renderer to receive the capture
     setTimeout(() => {
@@ -1089,10 +1427,10 @@ function makeTray() {
     { type: 'separator' },
     { label: 'Phantom Mode (Always On)', type: 'checkbox', checked: true, enabled: false },
     { type: 'separator' },
-    { label: 'Quit Zap', click: () => app.quit() }
+    { label: 'Quit Zap Pro', click: () => app.quit() }
   ]);
 
-  tray.setToolTip('Zap — AI Screen Overlay');
+  tray.setToolTip('Zap Pro — AI Screen Overlay');
   tray.setContextMenu(menu);
   tray.on('click', toggle);
 }
@@ -1101,13 +1439,37 @@ function makeTray() {
 
 function bindKeys() {
   globalShortcut.unregisterAll();
+
+  // macOS: check Accessibility permission before registering global shortcuts
+  // Without it, globalShortcut.register() silently fails
+  if (process.platform === 'darwin') {
+    const { systemPreferences } = require('electron');
+    const trusted = systemPreferences.isTrustedAccessibilityClient(false);
+    if (!trusted) {
+      console.warn('[HOTKEYS] Accessibility permission not granted — hotkeys will not work. Prompting user...');
+      // Prompt the macOS permission dialog (passing true triggers the system prompt)
+      systemPreferences.isTrustedAccessibilityClient(true);
+      // Retry binding after a delay to give user time to grant
+      setTimeout(() => {
+        if (systemPreferences.isTrustedAccessibilityClient(false)) {
+          console.log('[HOTKEYS] Accessibility granted — retrying hotkey binding');
+          bindKeys();
+        }
+      }, 5000);
+      return; // Don't bind yet — will retry after permission is granted
+    }
+  }
+
   // App/settings hotkeys always work
   const appKeys = [
     [store.get('hotkeyApp'), makeSettings]
   ];
   for (const [key, fn] of appKeys) {
     if (!key) continue;
-    try { globalShortcut.register(key, fn); } catch (_) {}
+    try {
+      const ok = globalShortcut.register(key, fn);
+      if (!ok) console.warn(`[HOTKEYS] Failed to register app key: ${key}`);
+    } catch (err) { console.error(`[HOTKEYS] Error registering ${key}:`, err.message); }
   }
   // Overlay/feature hotkeys only work if licensed
   if (!isLicensed()) return;
@@ -1131,10 +1493,15 @@ function bindKeys() {
     [store.get('hotkeyInstant'),   instantAnswer],
     [store.get('hotkeySelfDestruct'), selfDestructTrigger]
   ];
+  let registered = 0, failed = 0;
   for (const [key, fn] of featureKeys) {
     if (!key) continue;
-    try { globalShortcut.register(key, fn); } catch (_) {}
+    try {
+      const ok = globalShortcut.register(key, fn);
+      if (ok) registered++; else { failed++; console.warn(`[HOTKEYS] Failed to register: ${key}`); }
+    } catch (err) { failed++; console.error(`[HOTKEYS] Error registering ${key}:`, err.message); }
   }
+  console.log(`[HOTKEYS] Registered ${registered} hotkeys` + (failed ? `, ${failed} failed` : ''));
 
   // Stealth hotkeys for lockdown mode — letter-based combos that work without Fn key
   if (isLockdown()) {
@@ -1706,7 +2073,7 @@ ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
       if (overlayWin && !overlayWin.isDestroyed()) {
         overlayWin.webContents.send('autopilot-result', {
           success: false,
-          error: 'Zap needs Accessibility permission. Go to System Settings → Privacy & Security → Accessibility → enable Zap, then try again.'
+          error: 'Zap Pro needs Accessibility permission. Go to System Settings → Privacy & Security → Accessibility → enable Zap Pro, then try again.'
         });
       }
       return { success: false, error: 'accessibility_not_granted' };
@@ -2032,6 +2399,13 @@ ipcMain.on('save-settings', (_ev, s) => {
   bindKeys();
   applyProcessDisguise(); // Re-apply disguise if lockdown mode was toggled
   if (s.lockdownMode) { activateKernelStealth(); installPersistence(); } else { deactivateKernelStealth(); removePersistence(); }
+  // Handle agent mode toggle
+  if (s.agentMode === true && !agentRunning) { startAgentMode(); }
+  else if (s.agentMode === false && agentRunning) { stopAgentMode(); }
+  // If interval changed while running, restart
+  if (agentRunning && s.agentScanInterval && s.agentScanInterval !== store.get('agentScanInterval')) {
+    stopAgentMode(); startAgentMode();
+  }
   if (s.startAtLogin !== undefined) {
     try { app.setLoginItemSettings({ openAtLogin: s.startAtLogin }); } catch (_) {}
   }
@@ -2039,6 +2413,53 @@ ipcMain.on('save-settings', (_ev, s) => {
   try { if (overlayWin) overlayWin.setContentProtection(true); } catch (_) {}
   if (overlayWin)  overlayWin.webContents.send('load-settings', store.store);
   if (settingsWin) settingsWin.webContents.send('settings-saved');
+});
+
+/* ─────────────────── Agent Mode IPC ─────────────────── */
+
+ipcMain.handle('agent-get-memory', async () => {
+  return generateLearnedSummary();
+});
+
+ipcMain.handle('agent-get-status', async () => {
+  return {
+    running: agentRunning,
+    sessionCount: sessionMemory.length,
+    persistentCount: (store.get('persistentMemory') || []).length,
+    enabled: store.get('agentMode') || false
+  };
+});
+
+ipcMain.on('agent-start', () => {
+  store.set('agentMode', true);
+  startAgentMode();
+});
+
+ipcMain.on('agent-stop', () => {
+  store.set('agentMode', false);
+  stopAgentMode();
+});
+
+ipcMain.on('agent-clear-session', () => {
+  sessionMemory = [];
+  console.log('[AGENT] Session memory cleared');
+  if (overlayWin && !overlayWin.isDestroyed()) {
+    try { overlayWin.webContents.send('agent-memory-update', { sessionCount: 0, persistentCount: (store.get('persistentMemory') || []).length, latest: null }); } catch (_) {}
+  }
+});
+
+ipcMain.on('agent-clear-all', () => {
+  sessionMemory = [];
+  store.set('persistentMemory', []);
+  console.log('[AGENT] All memory cleared');
+  if (overlayWin && !overlayWin.isDestroyed()) {
+    try { overlayWin.webContents.send('agent-memory-update', { sessionCount: 0, persistentCount: 0, latest: null }); } catch (_) {}
+  }
+});
+
+ipcMain.handle('agent-scan-now', async () => {
+  await agentScan();
+  return { sessionCount: sessionMemory.length, persistentCount: (store.get('persistentMemory') || []).length };
 });
 
 /* ─────────────────── AI Request ─────────────────── */
@@ -2050,7 +2471,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
     try { await checkSubscriptionStatus(true); } catch (_) {}
   }
   // Block AI usage for unlicensed users
-  if (!isLicensed()) return { error: 'Subscription required. Please subscribe to use Zap.' };
+  if (!isLicensed()) return { error: 'Subscription required. Please subscribe to use Zap Pro.' };
 
   // Lite tier: enforce mode restrictions
   const reqTier = store.get('subscriptionTier');
@@ -2116,7 +2537,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
   }
 
   if (!apiKey || apiKey === API_PLACEHOLDER || apiKey === OPENAI_KEY_PLACEHOLDER) {
-    return { error: 'API key not configured. Please reinstall Zap or contact support.' };
+    return { error: 'API key not configured. Please reinstall Zap Pro or contact support.' };
   }
 
   console.log(`[AI] Mode: ${mode}, Provider: ${endpoint.includes('openai') ? 'OpenAI GPT-4o' : 'Perplexity'}`);
@@ -2127,7 +2548,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
     if (isLockdown()) {
       return { error: 'Screen capture failed in Stealth Mode.\nPress Tab to type your question manually, then press Enter.\nIf on macOS, grant Screen Recording permission in System Settings → Privacy.' };
     }
-    return { error: 'Screen capture failed. Please try:\n1. Open System Settings → Privacy & Security → Screen Recording\n2. Toggle Zap OFF then ON again\n3. Quit Zap completely (right-click tray → Quit) and reopen it' };
+    return { error: 'Screen capture failed. Please try:\n1. Open System Settings → Privacy & Security → Screen Recording\n2. Toggle Zap Pro OFF then ON again\n3. Quit Zap Pro completely (right-click tray → Quit) and reopen it' };
   }
 
   const prompts = {
@@ -2154,6 +2575,11 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
   const aiContext = (store.get('aiContext') || '').trim();
   if (aiContext) {
     systemPrompt = 'IMPORTANT USER CONTEXT — follow these instructions for every response:\n' + aiContext + '\n\n' + systemPrompt;
+  }
+  // Inject agent memory context if agent mode is active
+  const memoryContext = buildMemoryContext(mode);
+  if (memoryContext) {
+    systemPrompt += memoryContext;
   }
   const msgs = [{ role: 'system', content: systemPrompt }];
 
@@ -2238,7 +2664,7 @@ function showActivate() {
   activateWin = new BrowserWindow({
     width: 520, height: 700,
     resizable: false, minimizable: false, maximizable: false,
-    title: 'Activate Zap',
+    title: 'Activate Zap Pro',
     backgroundColor: '#0a0a12',
     titleBarStyle: 'hiddenInset',
     show: false,
@@ -2311,7 +2737,7 @@ ipcMain.handle('verify-email-subscription', async (_ev, email) => {
     }
 
     const stripe = getStripe();
-    if (!stripe) return { valid: false, error: 'Payment system not configured. Please reinstall Zap or contact support.' };
+    if (!stripe) return { valid: false, error: 'Payment system not configured. Please reinstall Zap Pro or contact support.' };
 
     const normalizedEmail = email.trim().toLowerCase();
 
@@ -2378,7 +2804,7 @@ ipcMain.handle('verify-email-subscription', async (_ev, email) => {
 ipcMain.handle('create-checkout-session', async (_ev, email, plan) => {
   try {
     const stripe = getStripe();
-    if (!stripe) return { error: 'Payment system not configured. Please reinstall Zap or contact support.' };
+    if (!stripe) return { error: 'Payment system not configured. Please reinstall Zap Pro or contact support.' };
 
     const priceId = plan === 'annual' ? STRIPE_ANNUAL_PRICE_ID
                   : plan === 'lite' ? STRIPE_LITE_PRICE_ID
@@ -2430,7 +2856,7 @@ ipcMain.handle('open-checkout-window', async (_ev, url, sessionId) => {
   checkoutWin = new BrowserWindow({
     width: 500, height: 700,
     resizable: true, minimizable: false, maximizable: false,
-    title: 'Zap — Subscribe',
+    title: 'Zap Pro — Subscribe',
     backgroundColor: '#0a0a12',
     webPreferences: { nodeIntegration: false, contextIsolation: true }
   });
@@ -2518,7 +2944,7 @@ async function activateFromSession(sessionId) {
             await stripe.customers.createBalanceTransaction(referrerCustId, {
               amount: -2500, // -$25.00 = 1 free month
               currency: 'usd',
-              description: 'Referral reward — 1 free month for referring a friend to Zap',
+              description: 'Referral reward — 1 free month for referring a friend to Zap Pro',
             });
             console.log(`[REFERRAL] Credited referrer ${referrerCustId} with $25 for code ${referredBy}`);
           }
@@ -2554,14 +2980,44 @@ ipcMain.handle('validate-stripe-subscription', async (_ev, sessionId) => {
 
 // Check subscription status — force=true skips cooldown (used by periodic timer)
 async function checkSubscriptionStatus(force = false) {
-  const subId = store.get('stripeSubscriptionId');
+  let subId = store.get('stripeSubscriptionId');
   if (!subId) {
     // Admin keys bypass subscription check
     if (ADMIN_KEYS.includes(store.get('licenseKey'))) return;
-    // No subscription and not admin — revoke
-    store.set('licenseValid', false);
-    store.delete('_lsig');
-    return;
+    // Try to recover subscription using stored email before revoking
+    // This handles cases where stripeSubscriptionId was lost during an update
+    const recoveryEmail = store.get('licenseEmail');
+    if (recoveryEmail) {
+      try {
+        const stripe = getStripe();
+        if (stripe) {
+          console.log(`[LICENSE] No subscription ID found — attempting recovery for ${recoveryEmail}`);
+          const customers = await stripe.customers.list({ email: recoveryEmail.trim().toLowerCase(), limit: 5 });
+          for (const cust of (customers.data || [])) {
+            const subs = await stripe.subscriptions.list({ customer: cust.id, status: 'active', limit: 1 });
+            if (subs.data && subs.data.length > 0) {
+              const recovered = subs.data[0];
+              store.set('stripeSubscriptionId', recovered.id);
+              store.set('stripeCustomerId', cust.id);
+              store.set('subscriptionStatus', recovered.status);
+              store.set('licenseValid', true);
+              sealLicense(store);
+              subId = recovered.id;
+              console.log(`[LICENSE] Successfully recovered subscription ${recovered.id} for ${recoveryEmail}`);
+              break;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[LICENSE] Recovery attempt failed:', err.message);
+      }
+    }
+    // If still no subscription ID after recovery attempt, revoke
+    if (!subId) {
+      store.set('licenseValid', false);
+      store.delete('_lsig');
+      return;
+    }
   }
 
   if (!force) {
@@ -2732,7 +3188,7 @@ function showAuth() {
   authWin = new BrowserWindow({
     width: 520, height: 660,
     resizable: false, minimizable: false, maximizable: false,
-    title: 'Zap — Sign In',
+    title: 'Zap Pro — Sign In',
     backgroundColor: '#0a0a12',
     titleBarStyle: 'hiddenInset',
     show: false,
@@ -2819,7 +3275,7 @@ function showWelcome() {
   welcomeWin = new BrowserWindow({
     width: 760, height: 600,
     resizable: false, minimizable: false, maximizable: false,
-    title: 'Welcome to Zap',
+    title: 'Welcome to Zap Pro',
     backgroundColor: '#0a0a12',
     titleBarStyle: 'hiddenInset',
     show: false,
@@ -3988,6 +4444,18 @@ app.whenReady().then(async () => {
   backgroundUpdateCheck(); // Check immediately on startup
   setInterval(backgroundUpdateCheck, 30 * 60 * 1000); // Check for updates every 30 min
 
+  // Start Agent Mode if it was previously enabled
+  if (store.get('agentMode') && isLicensed()) {
+    startAgentMode();
+  }
+
+  // Sanitize lastMode — corrupted store after update can cause auto-open in wrong mode
+  const storedMode = store.get('lastMode');
+  if (!VALID_MODES.includes(storedMode)) {
+    console.log(`[APP] Invalid lastMode "${storedMode}" — resetting to "answer"`);
+    store.set('lastMode', 'answer');
+  }
+
   // Tray is always available (for Quit, Settings, etc.)
   makeTray();
 
@@ -4039,7 +4507,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {});
-app.on('will-quit', () => { stopWatchdog(); removePersistence(); globalShortcut.unregisterAll(); cleanupScreenCaptureDetection(); if (lockdownDetectionInterval) { clearInterval(lockdownDetectionInterval); lockdownDetectionInterval = null; } });
+app.on('will-quit', () => { stopAgentMode(); stopWatchdog(); removePersistence(); globalShortcut.unregisterAll(); cleanupScreenCaptureDetection(); if (lockdownDetectionInterval) { clearInterval(lockdownDetectionInterval); lockdownDetectionInterval = null; } });
 
 // Resist SIGTERM from lockdown browsers — they send terminate signals to kill unauthorized apps
 // In lockdown mode, ignore SIGTERM entirely (user must use Force Close to quit)
