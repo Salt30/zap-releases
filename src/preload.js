@@ -77,6 +77,13 @@ contextBridge.exposeInMainWorld('zap', {
   devicesRemove:    (id)      => ipcRenderer.invoke('devices-remove', id),
   devicesRegister:  ()        => ipcRenderer.invoke('devices-register'),
 
+  // Ticket system v2 (ZapBrain)
+  ticketsMy:        ()        => ipcRenderer.invoke('tickets-my'),
+  ticketsCreate:    (data)    => ipcRenderer.invoke('tickets-create', data),
+  ticketsGet:       (id)      => ipcRenderer.invoke('tickets-get', id),
+  ticketsReply:     (data)    => ipcRenderer.invoke('tickets-reply', data),
+  ticketsClose:     (id)      => ipcRenderer.invoke('tickets-close', id),
+
   // Support chat (ZapBrain)
   supportChat:         (message) => ipcRenderer.invoke('support-chat', { message }),
   supportEscalate:     ()        => ipcRenderer.invoke('support-escalate'),

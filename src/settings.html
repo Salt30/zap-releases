@@ -91,6 +91,92 @@
   .perm-status.granted{color:#34d399;background:rgba(52,211,153,0.12)}
   .perm-status.denied{color:#ef4444;background:rgba(239,68,68,0.12)}
   .perm-status.checking{color:var(--text-dim);background:rgba(74,111,165,0.08)}
+  /* ━━━━━ Support ticket v2 (Linear/Intercom-style) ━━━━━ */
+  #tab-support { font-family: -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif; }
+
+  /* Header */
+  .v2-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; padding: 4px 2px; }
+  .v2-title { font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
+  .v2-subtitle { font-size: 13px; color: var(--text-dim); margin-top: 3px; }
+  .v2-new-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; color: #fff; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all .15s; box-shadow: 0 2px 12px rgba(99,102,241,0.35); }
+  .v2-new-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(99,102,241,0.5); }
+
+  /* Ticket list */
+  .v2-tickets-list { display: flex; flex-direction: column; gap: 8px; }
+  .v2-ticket-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 14px 16px; cursor: pointer; transition: all .18s cubic-bezier(.16,1,.3,1); display: flex; align-items: center; gap: 12px; }
+  .v2-ticket-card:hover { background: rgba(99,102,241,0.06); border-color: rgba(99,102,241,0.25); transform: translateY(-1px); }
+  .v2-ticket-body { flex: 1; min-width: 0; }
+  .v2-ticket-row1 { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+  .v2-ticket-id { font-size: 11px; font-weight: 700; color: var(--text-dim); font-family: SFMono-Regular, Menlo, monospace; letter-spacing: 0.3px; }
+  .v2-ticket-subject { font-size: 14px; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: -0.01em; }
+  .v2-ticket-preview { font-size: 12px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.4; }
+  .v2-ticket-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
+  .v2-ticket-time { font-size: 10.5px; color: var(--text-dim); }
+  .v2-ticket-arrow { color: var(--text-dim); opacity: .6; margin-left: 2px; }
+
+  /* Status pills */
+  .v2-status-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; font-family: -apple-system, sans-serif; }
+  .v2-status-pill.open,
+  .v2-status-pill.awaiting_user { background: rgba(59,130,246,0.12); color: #60a5fa; border: 1px solid rgba(59,130,246,0.25); }
+  .v2-status-pill.awaiting_staff { background: rgba(245,158,11,0.14); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
+  .v2-status-pill.resolved { background: rgba(34,197,94,0.12); color: #4ade80; border: 1px solid rgba(34,197,94,0.28); }
+  .v2-status-pill.closed { background: rgba(148,163,184,0.12); color: #94a3b8; border: 1px solid rgba(148,163,184,0.25); }
+
+  /* Unread dot */
+  .v2-unread-dot { width: 8px; height: 8px; border-radius: 50%; background: #6366f1; box-shadow: 0 0 8px rgba(99,102,241,0.6); flex-shrink: 0; }
+
+  /* Empty state */
+  .v2-empty-state { text-align: center; padding: 48px 20px; color: var(--text-dim); }
+  .v2-empty-icon { font-size: 40px; margin-bottom: 10px; opacity: 0.7; }
+  .v2-empty-title { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
+  .v2-empty-sub { font-size: 13px; line-height: 1.5; max-width: 300px; margin: 0 auto; }
+
+  /* Detail view */
+  .v2-detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 4px 2px; }
+  .v2-back-btn { display: inline-flex; align-items: center; gap: 4px; background: none; border: none; color: var(--text-dim); font-size: 13px; font-weight: 500; cursor: pointer; padding: 6px 10px 6px 6px; border-radius: 8px; font-family: inherit; transition: all .15s; }
+  .v2-back-btn:hover { color: var(--text); background: rgba(255,255,255,0.06); }
+  .v2-detail-header-meta { display: flex; align-items: center; gap: 8px; }
+  .v2-detail-subject { font-size: 19px; font-weight: 700; color: var(--text); margin-bottom: 16px; letter-spacing: -0.01em; line-height: 1.3; padding: 0 2px; }
+
+  .v2-messages { display: flex; flex-direction: column; gap: 12px; padding: 4px 2px; margin-bottom: 14px; }
+  .v2-msg { max-width: 85%; padding: 10px 14px; border-radius: 14px; font-size: 13.5px; line-height: 1.55; animation: v2MsgIn .2s ease-out; white-space: pre-wrap; word-wrap: break-word; }
+  @keyframes v2MsgIn { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: translateY(0) } }
+  .v2-msg.user { align-self: flex-end; background: linear-gradient(135deg, #6366f1, #7c3aed); color: #fff; border-bottom-right-radius: 4px; box-shadow: 0 2px 8px rgba(99,102,241,0.25); }
+  .v2-msg.ai { align-self: flex-start; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.05); color: var(--text); border-bottom-left-radius: 4px; }
+  .v2-msg.staff { align-self: flex-start; background: linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.04)); border: 1px solid rgba(34,197,94,0.25); color: var(--text); border-bottom-left-radius: 4px; }
+  .v2-msg-author { font-size: 10px; font-weight: 700; margin-bottom: 4px; letter-spacing: 0.3px; text-transform: uppercase; }
+  .v2-msg.ai .v2-msg-author { color: #a78bfa; }
+  .v2-msg.staff .v2-msg-author { color: #4ade80; }
+  .v2-msg-time { display: block; font-size: 10px; opacity: 0.55; margin-top: 4px; }
+
+  .v2-typing { align-self: flex-start; display: flex; gap: 4px; padding: 14px 16px; background: rgba(255,255,255,0.04); border-radius: 14px; border-bottom-left-radius: 4px; }
+  .v2-typing span { width: 5px; height: 5px; border-radius: 50%; background: var(--text-dim); animation: v2Typing 1.4s infinite ease-in-out; }
+  .v2-typing span:nth-child(2) { animation-delay: .2s; }
+  .v2-typing span:nth-child(3) { animation-delay: .4s; }
+  @keyframes v2Typing { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4 } 30% { transform: translateY(-5px); opacity: 1 } }
+
+  /* Composer */
+  .v2-composer { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 10px 12px; transition: border-color .15s; }
+  .v2-composer:focus-within { border-color: rgba(99,102,241,0.4); box-shadow: 0 0 0 3px rgba(99,102,241,0.08); }
+  .v2-composer textarea { width: 100%; background: none; border: none; color: var(--text); font-size: 13.5px; line-height: 1.5; padding: 4px 2px; font-family: inherit; outline: none; resize: none; max-height: 140px; }
+  .v2-composer textarea::placeholder { color: var(--text-dim); }
+  .v2-composer-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
+  .v2-composer-close { background: none; border: none; color: var(--text-dim); font-size: 11.5px; cursor: pointer; padding: 4px 6px; border-radius: 6px; font-family: inherit; }
+  .v2-composer-close:hover { color: #ef4444; }
+  .v2-composer-send { background: linear-gradient(135deg, #6366f1, #7c3aed); border: none; color: #fff; padding: 7px 16px; border-radius: 9px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all .15s; }
+  .v2-composer-send:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99,102,241,0.4); }
+  .v2-composer-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  /* New ticket form */
+  .v2-new-form { display: flex; flex-direction: column; gap: 14px; padding: 4px 2px; }
+  .v2-field label { display: block; font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 6px; letter-spacing: 0.01em; }
+  .v2-field input, .v2-field textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); color: var(--text); font-family: inherit; font-size: 13.5px; line-height: 1.5; padding: 10px 12px; border-radius: 10px; outline: none; transition: all .15s; resize: vertical; }
+  .v2-field input:focus, .v2-field textarea:focus { border-color: rgba(99,102,241,0.5); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
+  .v2-new-hint { font-size: 11px; color: var(--text-dim); padding: 0 2px; line-height: 1.5; }
+  .v2-new-submit { margin-top: 6px; background: linear-gradient(135deg, #6366f1, #7c3aed); border: none; color: #fff; padding: 12px; border-radius: 11px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all .15s; }
+  .v2-new-submit:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,0.4); }
+  .v2-new-submit:disabled { opacity: 0.4; cursor: not-allowed; }
+
   /* Tier lock system */
   .tier-locked { opacity: 0.45; cursor: not-allowed !important; pointer-events: none; }
   .tier-lock-wrapper { position: relative; display: inline-block; width: 100%; }
@@ -688,27 +774,73 @@
   </div>
 
   <div class="tab-panel" id="tab-support">
-    <div class="card">
-      <div class="card-title">Submit a Ticket</div>
-      <div class="field">
-        <label>Subject</label>
-        <input type="text" id="ticket-subject" placeholder="Brief description of your issue" />
+    <!-- LIST VIEW: all the user's tickets -->
+    <div id="support-v2-list-view">
+      <div class="v2-header">
+        <div>
+          <div class="v2-title">Your tickets</div>
+          <div class="v2-subtitle" id="v2-subtitle">Usually replied to in under an hour</div>
+        </div>
+        <button class="v2-new-btn" id="v2-new-ticket-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New ticket
+        </button>
       </div>
-      <div class="field">
-        <label>Description</label>
-        <textarea id="ticket-description" placeholder="Describe the issue in detail..." style="width:100%;min-height:120px;padding:11px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:none;resize:vertical;transition:border-color .2s"></textarea>
+      <div id="v2-tickets-list" class="v2-tickets-list">
+        <div class="v2-empty-state" id="v2-empty">
+          <div class="v2-empty-icon">&#128172;</div>
+          <div class="v2-empty-title">No tickets yet</div>
+          <div class="v2-empty-sub">When you have an issue, tap "New ticket" and we'll jump on it.</div>
+        </div>
       </div>
-      <div class="field">
-        <label>Email (optional)</label>
-        <input type="text" id="ticket-email" placeholder="Your email for follow-up" />
-      </div>
-      <button class="btn btn-primary" id="submit-ticket-btn" style="width:100%;margin-top:4px">Submit Ticket</button>
-      <div id="ticket-status" style="font-size:12px;margin-top:10px;text-align:center;min-height:18px"></div>
     </div>
 
-    <div class="card">
-      <div class="card-title">Your Tickets</div>
-      <div id="user-tickets-list" style="font-size:13px;color:var(--text-dim)">Loading...</div>
+    <!-- DETAIL VIEW: single ticket with conversation -->
+    <div id="support-v2-detail-view" style="display:none">
+      <div class="v2-detail-header">
+        <button class="v2-back-btn" id="v2-back-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          All tickets
+        </button>
+        <div class="v2-detail-header-meta">
+          <span class="v2-ticket-id" id="v2-detail-id">T-0000</span>
+          <span class="v2-status-pill" id="v2-detail-status">open</span>
+        </div>
+      </div>
+      <div class="v2-detail-subject" id="v2-detail-subject">Loading…</div>
+
+      <div class="v2-messages" id="v2-messages"></div>
+
+      <div class="v2-composer" id="v2-composer">
+        <textarea id="v2-composer-input" placeholder="Type your reply…" rows="2"></textarea>
+        <div class="v2-composer-actions">
+          <button class="v2-composer-close" id="v2-close-ticket-btn" title="Close ticket">Close ticket</button>
+          <button class="v2-composer-send" id="v2-composer-send">Send</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- NEW TICKET VIEW -->
+    <div id="support-v2-new-view" style="display:none">
+      <div class="v2-detail-header">
+        <button class="v2-back-btn" id="v2-new-back-btn">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          Back
+        </button>
+      </div>
+      <div class="v2-detail-subject">Open a new ticket</div>
+      <div class="v2-new-form">
+        <div class="v2-field">
+          <label>What's going on?</label>
+          <input type="text" id="v2-new-subject" placeholder="e.g. Zap won't open in Respondus" maxlength="120" />
+        </div>
+        <div class="v2-field">
+          <label>Tell us more</label>
+          <textarea id="v2-new-message" placeholder="Describe what you're seeing. Include your OS and Zap version if you can — speeds up the fix." rows="5"></textarea>
+        </div>
+        <div class="v2-new-hint" id="v2-new-hint"></div>
+        <button class="v2-new-submit" id="v2-new-submit">Open ticket</button>
+      </div>
     </div>
   </div>
 
@@ -1273,107 +1405,236 @@
     });
   });
 
-  // Support ticket submission
-  var submitBtn=document.getElementById('submit-ticket-btn');
-  var isAdminUser=false;
-  window.zap.isAdmin().then(function(v){isAdminUser=v});
+  // ━━━━━ Support ticket v2 — Linear/Intercom-style list + thread UI ━━━━━
+  function escT(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
 
-  if(submitBtn){
-    submitBtn.addEventListener('click',async function(){
-      var subj=document.getElementById('ticket-subject').value.trim();
-      var desc=document.getElementById('ticket-description').value.trim();
-      var email=document.getElementById('ticket-email').value.trim();
-      var status=document.getElementById('ticket-status');
-      if(!subj||!desc){status.style.color='#ef4444';status.textContent='Please fill in subject and description.';return}
-      submitBtn.disabled=true;submitBtn.textContent='Submitting...';
-      try{
-        var r=await window.zap.submitTicket({subject:subj,description:desc,email:email});
-        if(r.success){
-          var msg='Ticket submitted! ID: '+r.ticketId;
-          if(r.offline) msg+=' (saved locally — will sync when online)';
-          status.style.color='#6ec87a';status.textContent=msg;
-          document.getElementById('ticket-subject').value='';
-          document.getElementById('ticket-description').value='';
-          loadUserTickets();
-        }else{status.style.color='#ef4444';status.textContent=r.error||'Failed to submit ticket.'}
-      }catch(e){status.style.color='#ef4444';status.textContent='Error submitting ticket.'}
-      submitBtn.disabled=false;submitBtn.textContent='Submit Ticket';
+  var v2 = {
+    currentTicketId: null,
+    tickets: [],
+    pollTimer: null
+  };
+
+  function v2ShowView(name) {
+    ['list','detail','new'].forEach(function(v){
+      var el = document.getElementById('support-v2-'+v+'-view');
+      if (el) el.style.display = (v === name) ? '' : 'none';
     });
   }
 
-  function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
-
-  function loadUserTickets(){
-    var el=document.getElementById('user-tickets-list');
-    el.innerHTML='<div style="text-align:center;color:var(--text-dim);padding:8px">Loading tickets...</div>';
-    window.zap.getTickets().then(function(tickets){
-      if(!tickets||tickets.length===0){el.textContent='No tickets submitted yet.';return}
-      var html='';
-      tickets.forEach(function(t){
-        var statusColors={'open':'#f59e0b','in-progress':'#3b82f6','resolved':'#6ec87a','closed':'#ef4444','wont-fix':'#6b7280'};
-        var statusColor=statusColors[t.status]||'#f59e0b';
-        html+='<div style="padding:12px 0;border-bottom:1px solid rgba(74,111,165,0.06)" data-ticket-id="'+(t.ghNumber||t.id)+'">';
-        html+='<div style="display:flex;align-items:center;justify-content:space-between">';
-        html+='<div style="font-size:14px;font-weight:500;color:var(--text)">'+esc(t.subject)+'</div>';
-        html+='<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:'+statusColor+';background:'+statusColor+'15;padding:3px 8px;border-radius:4px">'+esc(t.status)+'</div>';
-        html+='</div>';
-        // Meta line: date + ticket number
-        var meta='';
-        if(t.createdAt) meta+=new Date(t.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
-        if(t.ghNumber) meta+=' &middot; #'+t.ghNumber;
-        html+='<div style="font-size:11px;color:var(--text-dim);margin-top:4px">'+meta+'</div>';
-        // Show email + description for admin
-        if(isAdminUser&&t.email){
-          html+='<div style="font-size:11px;color:var(--text-dim);margin-top:2px">'+esc(t.email)+'</div>';
-        }
-        if(isAdminUser&&t.description){
-          html+='<div style="font-size:12px;color:var(--text-muted);margin-top:6px;line-height:1.5;white-space:pre-wrap">'+esc(t.description)+'</div>';
-        }
-        // Admin reply (visible to everyone)
-        if(t.adminReply){
-          html+='<div style="margin-top:8px;padding:8px 12px;background:rgba(107,142,35,0.08);border-left:3px solid #6ec87a;border-radius:0 6px 6px 0;font-size:12px;color:var(--text-muted);line-height:1.5">';
-          html+='<div style="font-size:10px;font-weight:600;color:#6ec87a;margin-bottom:4px">ADMIN REPLY</div>';
-          html+=esc(t.adminReply);
-          html+='</div>';
-        }
-        // Admin controls
-        if(isAdminUser&&t.ghNumber){
-          html+='<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">';
-          html+='<select class="admin-status-select" data-id="'+t.ghNumber+'" style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;font-family:inherit">';
-          var opts=['open','in-progress','resolved','wont-fix'];
-          opts.forEach(function(o){html+='<option value="'+o+'"'+(t.status===o?' selected':'')+'>'+o+'</option>'});
-          html+='</select>';
-          html+='<input type="text" class="admin-reply-input" data-id="'+t.ghNumber+'" placeholder="Reply to user..." style="flex:1;min-width:120px;padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;font-family:inherit" />';
-          html+='<button class="admin-update-btn btn btn-primary" data-id="'+t.ghNumber+'" style="padding:4px 12px;font-size:11px;border-radius:6px">Update</button>';
-          html+='</div>';
-        }
-        html+='</div>';
-      });
-      el.innerHTML=html;
-
-      // Bind admin update buttons
-      if(isAdminUser){
-        el.querySelectorAll('.admin-update-btn').forEach(function(btn){
-          btn.addEventListener('click',async function(){
-            var id=btn.dataset.id;
-            var row=btn.closest('[data-ticket-id]');
-            var sel=row.querySelector('.admin-status-select');
-            var inp=row.querySelector('.admin-reply-input');
-            btn.disabled=true;btn.textContent='Saving...';
-            try{
-              var r=await window.zap.updateTicketStatus({ticketId:id,status:sel.value,reply:inp.value.trim()});
-              if(r.success){btn.textContent='Saved!';inp.value='';setTimeout(function(){loadUserTickets()},800)}
-              else{btn.textContent='Error';setTimeout(function(){btn.textContent='Update';btn.disabled=false},1500)}
-            }catch(_){btn.textContent='Error';setTimeout(function(){btn.textContent='Update';btn.disabled=false},1500)}
-          });
-        });
-      }
-    }).catch(function(){el.textContent='Failed to load tickets.'});
+  function v2RelTime(ts) {
+    if (!ts) return '';
+    var diff = Date.now() - ts;
+    var m = Math.floor(diff / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return m + 'm ago';
+    var h = Math.floor(m / 60);
+    if (h < 24) return h + 'h ago';
+    var d = Math.floor(h / 24);
+    if (d < 7) return d + 'd ago';
+    return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   }
 
+  async function v2LoadTickets() {
+    var listEl = document.getElementById('v2-tickets-list');
+    var emptyEl = document.getElementById('v2-empty');
+    try {
+      var res = await window.zap.ticketsMy();
+      var tickets = (res && res.tickets) || [];
+      v2.tickets = tickets;
+      if (tickets.length === 0) {
+        listEl.innerHTML = '';
+        listEl.appendChild(emptyEl);
+        emptyEl.style.display = '';
+        return;
+      }
+      if (emptyEl) emptyEl.style.display = 'none';
+      listEl.innerHTML = tickets.map(function(t){
+        var status = t.status || 'open';
+        var statusLabel = ({ open: 'Open', awaiting_user: 'Your turn', awaiting_staff: 'Replying', resolved: 'Resolved', closed: 'Closed' })[status] || status;
+        var lastMsg = (t.lastMessage || '').slice(0, 90);
+        var unread = t.unread ? '<div class="v2-unread-dot"></div>' : '';
+        return '<div class="v2-ticket-card" data-id="'+escT(t.id)+'">'
+          + unread
+          + '<div class="v2-ticket-body">'
+          +   '<div class="v2-ticket-row1">'
+          +     '<span class="v2-ticket-id">'+escT(t.id)+'</span>'
+          +     '<span class="v2-status-pill '+escT(status)+'">'+escT(statusLabel)+'</span>'
+          +   '</div>'
+          +   '<div class="v2-ticket-subject">'+escT(t.subject || t.reason || 'Support ticket')+'</div>'
+          +   (lastMsg ? '<div class="v2-ticket-preview">'+escT(lastMsg)+'</div>' : '')
+          + '</div>'
+          + '<div class="v2-ticket-meta">'
+          +   '<span class="v2-ticket-time">'+v2RelTime(t.updatedAt || t.createdAt)+'</span>'
+          + '</div>'
+          + '<svg class="v2-ticket-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'
+          + '</div>';
+      }).join('');
+      listEl.querySelectorAll('.v2-ticket-card').forEach(function(card){
+        card.addEventListener('click', function(){ v2OpenTicket(card.dataset.id); });
+      });
+    } catch (err) {
+      listEl.innerHTML = '<div class="v2-empty-state"><div class="v2-empty-title">Couldn\'t load tickets</div><div class="v2-empty-sub">'+escT(err.message || 'Try again in a moment')+'</div></div>';
+    }
+  }
+
+  async function v2OpenTicket(id) {
+    v2.currentTicketId = id;
+    v2ShowView('detail');
+    document.getElementById('v2-detail-id').textContent = id;
+    document.getElementById('v2-detail-subject').textContent = 'Loading…';
+    document.getElementById('v2-messages').innerHTML = '<div class="v2-typing"><span></span><span></span><span></span></div>';
+    await v2RefreshDetail();
+    v2StartPolling();
+  }
+
+  async function v2RefreshDetail() {
+    if (!v2.currentTicketId) return;
+    try {
+      var res = await window.zap.ticketsGet(v2.currentTicketId);
+      var t = res && res.ticket;
+      if (!t) return;
+      document.getElementById('v2-detail-subject').textContent = t.subject || t.reason || 'Support ticket';
+      var status = t.status || 'open';
+      var statusLabel = ({ open: 'Open', awaiting_user: 'Your turn', awaiting_staff: 'Team replying', resolved: 'Resolved', closed: 'Closed' })[status] || status;
+      var pill = document.getElementById('v2-detail-status');
+      pill.textContent = statusLabel;
+      pill.className = 'v2-status-pill ' + status;
+
+      var msgs = (t.messages || []);
+      var html = msgs.map(function(m){
+        var roleClass = m.role === 'user' ? 'user' : (m.role === 'staff' ? 'staff' : 'ai');
+        var authorLabel = m.role === 'user' ? '' : (m.role === 'staff' ? 'Zap Team' : 'Zap AI');
+        var time = m.at ? new Date(m.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+        return '<div class="v2-msg '+roleClass+'">'
+          + (authorLabel ? '<div class="v2-msg-author">'+escT(authorLabel)+'</div>' : '')
+          + escT(m.content)
+          + (time ? '<span class="v2-msg-time">'+time+'</span>' : '')
+          + '</div>';
+      }).join('');
+      document.getElementById('v2-messages').innerHTML = html || '<div class="v2-empty-state"><div class="v2-empty-sub">No messages yet.</div></div>';
+      // Scroll to bottom
+      var panel = document.getElementById('tab-support');
+      if (panel) panel.scrollTop = panel.scrollHeight;
+
+      // Disable composer if closed
+      var composer = document.getElementById('v2-composer');
+      var input = document.getElementById('v2-composer-input');
+      var closeBtn = document.getElementById('v2-close-ticket-btn');
+      if (status === 'closed' || status === 'resolved') {
+        input.setAttribute('disabled', 'disabled');
+        input.placeholder = 'Ticket ' + status + '. Open a new one if you need more help.';
+        if (closeBtn) closeBtn.style.display = 'none';
+      } else {
+        input.removeAttribute('disabled');
+        input.placeholder = 'Type your reply…';
+        if (closeBtn) closeBtn.style.display = '';
+      }
+    } catch (err) {
+      // ignore transient errors during polling
+    }
+  }
+
+  function v2StartPolling() {
+    v2StopPolling();
+    v2.pollTimer = setInterval(v2RefreshDetail, 5000);
+  }
+  function v2StopPolling() {
+    if (v2.pollTimer) { clearInterval(v2.pollTimer); v2.pollTimer = null; }
+  }
+
+  // Wire buttons
+  document.getElementById('v2-new-ticket-btn').addEventListener('click', function(){
+    document.getElementById('v2-new-subject').value = '';
+    document.getElementById('v2-new-message').value = '';
+    document.getElementById('v2-new-hint').textContent = '';
+    v2ShowView('new');
+    setTimeout(function(){ document.getElementById('v2-new-subject').focus(); }, 60);
+  });
+  document.getElementById('v2-back-btn').addEventListener('click', function(){
+    v2StopPolling();
+    v2.currentTicketId = null;
+    v2ShowView('list');
+    v2LoadTickets();
+  });
+  document.getElementById('v2-new-back-btn').addEventListener('click', function(){
+    v2ShowView('list');
+  });
+
+  document.getElementById('v2-new-submit').addEventListener('click', async function(){
+    var btn = this;
+    var subj = document.getElementById('v2-new-subject').value.trim();
+    var msg = document.getElementById('v2-new-message').value.trim();
+    var hint = document.getElementById('v2-new-hint');
+    if (!subj || !msg) { hint.textContent = 'Give your ticket a subject and a message.'; hint.style.color = '#ef4444'; return; }
+    btn.disabled = true; btn.textContent = 'Opening…';
+    hint.textContent = '';
+    try {
+      var res = await window.zap.ticketsCreate({ subject: subj, message: msg });
+      if (res && res.ticket && res.ticket.id) {
+        await v2LoadTickets();
+        v2OpenTicket(res.ticket.id);
+      } else {
+        hint.textContent = (res && res.error) || 'Could not open ticket. Try again in a moment.';
+        hint.style.color = '#ef4444';
+      }
+    } catch (err) {
+      hint.textContent = err.message || 'Could not reach support.';
+      hint.style.color = '#ef4444';
+    } finally {
+      btn.disabled = false; btn.textContent = 'Open ticket';
+    }
+  });
+
+  // Send message
+  var composerInput = document.getElementById('v2-composer-input');
+  var composerSend = document.getElementById('v2-composer-send');
+  async function v2SendMessage() {
+    var text = composerInput.value.trim();
+    if (!text || !v2.currentTicketId) return;
+    composerInput.value = '';
+    composerSend.disabled = true;
+    try {
+      await window.zap.ticketsReply({ ticketId: v2.currentTicketId, message: text });
+      await v2RefreshDetail();
+    } catch (err) {
+      composerInput.value = text;
+    } finally {
+      composerSend.disabled = false;
+      composerInput.focus();
+    }
+  }
+  composerSend.addEventListener('click', v2SendMessage);
+  composerInput.addEventListener('keydown', function(e){
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); v2SendMessage(); }
+  });
+
+  // Close ticket
+  document.getElementById('v2-close-ticket-btn').addEventListener('click', async function(){
+    if (!v2.currentTicketId) return;
+    if (!confirm('Close this ticket? You can always open a new one.')) return;
+    try {
+      await window.zap.ticketsClose(v2.currentTicketId);
+      await v2RefreshDetail();
+      setTimeout(function(){
+        v2StopPolling();
+        v2.currentTicketId = null;
+        v2ShowView('list');
+        v2LoadTickets();
+      }, 800);
+    } catch (_) {}
+  });
+
+  // Load tickets when Support tab opens
   tabs.forEach(function(t){
-    t.addEventListener('click',function(){
-      if(t.dataset.tab==='support')loadUserTickets();
+    t.addEventListener('click', function(){
+      if (t.dataset.tab === 'support') {
+        v2StopPolling();
+        v2.currentTicketId = null;
+        v2ShowView('list');
+        v2LoadTickets();
+      } else {
+        v2StopPolling();
+      }
     });
   });
 

@@ -2316,6 +2316,83 @@ ipcMain.handle('support-escalate', async (_ev) => {
   }
 });
 
+// ─── Ticket system v2 (routes to ZapBrain) ───
+async function brainFetch(path, { method = 'GET', body } = {}) {
+  const opts = {
+    method,
+    headers: { 'Content-Type': 'application/json', 'X-Brain-Key': BRAIN_API_KEY },
+    timeout: 15000
+  };
+  if (body) opts.body = JSON.stringify(body);
+  const res = await fetch(BRAIN_URL + path, opts);
+  if (!res.ok) {
+    const txt = await res.text().catch(() => '');
+    throw new Error(`brain ${res.status}: ${txt}`);
+  }
+  return res.json();
+}
+
+ipcMain.handle('tickets-my', async () => {
+  try {
+    const { installId } = buildUserContext();
+    return await brainFetch('/tickets/my?userId=' + encodeURIComponent(installId));
+  } catch (err) {
+    return { tickets: [], error: err.message };
+  }
+});
+
+ipcMain.handle('tickets-create', async (_ev, { subject, message }) => {
+  try {
+    const { installId, email, context } = buildUserContext();
+    return await brainFetch('/tickets/new', {
+      method: 'POST',
+      body: {
+        userId: installId,
+        userName: email || `in-app-user-${installId.slice(-6)}`,
+        subject,
+        message,
+        surface: 'in-app',
+        context
+      }
+    });
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
+ipcMain.handle('tickets-get', async (_ev, id) => {
+  try {
+    const { installId } = buildUserContext();
+    return await brainFetch('/tickets/' + encodeURIComponent(id) + '?userId=' + encodeURIComponent(installId));
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
+ipcMain.handle('tickets-reply', async (_ev, { ticketId, message }) => {
+  try {
+    const { installId, context } = buildUserContext();
+    return await brainFetch('/tickets/' + encodeURIComponent(ticketId) + '/message', {
+      method: 'POST',
+      body: { userId: installId, message, context }
+    });
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
+ipcMain.handle('tickets-close', async (_ev, ticketId) => {
+  try {
+    const { installId } = buildUserContext();
+    return await brainFetch('/tickets/' + encodeURIComponent(ticketId) + '/close', {
+      method: 'POST',
+      body: { userId: installId }
+    });
+  } catch (err) {
+    return { error: err.message };
+  }
+});
+
 // ─── Chat history persistence (per install) ───
 ipcMain.handle('support-history-load', () => {
   return store.get('supportChatHistory') || [];
