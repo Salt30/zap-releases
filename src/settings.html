@@ -248,6 +248,53 @@
       <textarea id="setting-aiContext" rows="3" style="width:100%;padding:10px 12px;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px;outline:none;resize:vertical;line-height:1.5;transition:border-color .15s" placeholder="e.g. You are helping me with a Spanish test. Only write in Spanish. Use words for numbers (uno, dos) not digits."></textarea>
     </div>
 
+    <!-- ULTIMATE only: Custom AI Provider -->
+    <div class="card" id="custom-ai-card" style="display:none;border-color:rgba(251,191,36,0.25);background:linear-gradient(180deg,rgba(251,191,36,0.04),rgba(217,119,6,0.02))">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <div class="card-title" style="margin:0">Custom AI Provider</div>
+        <span style="background:linear-gradient(135deg,#fbbf24,#d97706);color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:5px;letter-spacing:.6px">ULTIMATE</span>
+      </div>
+      <div style="font-size:12px;color:var(--text-dim);margin-bottom:14px;line-height:1.5">Bring your own API key for OpenAI, Anthropic, or any OpenAI-compatible endpoint. All AI requests in Zap route through your provider instead of ours — giving you full control over model, cost, and data.</div>
+      <div class="toggle-row" style="margin-bottom:14px">
+        <div class="toggle-info">
+          <div class="toggle-label">Enable custom AI</div>
+          <div class="toggle-desc">When on, Zap uses your API instead of the built-in one.</div>
+        </div>
+        <div class="toggle" id="toggle-customAiEnabled" data-key="customAiEnabled"><div class="thumb"></div></div>
+      </div>
+      <div id="custom-ai-details" style="display:none;border-top:1px solid rgba(251,191,36,0.15);padding-top:14px">
+        <div class="field" style="margin-bottom:12px">
+          <label>Provider</label>
+          <select id="setting-customAiProvider" style="width:100%;padding:10px 12px;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px">
+            <option value="openai">OpenAI (GPT-4o, GPT-4, etc.)</option>
+            <option value="anthropic">Anthropic (Claude)</option>
+            <option value="custom">Custom / OpenAI-compatible proxy</option>
+          </select>
+        </div>
+        <div class="field" style="margin-bottom:12px">
+          <label>API Endpoint</label>
+          <input type="text" id="setting-customAiEndpoint" placeholder="https://api.openai.com/v1/chat/completions" style="width:100%;padding:10px 12px;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:SFMono-Regular,Menlo,monospace;font-size:12px;outline:none" />
+          <div class="hint" style="font-size:11px;color:var(--text-dim);margin-top:4px">Leave blank to use the provider's default URL.</div>
+        </div>
+        <div class="field" style="margin-bottom:12px">
+          <label>Model</label>
+          <input type="text" id="setting-customAiModel" placeholder="gpt-4o, claude-3-5-sonnet-20241022, etc." style="width:100%;padding:10px 12px;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:SFMono-Regular,Menlo,monospace;font-size:12px;outline:none" />
+        </div>
+        <div class="field">
+          <label>API Key</label>
+          <input type="password" id="setting-customAiKey" placeholder="sk-..." style="width:100%;padding:10px 12px;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:SFMono-Regular,Menlo,monospace;font-size:12px;outline:none" />
+          <div class="hint" style="font-size:11px;color:var(--text-dim);margin-top:4px">Stored only on this device — never sent to Zap servers.</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- All tiers: Active Devices -->
+    <div class="card" id="devices-card" style="display:none">
+      <div class="card-title">Active Devices</div>
+      <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.5" id="devices-summary">Loading…</div>
+      <div id="devices-list"></div>
+    </div>
+
     <div class="card">
       <div class="card-title">Autopilot Settings</div>
       <div class="field">
@@ -761,7 +808,7 @@
       var k=tog.dataset.key;
       if(k){if(s[k])tog.classList.add('active');else tog.classList.remove('active')}
     });
-    ['language','accentColor','fontSize','borderRadius','fontFamily','dripWPM','dripDelay','typoRate','dripPauseChance','dripBurstChance','overlayOpacity','aiContext'].forEach(function(f){
+    ['language','accentColor','fontSize','borderRadius','fontFamily','dripWPM','dripDelay','typoRate','dripPauseChance','dripBurstChance','overlayOpacity','aiContext','customAiProvider','customAiEndpoint','customAiModel','customAiKey'].forEach(function(f){
       var el=document.getElementById('setting-'+f);
       if(el&&s[f]!==undefined)el.value=s[f];
     });
@@ -779,6 +826,82 @@
     var ldToggle=document.getElementById('toggle-lockdown');
     var ldDetails=document.getElementById('lockdown-details');
     if(ldToggle&&ldDetails)ldDetails.style.display=ldToggle.classList.contains('active')?'block':'none';
+
+    // Apply tier-based visibility — hide features user's tier doesn't have
+    applyTierVisibility(s);
+    // Load device list if user is subscribed
+    loadDevicesIfLicensed(s);
+  }
+
+  // ── Tier visibility ───────────────────────────────────────────
+  // Lite: hide Pro-only features (Autopilot settings, advanced modes reference,
+  //        Drip Type is shared, Custom AI is Ultimate-only so also hidden)
+  // Pro:  hide Ultimate-only features (Custom AI provider)
+  // Ultimate: see everything
+  function applyTierVisibility(s){
+    var tier = (s && s.subscriptionTier) || 'pro';
+    // Custom AI: Ultimate only
+    var customAiCard=document.getElementById('custom-ai-card');
+    if(customAiCard) customAiCard.style.display = (tier === 'ultimate') ? '' : 'none';
+
+    // Devices card: visible for all licensed users (always show current device at minimum)
+    var devicesCard=document.getElementById('devices-card');
+    if(devicesCard) devicesCard.style.display = (s && s.licenseValid) ? '' : 'none';
+
+    // Mark Pro-only features with a lock for Lite users (don't hide — so they see what to upgrade for)
+    document.querySelectorAll('[data-requires-tier]').forEach(function(el){
+      var required = el.getAttribute('data-requires-tier');
+      var hasIt = tier === 'ultimate' || (required === 'pro' && tier === 'pro');
+      el.classList.toggle('tier-locked', !hasIt);
+    });
+
+    // Show/hide custom AI details when toggle flips
+    var customAiToggle = document.getElementById('toggle-customAiEnabled');
+    var customAiDetails = document.getElementById('custom-ai-details');
+    function refreshCustomAiPanel(){
+      if(customAiDetails) customAiDetails.style.display = (customAiToggle && customAiToggle.classList.contains('active')) ? '' : 'none';
+    }
+    if(customAiToggle) customAiToggle.addEventListener('click', refreshCustomAiPanel);
+    refreshCustomAiPanel();
+  }
+
+  // ── Devices list ──────────────────────────────────────────────
+  async function loadDevicesIfLicensed(s){
+    var card = document.getElementById('devices-card');
+    var list = document.getElementById('devices-list');
+    var summary = document.getElementById('devices-summary');
+    if(!card || !list || !summary) return;
+    if(!s || !s.licenseValid){ card.style.display='none'; return; }
+    try{
+      var res = await window.zap.devicesList();
+      var devices = (res && res.devices) || [];
+      var tier = s.subscriptionTier || 'pro';
+      var limit = tier === 'ultimate' ? 3 : 1;
+      summary.textContent = devices.length + ' of ' + limit + ' device' + (limit > 1 ? 's' : '') + ' in use on your ' + (tier[0].toUpperCase()+tier.slice(1)) + ' plan.';
+      list.innerHTML = '';
+      devices.forEach(function(d){
+        var days = Math.floor((Date.now() - d.lastSeen) / 86400000);
+        var label = days === 0 ? 'today' : days + ' day' + (days>1?'s':'') + ' ago';
+        var row = document.createElement('div');
+        row.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)';
+        row.innerHTML = '<div><div style="font-size:13px;color:var(--text);font-weight:500">'+ (d.deviceName || 'Unknown device') +'</div><div style="font-size:11px;color:var(--text-dim);margin-top:2px">Last used '+ label +'</div></div>';
+        var btn = document.createElement('button');
+        btn.textContent = 'Remove';
+        btn.style.cssText = 'background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2);border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:inherit';
+        btn.addEventListener('click', async function(){
+          if(!confirm('Remove "'+ (d.deviceName||'Unknown device') +'"? This will sign out that device.')) return;
+          await window.zap.devicesRemove(d.installId);
+          loadDevicesIfLicensed(s);
+        });
+        row.appendChild(btn);
+        list.appendChild(row);
+      });
+      if(devices.length === 0){
+        list.innerHTML = '<div style="font-size:12px;color:var(--text-dim);padding:10px 0">No devices registered yet.</div>';
+      }
+    }catch(err){
+      summary.textContent = 'Could not load devices: ' + err.message;
+    }
   }
 
   function updateVals(){
@@ -888,6 +1011,11 @@
       autopilotScrollTo:document.getElementById('toggle-apScrollTo').classList.contains('active'),
       language:document.getElementById('setting-language').value,
       aiContext:(document.getElementById('setting-aiContext').value||'').trim(),
+      customAiEnabled:document.getElementById('toggle-customAiEnabled')?document.getElementById('toggle-customAiEnabled').classList.contains('active'):false,
+      customAiProvider:(document.getElementById('setting-customAiProvider')||{}).value||'openai',
+      customAiEndpoint:((document.getElementById('setting-customAiEndpoint')||{}).value||'').trim(),
+      customAiModel:((document.getElementById('setting-customAiModel')||{}).value||'').trim(),
+      customAiKey:((document.getElementById('setting-customAiKey')||{}).value||'').trim(),
       accentColor:document.getElementById('setting-accentColor').value,
       fontSize:parseInt(document.getElementById('setting-fontSize').value),
       borderRadius:parseInt(document.getElementById('setting-borderRadius').value),

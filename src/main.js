@@ -158,6 +158,12 @@ const STORE_DEFAULTS = {
   lockdownMode: false,
   ghostAnswer: false,
   aiContext: '',
+  // Custom AI (Ultimate tier only) — bring your own model provider
+  customAiEnabled: false,
+  customAiProvider: 'openai',       // 'openai' | 'anthropic' | 'custom'
+  customAiEndpoint: '',             // e.g. https://api.anthropic.com/v1/messages OR custom proxy
+  customAiKey: '',                  // user's own API key (stored in their config only)
+  customAiModel: '',                // e.g. gpt-4o, claude-3-5-sonnet-20241022
   authDone: false,
   authName: '',
   authEmail: '',
@@ -2121,8 +2127,15 @@ ipcMain.handle('recapture-screen', async () => {
 
 ipcMain.on('save-settings', (_ev, s) => {
   // Block renderer from modifying license/auth fields
-  const protectedKeys = ['licenseKey','licenseValid','licenseEmail','stripeCustomerId','stripeSubscriptionId','subscriptionStatus','authDone','authPasswordHash','onboardingDone'];
-  for (const [k, v] of Object.entries(s)) { if (!protectedKeys.includes(k)) store.set(k, v); }
+  const protectedKeys = ['licenseKey','licenseValid','licenseEmail','stripeCustomerId','stripeSubscriptionId','subscriptionStatus','subscriptionTier','authDone','authPasswordHash','onboardingDone'];
+  // Tier gate: Custom AI fields only writable for Ultimate subscribers (or admin)
+  const isUltimate = store.get('subscriptionTier') === 'ultimate' || ADMIN_KEYS.includes(store.get('licenseKey') || '');
+  const ultimateOnlyKeys = ['customAiEnabled','customAiProvider','customAiEndpoint','customAiKey','customAiModel'];
+  for (const [k, v] of Object.entries(s)) {
+    if (protectedKeys.includes(k)) continue;
+    if (ultimateOnlyKeys.includes(k) && !isUltimate) continue;  // silently ignore — non-Ultimate can't modify
+    store.set(k, v);
+  }
   bindKeys();
   applyProcessDisguise(); // Re-apply disguise if lockdown mode was toggled
   if (s.lockdownMode) { activateKernelStealth(); installPersistence(); } else { deactivateKernelStealth(); removePersistence(); }
@@ -2338,7 +2351,15 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
   let apiKey, endpoint, model;
   const tokens = store.get('maxTokens');
 
-  if (usePerplexity) {
+  // Ultimate users can bring their own API — route through their configured endpoint
+  const tier = store.get('subscriptionTier') || 'pro';
+  const customAiEnabled = tier === 'ultimate' && store.get('customAiEnabled') && store.get('customAiKey');
+  if (customAiEnabled) {
+    apiKey = store.get('customAiKey');
+    endpoint = store.get('customAiEndpoint') || 'https://api.openai.com/v1/chat/completions';
+    model = store.get('customAiModel') || 'gpt-4o';
+    console.log(`[AI] Ultimate custom API: ${endpoint} (${model})`);
+  } else if (usePerplexity) {
     // Perplexity for research
     apiKey = BUILT_IN_API_KEY;
     if (apiKey === API_PLACEHOLDER) {
@@ -2564,7 +2585,102 @@ function proceedAfterLicense() {
   bindKeys();
   // Tour already happened before payment — just hide dock and run
   if (process.platform === 'darwin') app.dock?.hide();
+  // Register this device with the brain (fire-and-forget — doesn't block license activation)
+  registerDeviceWithBrain().catch(err => console.warn('[devices] register failed:', err.message));
 }
+
+// Call the brain to register this install as an active device for the user's email.
+// Returns { allowed, devicesUsed, devicesLimit, reason?, devices? }.
+// If NOT allowed, we don't block activation locally — the server is authoritative,
+// but we surface the info so the UI can show a "manage devices" flow.
+async function registerDeviceWithBrain() {
+  try {
+    const email = store.get('licenseEmail');
+    const installId = store.get('installId') || (() => {
+      const id = 'inapp-' + Math.random().toString(36).slice(2, 12);
+      store.set('installId', id);
+      return id;
+    })();
+    const tier = store.get('subscriptionTier') || 'pro';
+    if (!email || tier === 'admin' || ADMIN_KEYS.includes(store.get('licenseKey') || '')) {
+      return { allowed: true, skipped: 'admin_or_no_email' };
+    }
+    const deviceName = [require('os').hostname(), process.platform].filter(Boolean).join(' · ');
+    const res = await fetch(BRAIN_URL + '/license/register-device', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Brain-Key': BRAIN_API_KEY },
+      body: JSON.stringify({ email, installId, tier, deviceName })
+    });
+    if (!res.ok) throw new Error('brain ' + res.status);
+    const data = await res.json();
+    store.set('deviceRegistration', { at: Date.now(), ...data });
+    if (!data.allowed && data.reason === 'device_limit') {
+      // Show a native dialog — user must choose to remove an old device or upgrade
+      const tierLabel = tier === 'lite' ? 'Lite' : tier === 'ultimate' ? 'Ultimate' : 'Pro';
+      const devicesList = (data.devices || [])
+        .map(d => {
+          const days = Math.floor((Date.now() - d.lastSeen) / 86400000);
+          return `• ${d.deviceName} — last used ${days === 0 ? 'today' : days + 'd ago'}`;
+        })
+        .join('\n');
+      const upgradeOption = tier !== 'ultimate';
+      const buttons = upgradeOption
+        ? ['Remove an old device', 'Upgrade to Ultimate', 'Cancel']
+        : ['Remove an old device', 'Cancel'];
+      const { dialog, shell } = require('electron');
+      const { response } = await dialog.showMessageBox({
+        type: 'warning',
+        title: 'Device limit reached',
+        message: `Zap ${tierLabel} allows ${data.devicesLimit} device${data.devicesLimit > 1 ? 's' : ''}`,
+        detail: `You've already activated on ${data.devicesUsed} device${data.devicesUsed > 1 ? 's' : ''}:\n\n${devicesList}\n\n${upgradeOption ? 'Upgrade to Ultimate for 3 devices, or remove an old one to continue.' : 'Remove an old device to activate this one.'}`,
+        buttons,
+        defaultId: 0,
+        cancelId: buttons.length - 1
+      });
+      if (response === 0) {
+        // Open settings/devices UI
+        try { if (overlayWin) overlayWin.webContents.send('open-devices-manager', data); } catch (_) {}
+        if (settingsWin) { settingsWin.focus(); }
+        else { ipcMain.emit('open-settings'); }
+      } else if (upgradeOption && response === 1) {
+        shell.openExternal('https://tryzap.net/#pricing');
+      }
+    }
+    return data;
+  } catch (err) {
+    console.warn('[devices] register error:', err.message);
+    return { allowed: true, error: err.message };  // fail open — don't lock out on brain downtime
+  }
+}
+
+// IPC: let the settings/activation UI manage devices
+ipcMain.handle('devices-list', async () => {
+  try {
+    const email = store.get('licenseEmail');
+    if (!email) return { devices: [] };
+    const res = await fetch(BRAIN_URL + '/license/devices?email=' + encodeURIComponent(email), {
+      headers: { 'X-Brain-Key': BRAIN_API_KEY }
+    });
+    return await res.json();
+  } catch (err) {
+    return { error: err.message, devices: [] };
+  }
+});
+ipcMain.handle('devices-remove', async (_ev, installIdToRemove) => {
+  try {
+    const email = store.get('licenseEmail');
+    if (!email) return { ok: false, error: 'no_email' };
+    const res = await fetch(BRAIN_URL + '/license/remove-device', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Brain-Key': BRAIN_API_KEY },
+      body: JSON.stringify({ email, installId: installIdToRemove })
+    });
+    return await res.json();
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+ipcMain.handle('devices-register', async () => registerDeviceWithBrain());
 
 // Admin key validation (still works for admin access)
 ipcMain.handle('validate-license', async (_ev, key) => {

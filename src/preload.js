@@ -69,6 +69,11 @@ contextBridge.exposeInMainWorld('zap', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   openExternal:  (url) => ipcRenderer.invoke('open-external', url),
 
+  // License / Devices
+  devicesList:      ()        => ipcRenderer.invoke('devices-list'),
+  devicesRemove:    (id)      => ipcRenderer.invoke('devices-remove', id),
+  devicesRegister:  ()        => ipcRenderer.invoke('devices-register'),
+
   // Support chat (ZapBrain)
   supportChat:         (message) => ipcRenderer.invoke('support-chat', { message }),
   supportEscalate:     ()        => ipcRenderer.invoke('support-escalate'),
