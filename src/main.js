@@ -2100,7 +2100,7 @@ ipcMain.on('save-settings', (_ev, s) => {
 /* ─────────────────── Support Chat (ZapBrain) ─────────────────── */
 
 // Override with ZAPBRAIN_URL env var for dev/staging. Production clients hit the public brain.
-const BRAIN_URL = process.env.ZAPBRAIN_URL || 'https://brain.tryzap.net';
+const BRAIN_URL = process.env.ZAPBRAIN_URL || 'https://lucky-enchantment-production-03e9.up.railway.app';
 // Shared secret between app and brain. Baked in at build time — this is a non-secret rate-limit key,
 // not a user credential. Real auth happens per-user via installId.
 const BRAIN_API_KEY = process.env.ZAPBRAIN_KEY || 'zb_Mk40uk2F2HzYT2ZVuTq1YTbadYy8LPES';
