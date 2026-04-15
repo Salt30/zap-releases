@@ -69,6 +69,9 @@ contextBridge.exposeInMainWorld('zap', {
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   openExternal:  (url) => ipcRenderer.invoke('open-external', url),
 
+  // Tier features (for UI lock states)
+  getTierFeatures:  ()        => ipcRenderer.invoke('get-tier-features'),
+
   // License / Devices
   devicesList:      ()        => ipcRenderer.invoke('devices-list'),
   devicesRemove:    (id)      => ipcRenderer.invoke('devices-remove', id),

@@ -360,6 +360,17 @@
 
   window.zap.onLoadSettings(function(s){
     settings=s;
+    // Tier-based feature gating in the overlay
+    var tier=(s.subscriptionTier)||'pro';
+    // Auto Draft is Pro+ only — hide for Lite
+    var autoDraftBtn=document.getElementById('dt-pencil-btn');
+    if(autoDraftBtn){
+      if(tier==='lite'){
+        autoDraftBtn.style.display='none';
+      }else{
+        autoDraftBtn.style.display='';
+      }
+    }
     var r=document.documentElement;
     if(s.accentColor) r.style.setProperty('--accent',s.accentColor);
     if(s.fontSize)    r.style.setProperty('--font-size',s.fontSize+'px');

@@ -105,6 +105,58 @@ const STRIPE_ULTIMATE_ANNUAL_PRICE_ID = 'price_1TMJfZDu0Wu9yqrtDlHOzij3'; // ann
 const LITE_MONTHLY_SCAN_LIMIT = 25;
 const LITE_ALLOWED_MODES = ['answer', 'driptype', 'translate'];
 
+// ─────────────── Central tier config ───────────────
+// Single source of truth for what each tier can do. Pricing page must match this.
+const TIER_FEATURES = {
+  lite: {
+    scansPerMonth: 25,
+    allowedModes: ['answer', 'driptype', 'translate'],
+    translationLanguages: 10,
+    autoDraft: false,          // Drip Type Auto Draft
+    stealthMode: false,        // Can't use lockdown browsers
+    phantomMode: false,        // Can't hide from screen share
+    customHotkeys: false,      // Hotkeys locked to defaults
+    customAppearance: false,   // Accent color / font locked
+    customAi: false,           // Bring-your-own-API disabled
+    deviceLimit: 1,
+    priorityModel: 'gpt-4o-mini'
+  },
+  pro: {
+    scansPerMonth: Infinity,
+    allowedModes: null,        // null = all modes allowed
+    translationLanguages: 35,
+    autoDraft: true,
+    stealthMode: true,
+    phantomMode: true,
+    customHotkeys: true,
+    customAppearance: true,
+    customAi: false,
+    deviceLimit: 1,
+    priorityModel: 'gpt-4o'
+  },
+  ultimate: {
+    scansPerMonth: Infinity,
+    allowedModes: null,
+    translationLanguages: 100,  // all supported languages
+    autoDraft: true,
+    stealthMode: true,
+    phantomMode: true,          // enhanced + works in proctored browsers
+    proctoredBrowsers: true,    // additional proctored browser support
+    customHotkeys: true,
+    customAppearance: true,
+    customAi: true,             // bring-your-own-API
+    earlyAccess: true,
+    deviceLimit: 3,
+    priorityModel: 'gpt-4o',
+    prioritySupport: true
+  }
+};
+
+function getTierFeatures() {
+  const tier = store.get('subscriptionTier') || 'pro';
+  return TIER_FEATURES[tier] || TIER_FEATURES.pro;
+}
+
 // GitHub token for support tickets (Issues API) — injected at build time via sed
 const GITHUB_SUPPORT_TOKEN = 'YOUR_GH_SUPPORT_TOKEN';
 const GITHUB_SUPPORT_PLACEHOLDER = 'YOUR_GH' + '_SUPPORT_TOKEN';
@@ -2128,12 +2180,36 @@ ipcMain.handle('recapture-screen', async () => {
 ipcMain.on('save-settings', (_ev, s) => {
   // Block renderer from modifying license/auth fields
   const protectedKeys = ['licenseKey','licenseValid','licenseEmail','stripeCustomerId','stripeSubscriptionId','subscriptionStatus','subscriptionTier','authDone','authPasswordHash','onboardingDone'];
-  // Tier gate: Custom AI fields only writable for Ultimate subscribers (or admin)
-  const isUltimate = store.get('subscriptionTier') === 'ultimate' || ADMIN_KEYS.includes(store.get('licenseKey') || '');
-  const ultimateOnlyKeys = ['customAiEnabled','customAiProvider','customAiEndpoint','customAiKey','customAiModel'];
+  const isAdminUser = ADMIN_KEYS.includes(store.get('licenseKey') || '');
+  const features = isAdminUser ? TIER_FEATURES.ultimate : getTierFeatures();
+
+  // Per-tier gates — silently drop writes to features the user hasn't paid for
+  const gatedByTier = {
+    customAiEnabled: features.customAi,
+    customAiProvider: features.customAi,
+    customAiEndpoint: features.customAi,
+    customAiKey: features.customAi,
+    customAiModel: features.customAi,
+    lockdownMode: features.stealthMode,
+    phantomMode: features.phantomMode,
+    // Appearance — locked for Lite
+    accentColor: features.customAppearance,
+    fontFamily: features.customAppearance,
+    fontSize: features.customAppearance,
+    borderRadius: features.customAppearance,
+    overlayOpacity: features.customAppearance
+  };
+
+  // Hotkey fields — all locked for Lite
+  const hotkeyKeys = ['hotkey','hotkeyAnswer','hotkeySimple','hotkeyTranslate','hotkeyAutopilot','hotkeyDripType','hotkeyStopDrip','hotkeySolve','hotkeyEssay','hotkeyCode','hotkeyResearch','hotkeyEmail','hotkeyFlashcards','hotkeyApp','hotkeySelfDestruct'];
+  for (const hk of hotkeyKeys) gatedByTier[hk] = features.customHotkeys;
+
   for (const [k, v] of Object.entries(s)) {
     if (protectedKeys.includes(k)) continue;
-    if (ultimateOnlyKeys.includes(k) && !isUltimate) continue;  // silently ignore — non-Ultimate can't modify
+    if (gatedByTier.hasOwnProperty(k) && !gatedByTier[k]) {
+      console.log(`[TIER GATE] Ignored write to '${k}' — not available on ${store.get('subscriptionTier') || 'pro'} tier`);
+      continue;
+    }
     store.set(k, v);
   }
   bindKeys();
@@ -2652,6 +2728,17 @@ async function registerDeviceWithBrain() {
     return { allowed: true, error: err.message };  // fail open — don't lock out on brain downtime
   }
 }
+
+// IPC: expose tier features to renderer (settings UI uses this to show lock states)
+ipcMain.handle('get-tier-features', () => {
+  const tier = store.get('subscriptionTier') || 'pro';
+  const isAdminUser = ADMIN_KEYS.includes(store.get('licenseKey') || '');
+  return {
+    tier: isAdminUser ? 'ultimate' : tier,
+    isAdmin: isAdminUser,
+    features: isAdminUser ? TIER_FEATURES.ultimate : (TIER_FEATURES[tier] || TIER_FEATURES.pro)
+  };
+});
 
 // IPC: let the settings/activation UI manage devices
 ipcMain.handle('devices-list', async () => {

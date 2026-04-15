@@ -91,6 +91,13 @@
   .perm-status.granted{color:#34d399;background:rgba(52,211,153,0.12)}
   .perm-status.denied{color:#ef4444;background:rgba(239,68,68,0.12)}
   .perm-status.checking{color:var(--text-dim);background:rgba(74,111,165,0.08)}
+  /* Tier lock system */
+  .tier-locked { opacity: 0.45; cursor: not-allowed !important; pointer-events: none; }
+  .tier-lock-wrapper { position: relative; display: inline-block; width: 100%; }
+  .tier-lock-wrapper::after { content: "\1F512"; position: absolute; top: 50%; right: 10px; transform: translateY(-50%); font-size: 14px; pointer-events: none; opacity: 0.7; }
+  .tier-banner { position: sticky; top: 0; z-index: 10; background: linear-gradient(90deg, rgba(251,191,36,0.15), rgba(217,119,6,0.1)); border-bottom: 1px solid rgba(251,191,36,0.3); color: var(--text); padding: 10px 16px; font-size: 13px; text-align: center; }
+  .tier-banner a { color: #fbbf24; font-weight: 600; text-decoration: underline; cursor: pointer; margin-left: 4px; }
+  .tier-banner a:hover { color: #fde68a; }
 </style>
 </head>
 <body>
@@ -831,6 +838,73 @@
     applyTierVisibility(s);
     // Load device list if user is subscribed
     loadDevicesIfLicensed(s);
+    // Apply lock states based on actual tier features from main process
+    applyTierLocks();
+  }
+
+  // Lock UI elements the current tier doesn't have access to — show 🔒 overlay
+  async function applyTierLocks() {
+    try {
+      const tf = await window.zap.getTierFeatures();
+      if (!tf || !tf.features) return;
+      const f = tf.features;
+      const tier = tf.tier;
+
+      // Map CSS selectors → required feature key
+      const lockMap = [
+        { sel: '#toggle-lockdown', feature: 'stealthMode', label: 'Stealth Mode' },
+        { sel: '#toggle-phantom',  feature: 'phantomMode', label: 'Phantom Mode' },
+        { sel: '#setting-accentColor', feature: 'customAppearance', label: 'Custom appearance' },
+        { sel: '#setting-fontFamily',  feature: 'customAppearance', label: 'Custom appearance' },
+        { sel: '#setting-fontSize',    feature: 'customAppearance', label: 'Custom appearance' },
+        { sel: '#setting-borderRadius', feature: 'customAppearance', label: 'Custom appearance' },
+        { sel: '.hotkey-field input',  feature: 'customHotkeys', label: 'Custom hotkeys' }
+      ];
+
+      for (const { sel, feature, label } of lockMap) {
+        const locked = !f[feature];
+        document.querySelectorAll(sel).forEach(el => {
+          el.classList.toggle('tier-locked', locked);
+          if (locked) {
+            el.setAttribute('disabled', 'disabled');
+            el.title = label + ' — requires Pro or Ultimate';
+            // Wrap in tier-lock-wrapper (once) for overlay
+            if (!el.parentElement?.classList.contains('tier-lock-wrapper')) {
+              const wrap = document.createElement('div');
+              wrap.className = 'tier-lock-wrapper';
+              wrap.title = label + ' — upgrade to unlock';
+              el.parentElement.insertBefore(wrap, el);
+              wrap.appendChild(el);
+            }
+          } else {
+            el.removeAttribute('disabled');
+            if (el.parentElement?.classList.contains('tier-lock-wrapper')) {
+              el.parentElement.replaceWith(el);
+            }
+          }
+        });
+      }
+
+      // Show a banner at the top when user is on Lite
+      var banner = document.getElementById('tier-banner');
+      if (tier === 'lite') {
+        if (!banner) {
+          banner = document.createElement('div');
+          banner.id = 'tier-banner';
+          banner.className = 'tier-banner';
+          banner.innerHTML = '🔒 You\'re on <strong>Zap Lite</strong>. Some features below are locked. <a href="#" id="tier-banner-upgrade">Upgrade</a>';
+          document.body.insertBefore(banner, document.body.firstChild);
+          document.getElementById('tier-banner-upgrade').addEventListener('click', e => {
+            e.preventDefault();
+            window.zap.openExternal('https://tryzap.net/#pricing');
+          });
+        }
+      } else if (banner) {
+        banner.remove();
+      }
+    } catch (err) {
+      console.warn('[tier-locks] failed:', err);
+    }
   }
 
   // ── Tier visibility ───────────────────────────────────────────
