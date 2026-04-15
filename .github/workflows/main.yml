@@ -341,7 +341,7 @@ jobs:
   # and public downloads work immediately.
   # ───────────────────────────────────────────────
   publish-and-mirror:
-    needs: [create-release, build-mac, build-windows, build-linux]
+    needs: [create-release, build-mac, build-win, build-linux]
     runs-on: ubuntu-latest
     if: success()
     steps:
