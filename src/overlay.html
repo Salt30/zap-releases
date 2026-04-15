@@ -396,7 +396,12 @@
     }
   });
 
-  window.zap.onSetMode(function(m){setMode(m)});
+  window.zap.onSetMode(function(m){
+    setMode(m);
+    // Force click-through off so drag-to-select works from the first drag.
+    // (Unless we're in continuous mode where we want click-through on.)
+    if(!continuousMode) primeCaptureClicks();
+  });
 
   // Instant Answer — full screen capture → AI, no drag/selection needed
   window.zap.onInstantAnswer(function(){
@@ -770,12 +775,20 @@
   var cwWidget=$('continuous-widget');
   var supportBtnEl=document.getElementById('support-btn');
   var supportPanelEl=document.getElementById('support-panel');
-  // The overlay is click-through by default at the window level (so Escape and
-  // other passthrough events work). When the cursor enters one of our interactive
-  // panels, we need to disable click-through so the user can actually click. When
-  // the cursor leaves, re-enable click-through. This must fire regardless of the
-  // continuousMode flag, because the OS-level click-through is always on.
-  [resPanel,inputBar,dtPanel,cwWidget,supportBtnEl,supportPanelEl].forEach(function(el){
+  // The overlay is click-through by default at the window level. When the cursor
+  // enters any interactive area (capture layer, panels, buttons), we disable
+  // click-through so clicks and drags land. When the cursor leaves, re-enable
+  // click-through. Include `layer` (capture-layer) so drag-to-select works,
+  // plus `instr`, `modeInd`, and the action buttons — basically anything visible.
+  var captureLayer=$('capture-layer');
+  var modeIndEl=$('mode-indicator');
+  var settingsBtn=$('settings-btn');
+  var openAppBtn=$('open-app-btn');
+  var interactiveEls=[
+    captureLayer, resPanel, inputBar, dtPanel, cwWidget,
+    supportBtnEl, supportPanelEl, modeIndEl, instr, settingsBtn, openAppBtn
+  ];
+  interactiveEls.forEach(function(el){
     if(!el) return;
     el.addEventListener('mouseenter',function(){
       try { window.zap.setIgnoreMouseEvents(false); } catch(_){}
@@ -784,6 +797,23 @@
       try { window.zap.setIgnoreMouseEvents(true,{forward:true}); } catch(_){}
     });
   });
+  // Also: when the overlay comes up for capture (not continuous mode), force
+  // click-through OFF so the FIRST drag/click lands even if the cursor is
+  // somewhere the window doesn't have a mouseenter handler yet.
+  function primeCaptureClicks(){
+    try { window.zap.setIgnoreMouseEvents(false); } catch(_){}
+  }
+  // Belt-and-suspenders: disable click-through the moment any mouse interaction
+  // starts within the overlay. Catches edge cases where mouseenter misses.
+  document.addEventListener('mousedown', function(){
+    if(!continuousMode) { try { window.zap.setIgnoreMouseEvents(false); } catch(_){} }
+  }, true);
+  document.addEventListener('mousemove', function(e){
+    // Only act if cursor is plausibly in the window content area
+    if(!continuousMode && e.clientX >= 0 && e.clientY >= 0) {
+      try { window.zap.setIgnoreMouseEvents(false); } catch(_){}
+    }
+  }, { capture: true, passive: true });
   function enableClickThrough(){
     clickThroughActive=true;
     window.zap.setIgnoreMouseEvents(true,{forward:true});
