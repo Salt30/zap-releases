@@ -100,6 +100,8 @@ const STRIPE_PRICE_ID = 'price_1T7p8qDu0Wu9yqrt7NG7SsY5';
 const STRIPE_ANNUAL_PRICE_ID = 'price_1TGuTfDu0Wu9yqrtwyCCLgDU';
 const STRIPE_LITE_PRICE_ID = 'price_1TJW2NDu0Wu9yqrtUNtAixM1'; // $15/mo lite tier
 const STRIPE_LITE_ANNUAL_PRICE_ID = 'price_1TJWAXDu0Wu9yqrtBXsX2dre'; // annual lite
+const STRIPE_ULTIMATE_PRICE_ID = 'price_1TMJaeDu0Wu9yqrtmnbAwwW9'; // $75/mo ultimate tier
+const STRIPE_ULTIMATE_ANNUAL_PRICE_ID = 'price_1TMJfZDu0Wu9yqrtDlHOzij3'; // annual ultimate
 const LITE_MONTHLY_SCAN_LIMIT = 25;
 const LITE_ALLOWED_MODES = ['answer', 'driptype', 'translate'];
 
@@ -2515,7 +2517,7 @@ function showActivate() {
   if (process.platform === 'darwin') app.dock?.show();
 
   activateWin = new BrowserWindow({
-    width: 520, height: 700,
+    width: 560, height: 760,
     resizable: false, minimizable: false, maximizable: false,
     title: 'Activate Zap Pro',
     backgroundColor: '#0a0a12',
@@ -2625,7 +2627,8 @@ ipcMain.handle('verify-email-subscription', async (_ev, email) => {
         // Determine tier from price ID
         const priceId = activeSub.items?.data?.[0]?.price?.id || '';
         let tier = 'pro';
-        if (priceId === STRIPE_LITE_PRICE_ID) tier = 'lite';
+        if (priceId === STRIPE_LITE_PRICE_ID || priceId === STRIPE_LITE_ANNUAL_PRICE_ID) tier = 'lite';
+        else if (priceId === STRIPE_ULTIMATE_PRICE_ID || priceId === STRIPE_ULTIMATE_ANNUAL_PRICE_ID) tier = 'ultimate';
 
         // Activate the app
         store.set('licenseKey', activeSub.id);
@@ -2662,6 +2665,8 @@ ipcMain.handle('create-checkout-session', async (_ev, email, plan) => {
     const priceId = plan === 'annual' ? STRIPE_ANNUAL_PRICE_ID
                   : plan === 'lite' ? STRIPE_LITE_PRICE_ID
                   : plan === 'lite-annual' ? STRIPE_LITE_ANNUAL_PRICE_ID
+                  : plan === 'ultimate' ? STRIPE_ULTIMATE_PRICE_ID
+                  : plan === 'ultimate-annual' ? STRIPE_ULTIMATE_ANNUAL_PRICE_ID
                   : STRIPE_PRICE_ID;
 
     const referredBy = store.get('referredBy') || '';
