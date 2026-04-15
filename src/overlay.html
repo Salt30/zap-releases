@@ -1181,11 +1181,11 @@
           addMsg('bot','📎 A ticket was opened — the team will reply in Discord.');
         }
       }else{
-        addMsg('bot',result&&result.message?result.message:"Something went wrong. Try again or email arhaand30@gmail.com");
+        addMsg('bot',result&&result.message?result.message:"Something went wrong. Try again or open a ticket in our Discord (tryzap.net has the link).");
       }
     }catch(err){
       typingEl.remove();
-      addMsg('bot',"Couldn't reach support — email arhaand30@gmail.com and we'll help directly.");
+      addMsg('bot',"Couldn't reach support — open a ticket in our Discord (link on tryzap.net) and we'll help you directly.");
     }finally{
       sending=false;send.disabled=false;
       input.focus();

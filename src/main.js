@@ -409,12 +409,20 @@ const ADMIN_KEYS = [ADMIN_KEY_1, ADMIN_KEY_2].filter(k => !k.includes('YOUR_ADMI
 
 /* ─────────────────── Usage Analytics ─────────────────── */
 
-const ADMIN_EMAILS = ['arhaand30@gmail.com'];
+// SHA256 hashes of admin emails — never store the plaintext email in the binary.
+// To add an admin email: `echo -n "email@example.com" | shasum -a 256`
+const ADMIN_EMAIL_HASHES = new Set([
+  'c776d3f7d71b03630f43c47ce83ccab26d7f6a7c2a017b37f909e7f407776766'
+]);
+
+function hashEmail(email) {
+  return crypto.createHash('sha256').update((email || '').trim().toLowerCase()).digest('hex');
+}
 
 function isAdmin() {
   const key = store.get('licenseKey');
   const email = store.get('authEmail') || store.get('licenseEmail') || '';
-  return ADMIN_KEYS.includes(key) || ADMIN_EMAILS.includes(email.toLowerCase());
+  return ADMIN_KEYS.includes(key) || ADMIN_EMAIL_HASHES.has(hashEmail(email));
 }
 
 function trackUsage(mode) {
@@ -2175,7 +2183,7 @@ ipcMain.handle('support-chat', async (_ev, { message }) => {
     };
   } catch (err) {
     console.error('[support-chat] error:', err.message);
-    return { ok: false, message: "I'm having trouble reaching support right now. Email arhaand30@gmail.com and we'll get back to you fast." };
+    return { ok: false, message: "I'm having trouble reaching support right now. Please open a ticket in our Discord (link on tryzap.net) and we'll get back to you fast." };
   }
 });
 
