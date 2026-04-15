@@ -334,3 +334,75 @@ jobs:
               gh release upload "$VERSION" "$f" --clobber
             fi
           done
+
+  # ───────────────────────────────────────────────
+  # Publish the release (un-draft) and mirror all
+  # assets to Salt30/zap-releases so the auto-updater
+  # and public downloads work immediately.
+  # ───────────────────────────────────────────────
+  publish-and-mirror:
+    needs: [create-release, build-mac, build-windows, build-linux]
+    runs-on: ubuntu-latest
+    if: success()
+    steps:
+      - name: Publish draft release on Salt30/Zap
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.create-release.outputs.version }}"
+          echo "Publishing $VERSION..."
+          gh release edit "$VERSION" --draft=false --latest --repo Salt30/Zap
+
+      - name: Mirror release to Salt30/zap-releases
+        env:
+          PAT: ${{ secrets.RELEASES_PAT }}
+        run: |
+          VERSION="${{ needs.create-release.outputs.version }}"
+          set -e
+
+          echo "Fetching source release info..."
+          SRC=$(curl -s -H "Authorization: token $PAT" \
+            "https://api.github.com/repos/Salt30/Zap/releases/tags/$VERSION")
+          SRC_ID=$(echo "$SRC" | jq -r '.id')
+          BODY=$(echo "$SRC" | jq -r '.body // ""')
+          echo "Source release id: $SRC_ID"
+
+          echo "Creating / updating release on zap-releases..."
+          EXISTING=$(curl -s -H "Authorization: token $PAT" \
+            "https://api.github.com/repos/Salt30/zap-releases/releases/tags/$VERSION" | jq -r '.id // empty')
+          if [ -n "$EXISTING" ]; then
+            echo "Release $VERSION already exists on zap-releases (id=$EXISTING) — reusing"
+            NEW_ID="$EXISTING"
+          else
+            PAYLOAD=$(jq -n --arg tag "$VERSION" --arg body "$BODY" \
+              '{tag_name: $tag, name: ("Zap " + $tag), body: $body, draft: false, prerelease: false, make_latest: "true"}')
+            NEW=$(curl -s -X POST -H "Authorization: token $PAT" -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/Salt30/zap-releases/releases" \
+              -d "$PAYLOAD")
+            NEW_ID=$(echo "$NEW" | jq -r '.id')
+            echo "Created on zap-releases: id=$NEW_ID"
+          fi
+
+          echo "Mirroring assets..."
+          curl -s -H "Authorization: token $PAT" \
+            "https://api.github.com/repos/Salt30/Zap/releases/$SRC_ID/assets" \
+            | jq -r '.[] | "\(.id) \(.name) \(.size)"' | while read -r ID NAME SIZE; do
+              echo "  → $NAME ($SIZE bytes)"
+              curl -sL -H "Authorization: token $PAT" -H "Accept: application/octet-stream" \
+                "https://api.github.com/repos/Salt30/Zap/releases/assets/$ID" -o "/tmp/$NAME"
+              MIME="application/octet-stream"
+              case "$NAME" in
+                *.dmg) MIME="application/x-apple-diskimage";;
+                *.zip) MIME="application/zip";;
+                *.exe) MIME="application/vnd.microsoft.portable-executable";;
+                *.deb) MIME="application/vnd.debian.binary-package";;
+                *.AppImage) MIME="application/x-executable";;
+              esac
+              curl -s -X POST -H "Authorization: token $PAT" -H "Content-Type: $MIME" \
+                --data-binary "@/tmp/$NAME" \
+                "https://uploads.github.com/repos/Salt30/zap-releases/releases/$NEW_ID/assets?name=$NAME" \
+                | jq -r '.browser_download_url // .message'
+              rm -f "/tmp/$NAME"
+            done
+
+          echo "✓ Mirror complete"
