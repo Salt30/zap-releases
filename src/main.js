@@ -19,10 +19,38 @@ const crypto = require('crypto');
 
 /* ─────────────────── License Integrity (HMAC tamper detection) ─────────────────── */
 
-// Machine-bound secret: derived from hardware + app path so the signature is unique per install
+// Stable install ID: generated once on first run, saved to userData.
+// We use this (instead of hostname/CPU) because those values can change across
+// reboots, network changes, or OS updates — which would invalidate the HMAC and
+// lock legitimate users out of their own license.
+let _installIdCache = null;
+function getInstallId() {
+  if (_installIdCache) return _installIdCache;
+  try {
+    const userDataDir = app.getPath('userData');
+    try { require('fs').mkdirSync(userDataDir, { recursive: true }); } catch (_) {}
+    const idPath = require('path').join(userDataDir, '.install-id');
+    const fs = require('fs');
+    if (fs.existsSync(idPath)) {
+      _installIdCache = fs.readFileSync(idPath, 'utf8').trim();
+      if (_installIdCache && _installIdCache.length >= 16) return _installIdCache;
+    }
+    // First run — generate and persist
+    _installIdCache = crypto.randomBytes(24).toString('hex');
+    fs.writeFileSync(idPath, _installIdCache, { mode: 0o600 });
+    return _installIdCache;
+  } catch (err) {
+    // Fallback to a soft machine hint if we can't write the file
+    _installIdCache = require('os').homedir() + '-zapfallback';
+    return _installIdCache;
+  }
+}
+
 function getLicenseSecret() {
-  const hw = (os.hostname() + os.homedir() + os.cpus()[0]?.model + os.totalmem()).replace(/\s/g, '');
-  return crypto.createHash('sha256').update('zap-v3-' + hw).digest();
+  // homedir is stable per-user. install-id is stable per-install.
+  // No hostname, no CPU, no totalmem — those are all unstable.
+  const base = getInstallId() + require('os').homedir();
+  return crypto.createHash('sha256').update('zap-v3-' + base).digest();
 }
 
 // Fields that form the license integrity payload — if ANY are tampered, license is invalid
@@ -2329,7 +2357,8 @@ let activateWin = null;
 function isLicensed() {
   // Only a valid license key + accepted terms + intact HMAC grants access
   if (!store.get('licenseValid') || !store.get('licenseKey') || !store.get('termsAccepted')) return false;
-  // HMAC migration: existing users upgrading to v3.26.8+ won't have _lsig yet.
+
+  // HMAC migration: existing users upgrading won't have _lsig yet.
   // Seal their current (legitimate) license data instead of revoking.
   const storedSig = store.get('_lsig');
   if (!storedSig) {
@@ -2337,9 +2366,35 @@ function isLicensed() {
     sealLicense(store);
     return true;
   }
+
   // Verify config file hasn't been tampered with
   if (!verifyLicense(store)) {
-    console.warn('[LICENSE] Tamper detected — license signature mismatch. Revoking.');
+    // HMAC mismatch — could be tampering OR could be a legitimate user whose
+    // machine fingerprint shifted (old hostname-based secret, OS update, new install-id).
+    // Before revoking, try to auto-recover: admin keys stay admin, Stripe users
+    // revalidate against their subscription. Only revoke if ALL recovery paths fail.
+    const key = store.get('licenseKey') || '';
+    const email = store.get('licenseEmail') || '';
+
+    // Admin-key path — always re-seal, never revoke
+    if (ADMIN_KEYS.includes(key.trim())) {
+      console.log('[LICENSE] HMAC mismatch on admin key — re-sealing (likely secret changed across versions).');
+      sealLicense(store);
+      return true;
+    }
+
+    // Stripe-subscriber path — if we have a subscription ID or email, assume legit
+    // and re-seal. checkSubscriptionStatus() will revoke async if the sub is actually dead.
+    const hasSub = store.get('stripeSubscriptionId') || store.get('stripeCustomerId');
+    if (hasSub || email) {
+      console.log('[LICENSE] HMAC mismatch on paid license — re-sealing and deferring revocation to Stripe check.');
+      sealLicense(store);
+      // Kick off async Stripe verification; if it fails, IT will revoke, not the HMAC layer
+      setTimeout(() => { try { checkSubscriptionStatus(true); } catch (_) {} }, 2000);
+      return true;
+    }
+
+    console.warn('[LICENSE] Tamper detected — no recovery path available. Revoking.');
     store.set('licenseValid', false);
     store.delete('_lsig');
     return false;
