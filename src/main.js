@@ -2097,6 +2097,76 @@ ipcMain.on('save-settings', (_ev, s) => {
   if (settingsWin) settingsWin.webContents.send('settings-saved');
 });
 
+/* ─────────────────── Support Chat (ZapBrain) ─────────────────── */
+
+// Override with ZAPBRAIN_URL env var for dev/staging. Production clients hit the public brain.
+const BRAIN_URL = process.env.ZAPBRAIN_URL || 'https://brain.tryzap.net';
+// Shared secret between app and brain. Baked in at build time — this is a non-secret rate-limit key,
+// not a user credential. Real auth happens per-user via installId.
+const BRAIN_API_KEY = process.env.ZAPBRAIN_KEY || 'zb_Mk40uk2F2HzYT2ZVuTq1YTbadYy8LPES';
+
+ipcMain.handle('support-chat', async (_ev, { message }) => {
+  try {
+    const installId = store.get('installId') || (() => {
+      const id = 'inapp-' + Math.random().toString(36).slice(2, 12);
+      store.set('installId', id);
+      return id;
+    })();
+    const email = store.get('licenseEmail') || null;
+    const version = app.getVersion();
+    const platform = process.platform === 'darwin' ? (process.arch === 'arm64' ? 'Mac Apple Silicon' : 'Mac Intel')
+                   : process.platform === 'win32' ? 'Windows'
+                   : process.platform === 'linux' ? 'Linux/Chromebook' : process.platform;
+
+    const body = JSON.stringify({
+      userId: installId,
+      userName: email || `in-app-user-${installId.slice(-6)}`,
+      message,
+      surface: 'in-app',
+      context: { platform, zapVersion: version, email }
+    });
+
+    const res = await fetch(BRAIN_URL + '/chat', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Brain-Key': BRAIN_API_KEY
+      },
+      body
+    });
+    if (!res.ok) {
+      const txt = await res.text().catch(() => '');
+      throw new Error(`brain ${res.status}: ${txt}`);
+    }
+    const data = await res.json();
+    return {
+      ok: true,
+      message: data.message,
+      escalated: data.escalated,
+      ticketUrl: data.ticket?.channelUrl || null
+    };
+  } catch (err) {
+    console.error('[support-chat] error:', err.message);
+    return { ok: false, message: "I'm having trouble reaching support right now. Email arhaand30@gmail.com and we'll get back to you fast." };
+  }
+});
+
+ipcMain.handle('support-escalate', async (_ev) => {
+  try {
+    const installId = store.get('installId');
+    const email = store.get('licenseEmail') || null;
+    const res = await fetch(BRAIN_URL + '/escalate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'X-Brain-Key': BRAIN_API_KEY },
+      body: JSON.stringify({ userId: installId, userName: email, reason: 'user requested human from in-app chat' })
+    });
+    const data = await res.json();
+    return { ok: true, ...data };
+  } catch (err) {
+    return { ok: false, error: err.message };
+  }
+});
+
 /* ─────────────────── AI Request ─────────────────── */
 
 ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, region, language }) => {

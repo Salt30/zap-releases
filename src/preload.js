@@ -68,6 +68,11 @@ contextBridge.exposeInMainWorld('zap', {
   getReferralStats: () => ipcRenderer.invoke('get-referral-stats'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   openExternal:  (url) => ipcRenderer.invoke('open-external', url),
+
+  // Support chat (ZapBrain)
+  supportChat:     (message) => ipcRenderer.invoke('support-chat', { message }),
+  supportEscalate: ()        => ipcRenderer.invoke('support-escalate'),
+
   forceClose:    ()    => ipcRenderer.send('force-close'),
   selfDestruct:  ()    => ipcRenderer.send('self-destruct'),
 
