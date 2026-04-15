@@ -2141,25 +2141,47 @@ const BRAIN_URL = process.env.ZAPBRAIN_URL || 'https://lucky-enchantment-product
 // not a user credential. Real auth happens per-user via installId.
 const BRAIN_API_KEY = process.env.ZAPBRAIN_KEY || 'zb_Mk40uk2F2HzYT2ZVuTq1YTbadYy8LPES';
 
+// Build rich user context once per chat — the brain uses this to give personalized answers.
+function buildUserContext() {
+  const installId = store.get('installId') || (() => {
+    const id = 'inapp-' + Math.random().toString(36).slice(2, 12);
+    store.set('installId', id);
+    return id;
+  })();
+  const email = store.get('licenseEmail') || null;
+  const version = app.getVersion();
+  const platform = process.platform === 'darwin'
+    ? (process.arch === 'arm64' ? 'Mac Apple Silicon' : 'Mac Intel')
+    : process.platform === 'win32' ? 'Windows'
+    : process.platform === 'linux' ? 'Linux/Chromebook' : process.platform;
+
+  const context = {
+    platform,
+    zapVersion: version,
+    email,
+    subscriptionStatus: store.get('subscriptionStatus') || null,
+    subscriptionTier: store.get('subscriptionTier') || null,
+    stripeCustomerId: store.get('stripeCustomerId') || null,
+    plan: store.get('subscriptionTier') || (store.get('licenseValid') ? 'active' : 'inactive'),
+    referralCode: store.get('referralCode') || null,
+    termsAcceptedAt: store.get('termsAcceptedAt') || null,
+    onboardingDone: !!store.get('onboardingDone'),
+    isAdmin: isAdmin(),
+    liteScansUsed: store.get('liteScansUsed') || 0,
+    installId
+  };
+  return { installId, email, context };
+}
+
 ipcMain.handle('support-chat', async (_ev, { message }) => {
   try {
-    const installId = store.get('installId') || (() => {
-      const id = 'inapp-' + Math.random().toString(36).slice(2, 12);
-      store.set('installId', id);
-      return id;
-    })();
-    const email = store.get('licenseEmail') || null;
-    const version = app.getVersion();
-    const platform = process.platform === 'darwin' ? (process.arch === 'arm64' ? 'Mac Apple Silicon' : 'Mac Intel')
-                   : process.platform === 'win32' ? 'Windows'
-                   : process.platform === 'linux' ? 'Linux/Chromebook' : process.platform;
-
+    const { installId, email, context } = buildUserContext();
     const body = JSON.stringify({
       userId: installId,
       userName: email || `in-app-user-${installId.slice(-6)}`,
       message,
       surface: 'in-app',
-      context: { platform, zapVersion: version, email }
+      context
     });
 
     const res = await fetch(BRAIN_URL + '/chat', {
@@ -2202,6 +2224,74 @@ ipcMain.handle('support-escalate', async (_ev) => {
     return { ok: false, error: err.message };
   }
 });
+
+// ─── Chat history persistence (per install) ───
+ipcMain.handle('support-history-load', () => {
+  return store.get('supportChatHistory') || [];
+});
+ipcMain.on('support-history-save', (_ev, history) => {
+  if (!Array.isArray(history)) return;
+  // Cap at last 100 messages
+  const capped = history.slice(-100);
+  store.set('supportChatHistory', capped);
+});
+ipcMain.on('support-history-clear', () => {
+  store.set('supportChatHistory', []);
+});
+
+// ─── App version (sync for fast UI access) ───
+ipcMain.on('app-version-sync', (ev) => {
+  ev.returnValue = app.getVersion();
+});
+
+// ─── Admin alerts polling ───
+// Admins (isAdmin() === true) poll the brain every 60s for pending support-escalation alerts.
+// When one arrives, show native macOS/Windows notification + ping overlay to flash the badge.
+const { Notification } = require('electron');
+let adminAlertTimer = null;
+let lastAlertId = null;
+
+async function pollAdminAlerts() {
+  if (!isAdmin()) return;
+  try {
+    const installId = store.get('installId');
+    const url = BRAIN_URL + '/admin-alerts?adminId=' + encodeURIComponent(installId) +
+                (lastAlertId ? '&since=' + encodeURIComponent(lastAlertId) : '');
+    const res = await fetch(url, { headers: { 'X-Brain-Key': BRAIN_API_KEY }, timeout: 15000 });
+    if (!res.ok) return;
+    const data = await res.json();
+    if (!data.alerts || data.alerts.length === 0) return;
+    for (const alert of data.alerts) {
+      // Native notification
+      try {
+        if (Notification.isSupported()) {
+          new Notification({
+            title: 'Zap — support needed',
+            body: `New escalation from ${alert.userName || 'a user'}: "${(alert.userMessage || '').slice(0, 100)}"`,
+            silent: false
+          }).show();
+        }
+      } catch (_) {}
+      // Flash the badge in the overlay (if open)
+      try { if (overlayWin) overlayWin.webContents.send('support-admin-alert', alert); } catch (_) {}
+    }
+    lastAlertId = data.alerts[data.alerts.length - 1].id;
+  } catch (err) {
+    // Silently fail — this runs in the background
+  }
+}
+
+function startAdminAlertPoll() {
+  if (adminAlertTimer) return;
+  if (!isAdmin()) return;
+  // Initial check after 10s, then every 60s
+  setTimeout(pollAdminAlerts, 10_000);
+  adminAlertTimer = setInterval(pollAdminAlerts, 60_000);
+  console.log('[admin-alerts] Polling enabled (admin user)');
+}
+function stopAdminAlertPoll() {
+  if (adminAlertTimer) { clearInterval(adminAlertTimer); adminAlertTimer = null; }
+}
 
 /* ─────────────────── AI Request ─────────────────── */
 
@@ -4205,6 +4295,7 @@ app.whenReady().then(async () => {
   // Start periodic health checks and background updates
   startPermissionHealthCheck();
   backgroundUpdateCheck(); // Check immediately on startup
+  startAdminAlertPoll();   // Only runs if user is admin — polls brain for support escalations
   setInterval(backgroundUpdateCheck, 30 * 60 * 1000); // Check for updates every 30 min
 
   // Sanitize lastMode — corrupted store after update can cause auto-open in wrong mode

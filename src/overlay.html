@@ -158,27 +158,64 @@
   #cw-status.success{color:#22c55e}
   #cw-status.error{color:#ef4444}
 
-  /* Support Chat — in-app Help panel */
-  #support-btn{position:fixed;bottom:14px;right:14px;z-index:300;width:40px;height:40px;border-radius:50%;background:var(--accent,#6366f1);border:none;color:#fff;font-size:18px;cursor:pointer;box-shadow:0 4px 14px rgba(0,0,0,.3);display:none;align-items:center;justify-content:center;transition:transform .15s}
-  #support-btn:hover{transform:scale(1.08)}
-  #support-panel{position:fixed;bottom:64px;right:14px;z-index:305;width:340px;max-height:480px;display:none;flex-direction:column;background:var(--bg-solid,rgba(20,20,28,.98));backdrop-filter:blur(40px);-webkit-backdrop-filter:blur(40px);border:1px solid rgba(255,255,255,.1);border-radius:14px;overflow:hidden;box-shadow:0 12px 40px rgba(0,0,0,.5);animation:widgetIn .3s cubic-bezier(.16,1,.3,1)}
-  #support-header{padding:10px 14px;background:rgba(255,255,255,.04);border-bottom:1px solid rgba(255,255,255,.06);display:flex;justify-content:space-between;align-items:center}
-  #support-header .title{font-size:12px;font-weight:700;color:var(--text);display:flex;align-items:center;gap:6px}
-  #support-header .title .dot{width:6px;height:6px;border-radius:50%;background:#22c55e;box-shadow:0 0 8px #22c55e}
-  #support-close{background:none;border:none;color:var(--text-dim);font-size:18px;cursor:pointer;padding:0 4px}
-  #support-body{flex:1;overflow-y:auto;padding:12px;display:flex;flex-direction:column;gap:8px;min-height:200px;max-height:340px}
-  #support-body::-webkit-scrollbar{width:4px}
-  #support-body::-webkit-scrollbar-thumb{background:rgba(255,255,255,.2);border-radius:2px}
-  .msg{padding:8px 12px;border-radius:10px;font-size:12px;line-height:1.45;max-width:85%;word-wrap:break-word;white-space:pre-wrap}
-  .msg.user{background:var(--accent,#6366f1);color:#fff;align-self:flex-end;border-bottom-right-radius:4px}
-  .msg.bot{background:rgba(255,255,255,.05);color:var(--text);align-self:flex-start;border-bottom-left-radius:4px}
-  .msg.bot.escalated{border:1px solid rgba(34,197,94,.3);background:rgba(34,197,94,.08)}
-  .msg.typing{font-style:italic;color:var(--text-dim);opacity:.7}
-  #support-input-row{padding:10px;border-top:1px solid rgba(255,255,255,.06);display:flex;gap:6px}
-  #support-input{flex:1;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:8px;color:var(--text);font-size:12px;padding:8px 10px;font-family:inherit;outline:none}
-  #support-input:focus{border-color:var(--accent,#6366f1)}
-  #support-send{background:var(--accent,#6366f1);border:none;color:#fff;border-radius:8px;padding:0 12px;font-size:12px;font-weight:600;cursor:pointer;font-family:inherit}
-  #support-send:disabled{opacity:.5;cursor:not-allowed}
+  /* Support Chat — in-app Help (Claude/ChatGPT-style) */
+  #support-btn{position:fixed;bottom:20px;right:20px;z-index:300;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;color:#fff;font-size:22px;font-weight:600;cursor:pointer;box-shadow:0 8px 24px rgba(99,102,241,.4),0 0 0 1px rgba(255,255,255,.08) inset;display:none;align-items:center;justify-content:center;transition:all .2s cubic-bezier(.16,1,.3,1)}
+  #support-btn:hover{transform:scale(1.06) translateY(-2px);box-shadow:0 12px 32px rgba(99,102,241,.5),0 0 0 1px rgba(255,255,255,.12) inset}
+  #support-btn .badge{position:absolute;top:-2px;right:-2px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--bg-solid,#0a0a12)}
+
+  #support-panel{position:fixed;bottom:84px;right:20px;z-index:305;width:440px;height:640px;max-height:calc(100vh - 120px);display:none;flex-direction:column;background:var(--bg-solid,rgba(12,12,20,.98));backdrop-filter:blur(60px) saturate(180%);-webkit-backdrop-filter:blur(60px) saturate(180%);border:1px solid rgba(255,255,255,.08);border-radius:20px;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.6),0 0 0 1px rgba(99,102,241,.08);animation:widgetIn .35s cubic-bezier(.16,1,.3,1);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif}
+
+  #support-header{padding:16px 20px;background:rgba(255,255,255,.02);border-bottom:1px solid rgba(255,255,255,.05);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+  #support-header .title-block{display:flex;flex-direction:column;gap:2px}
+  #support-header .title{font-size:15px;font-weight:600;color:var(--text,#fafafa);display:flex;align-items:center;gap:8px;letter-spacing:-.01em}
+  #support-header .title .dot{width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 10px #22c55e,0 0 0 3px rgba(34,197,94,.15);animation:dotPulse 2s ease-in-out infinite}
+  #support-header .subtitle{font-size:11px;color:var(--text-dim,#888);font-weight:400}
+  #support-header .actions{display:flex;align-items:center;gap:6px}
+  .support-header-btn{background:none;border:none;color:var(--text-dim,#888);font-size:16px;cursor:pointer;padding:6px 8px;border-radius:8px;transition:all .15s;line-height:1;font-family:inherit}
+  .support-header-btn:hover{color:var(--text,#fafafa);background:rgba(255,255,255,.06)}
+  @keyframes dotPulse{0%,100%{box-shadow:0 0 10px #22c55e,0 0 0 3px rgba(34,197,94,.15)}50%{box-shadow:0 0 14px #22c55e,0 0 0 4px rgba(34,197,94,.25)}}
+
+  #support-body{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px;scroll-behavior:smooth}
+  #support-body::-webkit-scrollbar{width:6px}
+  #support-body::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:3px}
+  #support-body::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.2)}
+
+  .support-welcome{padding:20px 16px;text-align:center;color:var(--text-dim,#999);animation:fadeIn .4s ease}
+  .support-welcome-icon{font-size:38px;margin-bottom:10px;opacity:.9}
+  .support-welcome-title{font-size:17px;font-weight:600;color:var(--text,#fafafa);margin-bottom:6px;letter-spacing:-.01em}
+  .support-welcome-sub{font-size:13px;line-height:1.5;margin-bottom:18px}
+  .support-suggestions{display:flex;flex-direction:column;gap:6px}
+  .support-suggest-btn{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);color:var(--text,#fafafa);padding:10px 14px;border-radius:10px;font-size:12.5px;cursor:pointer;font-family:inherit;text-align:left;transition:all .15s;font-weight:400}
+  .support-suggest-btn:hover{background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.3);transform:translateY(-1px)}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+
+  .msg{padding:10px 14px;border-radius:14px;font-size:13.5px;line-height:1.55;max-width:88%;word-wrap:break-word;white-space:pre-wrap;animation:msgIn .25s cubic-bezier(.16,1,.3,1)}
+  @keyframes msgIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+  .msg.user{background:linear-gradient(135deg,#6366f1,#7c3aed);color:#fff;align-self:flex-end;border-bottom-right-radius:4px;box-shadow:0 2px 8px rgba(99,102,241,.25)}
+  .msg.bot{background:rgba(255,255,255,.04);color:var(--text,#fafafa);align-self:flex-start;border-bottom-left-radius:4px;border:1px solid rgba(255,255,255,.04)}
+  .msg.bot.escalated{background:linear-gradient(135deg,rgba(34,197,94,.1),rgba(34,197,94,.05));border:1px solid rgba(34,197,94,.25);color:var(--text,#fafafa)}
+  .msg.bot.escalated::before{content:'👋 ';margin-right:2px}
+  .msg.system{align-self:center;background:none;color:var(--text-dim,#888);font-size:11px;font-style:italic;padding:4px 8px;max-width:100%}
+
+  .msg-typing{align-self:flex-start;display:flex;gap:4px;padding:14px 16px;background:rgba(255,255,255,.04);border-radius:14px;border-bottom-left-radius:4px;border:1px solid rgba(255,255,255,.04)}
+  .msg-typing span{width:6px;height:6px;border-radius:50%;background:var(--text-dim,#888);animation:typing 1.4s infinite ease-in-out}
+  .msg-typing span:nth-child(2){animation-delay:.2s}
+  .msg-typing span:nth-child(3){animation-delay:.4s}
+  @keyframes typing{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-6px);opacity:1}}
+
+  #support-input-wrap{padding:14px 16px 16px;border-top:1px solid rgba(255,255,255,.05);background:rgba(255,255,255,.01);flex-shrink:0}
+  #support-input-row{display:flex;gap:8px;align-items:flex-end;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:8px 8px 8px 14px;transition:border-color .15s}
+  #support-input-row:focus-within{border-color:rgba(99,102,241,.5);box-shadow:0 0 0 3px rgba(99,102,241,.1)}
+  #support-input{flex:1;background:none;border:none;color:var(--text,#fafafa);font-size:13.5px;line-height:1.5;padding:6px 0;font-family:inherit;outline:none;resize:none;max-height:120px;min-height:20px}
+  #support-input::placeholder{color:var(--text-dim,#888)}
+  #support-send{background:linear-gradient(135deg,#6366f1,#7c3aed);border:none;color:#fff;border-radius:10px;width:34px;height:34px;font-size:14px;cursor:pointer;font-family:inherit;transition:all .15s;flex-shrink:0;display:flex;align-items:center;justify-content:center}
+  #support-send:hover:not(:disabled){transform:scale(1.05);box-shadow:0 4px 12px rgba(99,102,241,.4)}
+  #support-send:disabled{opacity:.4;cursor:not-allowed;background:rgba(255,255,255,.1)}
+
+  #support-footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding:0 4px}
+  #support-request-human{background:none;border:none;color:var(--text-dim,#888);font-size:11px;cursor:pointer;font-family:inherit;padding:2px 4px;border-radius:4px;transition:color .15s}
+  #support-request-human:hover{color:#22c55e}
+  #support-context-status{font-size:10px;color:var(--text-dim,#666)}
 </style>
 </head>
 <body>
@@ -250,17 +287,29 @@
 <!-- Lite Tier: Scan Counter Badge -->
 <div id="scan-counter"><span class="count" id="scan-count-num">25</span> scans left</div>
 
-<!-- Support Chat (in-app Help) -->
-<button id="support-btn" title="Get help">?</button>
-<div id="support-panel">
+<!-- Support Chat — in-app Help (Claude/ChatGPT-style) -->
+<button id="support-btn" title="Get help"><span>?</span><span class="badge" id="support-admin-badge">1</span></button>
+<div id="support-panel" role="dialog" aria-label="Support chat">
   <div id="support-header">
-    <span class="title"><span class="dot"></span>Zap Support</span>
-    <button id="support-close">&times;</button>
+    <div class="title-block">
+      <span class="title"><span class="dot"></span>Zap Support</span>
+      <span class="subtitle" id="support-subtitle">We usually reply in seconds</span>
+    </div>
+    <div class="actions">
+      <button class="support-header-btn" id="support-new" title="Start new conversation">&#x21bb;</button>
+      <button class="support-header-btn" id="support-close" title="Close">&times;</button>
+    </div>
   </div>
   <div id="support-body"></div>
-  <div id="support-input-row">
-    <input id="support-input" type="text" placeholder="Describe your issue..." maxlength="500" />
-    <button id="support-send">Send</button>
+  <div id="support-input-wrap">
+    <div id="support-input-row">
+      <textarea id="support-input" placeholder="Message Zap Support…" maxlength="2000" rows="1"></textarea>
+      <button id="support-send" title="Send">&#x2191;</button>
+    </div>
+    <div id="support-footer">
+      <button id="support-request-human" title="Skip the AI and get a human">&#128100; Talk to a human</button>
+      <span id="support-context-status"></span>
+    </div>
   </div>
 </div>
 
@@ -1128,7 +1177,7 @@
   document.addEventListener('mouseup',function(){dragging=false});
 })();
 
-// ── Support Chat (in-app Help) ──
+// ── Support Chat (in-app Help) — Claude/ChatGPT-style ──
 (function(){
   var btn=document.getElementById('support-btn');
   var panel=document.getElementById('support-panel');
@@ -1136,73 +1185,226 @@
   var input=document.getElementById('support-input');
   var send=document.getElementById('support-send');
   var closeBtn=document.getElementById('support-close');
+  var newBtn=document.getElementById('support-new');
+  var humanBtn=document.getElementById('support-request-human');
+  var subtitle=document.getElementById('support-subtitle');
+  var ctxStatus=document.getElementById('support-context-status');
+  var adminBadge=document.getElementById('support-admin-badge');
   if(!btn||!panel)return;
 
   var open=false;
   var sending=false;
+  var escalated=false;      // true once user asks for human — bot stops suggesting
+  var history=[];           // [{role,content,at}] persisted to electron-store
 
-  function show(){
-    panel.style.display='flex';
-    btn.style.display='none';
-    open=true;
-    if(body.children.length===0){
-      addMsg('bot',"Hey — I'm Zap support. What's going on?");
-    }
-    setTimeout(function(){input.focus()},50);
+  var SUGGESTIONS=[
+    "How do I open Zap?",
+    "Zap keeps closing in my lockdown browser",
+    "My subscription is active but app says expired",
+    "How do I upgrade from Lite to Pro?"
+  ];
+
+  // ── Persistence ──
+  async function loadHistory(){
+    try{
+      var h=await window.zap.supportHistoryLoad();
+      if(h&&Array.isArray(h))history=h;
+    }catch(_){ history=[] }
   }
-  function hide(){
-    panel.style.display='none';
-    btn.style.display='flex';
-    open=false;
+  function saveHistory(){
+    try{ window.zap.supportHistorySave(history) }catch(_){}
+  }
+  function clearHistory(){
+    history=[];escalated=false;
+    saveHistory();
+    body.innerHTML='';
+    renderWelcome();
+    subtitle.textContent='We usually reply in seconds';
+  }
+
+  // ── Rendering ──
+  function escHtml(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
+  function markdownLite(text){
+    // Very light markdown: **bold**, `code`, newlines, URLs
+    var t=escHtml(text);
+    t=t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
+    t=t.replace(/`([^`]+)`/g,'<code style="background:rgba(255,255,255,.08);padding:1px 5px;border-radius:4px;font-family:SFMono-Regular,Menlo,monospace;font-size:12px">$1</code>');
+    t=t.replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" style="color:#818cf8;text-decoration:underline" onclick="window.zap.openExternal(\'$1\');return false">$1</a>');
+    return t;
   }
   function addMsg(role,text,opts){
+    opts=opts||{};
     var el=document.createElement('div');
-    el.className='msg '+role+(opts&&opts.escalated?' escalated':'')+(opts&&opts.typing?' typing':'');
+    el.className='msg '+role+(opts.escalated?' escalated':'');
+    el.innerHTML=role==='bot'?markdownLite(text):escHtml(text);
+    body.appendChild(el);
+    body.scrollTop=body.scrollHeight;
+    return el;
+  }
+  function addSystem(text){
+    var el=document.createElement('div');
+    el.className='msg system';
     el.textContent=text;
     body.appendChild(el);
     body.scrollTop=body.scrollHeight;
     return el;
   }
+  function showTyping(){
+    var el=document.createElement('div');
+    el.className='msg-typing';
+    el.innerHTML='<span></span><span></span><span></span>';
+    body.appendChild(el);
+    body.scrollTop=body.scrollHeight;
+    return el;
+  }
+
+  function renderWelcome(){
+    var w=document.createElement('div');
+    w.className='support-welcome';
+    w.innerHTML=
+      '<div class="support-welcome-icon">&#128293;</div>'+
+      '<div class="support-welcome-title">How can we help?</div>'+
+      '<div class="support-welcome-sub">Describe your issue and I\'ll help right away. If I can\'t, a real person will step in.</div>'+
+      '<div class="support-suggestions" id="support-suggestions"></div>';
+    body.appendChild(w);
+    var sug=w.querySelector('#support-suggestions');
+    SUGGESTIONS.forEach(function(s){
+      var b=document.createElement('button');
+      b.className='support-suggest-btn';
+      b.textContent=s;
+      b.addEventListener('click',function(){ input.value=s; handleSend() });
+      sug.appendChild(b);
+    });
+  }
+
+  function renderHistory(){
+    body.innerHTML='';
+    if(history.length===0){ renderWelcome(); return }
+    history.forEach(function(m){
+      if(m.role==='system') addSystem(m.content);
+      else addMsg(m.role,m.content,{escalated:m.escalated});
+    });
+  }
+
+  // ── Core send ──
   async function handleSend(){
-    if(sending)return;
+    if(sending||escalated)return;
     var text=(input.value||'').trim();
     if(!text)return;
     input.value='';
+    autosize();
+    // Kill welcome card if present
+    var w=body.querySelector('.support-welcome');
+    if(w)w.remove();
+
     sending=true;send.disabled=true;
+    history.push({role:'user',content:text,at:Date.now()});
     addMsg('user',text);
-    var typingEl=addMsg('bot','Thinking...',{typing:true});
+    saveHistory();
+
+    var typingEl=showTyping();
     try{
       var result=await window.zap.supportChat(text);
       typingEl.remove();
       if(result&&result.ok){
-        var msg=result.message||"Got it. Let me get the team on this.";
+        var msg=result.message||"Got it. The team will follow up.";
+        history.push({role:'bot',content:msg,at:Date.now(),escalated:!!result.escalated});
         addMsg('bot',msg,{escalated:!!result.escalated});
-        if(result.escalated&&result.ticketUrl){
-          addMsg('bot','📎 A ticket was opened — the team will reply in Discord.');
+        if(result.escalated){
+          escalated=true;
+          subtitle.textContent='A human will follow up shortly';
+          addSystem('The team has been pinged — they\'ll reply here or in Discord soon.');
+          history.push({role:'system',content:'The team has been pinged — they\'ll reply here or in Discord soon.',at:Date.now()});
         }
       }else{
-        addMsg('bot',result&&result.message?result.message:"Something went wrong. Try again or open a ticket in our Discord (tryzap.net has the link).");
+        var fallback=(result&&result.message)||"Something went wrong. Try again in a moment.";
+        addMsg('bot',fallback);
+        history.push({role:'bot',content:fallback,at:Date.now()});
       }
+      saveHistory();
     }catch(err){
       typingEl.remove();
-      addMsg('bot',"Couldn't reach support — open a ticket in our Discord (link on tryzap.net) and we'll help you directly.");
+      addMsg('bot',"Couldn't reach support. Try again or open a ticket in our Discord — link on tryzap.net.");
     }finally{
       sending=false;send.disabled=false;
       input.focus();
     }
   }
 
+  async function requestHuman(){
+    if(escalated)return;
+    // Pre-fill with human request so the bot's human-detection triggers
+    input.value="I'd like to talk to a human, please.";
+    handleSend();
+  }
+
+  // ── Input autosize ──
+  function autosize(){
+    input.style.height='auto';
+    input.style.height=Math.min(input.scrollHeight,120)+'px';
+  }
+
+  // ── Open/close ──
+  async function show(){
+    panel.style.display='flex';
+    btn.style.display='none';
+    open=true;
+    if(history.length===0) await loadHistory();
+    renderHistory();
+    setTimeout(function(){input.focus()},80);
+    // Clear admin badge when opening
+    if(adminBadge)adminBadge.style.display='none';
+  }
+  function hide(){
+    panel.style.display='none';
+    btn.style.display='flex';
+    open=false;
+  }
+
+  // ── Wire events ──
   btn.addEventListener('click',show);
   closeBtn.addEventListener('click',hide);
+  newBtn.addEventListener('click',function(){ if(confirm('Start a new conversation? Your chat history will be cleared.')) clearHistory() });
   send.addEventListener('click',handleSend);
+  humanBtn.addEventListener('click',requestHuman);
+  input.addEventListener('input',autosize);
   input.addEventListener('keydown',function(e){
     if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();handleSend()}
   });
 
-  // Show the support button whenever the overlay is up and not in lockdown mode.
+  // ── Visibility logic ──
   window.zap.onLoadSettings(function(s){
     if(s&&s.lockdownMode){btn.style.display='none';return}
     if(!open)btn.style.display='flex';
+  });
+
+  // ── Admin notifications ──
+  // Desktop app polls brain /admin-alerts when user is admin.
+  // When a new alert arrives, show badge on button + native notification.
+  if(window.zap.onSupportAdminAlert){
+    window.zap.onSupportAdminAlert(function(alert){
+      if(!adminBadge)return;
+      var count=parseInt(adminBadge.textContent)||0;
+      adminBadge.textContent=count+1;
+      adminBadge.style.display='flex';
+      // Shake the button a bit
+      btn.animate([{transform:'scale(1)'},{transform:'scale(1.12)'},{transform:'scale(1)'}],{duration:400});
+    });
+  }
+
+  // Pre-load history in background (won't show until panel opens)
+  loadHistory();
+
+  // Warm up context status
+  window.zap.getSettings().then(function(s){
+    try{
+      var tier=s.subscriptionTier||(s.licenseValid?'pro':'');
+      var v=(window.zap.appVersion&&window.zap.appVersion())||'';
+      var bits=[];
+      if(tier)bits.push(tier);
+      if(v)bits.push('v'+v);
+      if(bits.length&&ctxStatus)ctxStatus.textContent=bits.join(' · ');
+    }catch(_){}
   });
 })();
 </script>

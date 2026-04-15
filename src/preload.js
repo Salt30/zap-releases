@@ -70,8 +70,13 @@ contextBridge.exposeInMainWorld('zap', {
   openExternal:  (url) => ipcRenderer.invoke('open-external', url),
 
   // Support chat (ZapBrain)
-  supportChat:     (message) => ipcRenderer.invoke('support-chat', { message }),
-  supportEscalate: ()        => ipcRenderer.invoke('support-escalate'),
+  supportChat:         (message) => ipcRenderer.invoke('support-chat', { message }),
+  supportEscalate:     ()        => ipcRenderer.invoke('support-escalate'),
+  supportHistoryLoad:  ()        => ipcRenderer.invoke('support-history-load'),
+  supportHistorySave:  (h)       => ipcRenderer.send('support-history-save', h),
+  supportHistoryClear: ()        => ipcRenderer.send('support-history-clear'),
+  appVersion:          ()        => ipcRenderer.sendSync('app-version-sync'),
+  onSupportAdminAlert: (cb)      => ipcRenderer.on('support-admin-alert', (_, d) => cb(d)),
 
   forceClose:    ()    => ipcRenderer.send('force-close'),
   selfDestruct:  ()    => ipcRenderer.send('self-destruct'),
