@@ -84,15 +84,32 @@
 
 <div class="section">
   <div class="section-title">Choose Your Plan</div>
+
+  <!-- Tier: Lite vs Pro -->
+  <div class="plan-toggle" id="tier-toggle" style="margin-bottom:10px">
+    <div class="plan-slider" id="tier-slider"></div>
+    <div class="plan-option" id="tier-lite" data-tier="lite">
+      <div class="plan-name">Lite</div>
+      <div class="plan-price" id="lite-price">$15<small>/mo</small></div>
+      <div class="plan-detail">3 modes · 25 scans/mo</div>
+    </div>
+    <div class="plan-option active" id="tier-pro" data-tier="pro">
+      <div class="plan-name">Pro</div>
+      <div class="plan-price" id="pro-price">$25<small>/mo</small></div>
+      <div class="plan-detail">All 11 modes · unlimited</div>
+    </div>
+  </div>
+
+  <!-- Billing cycle -->
   <div class="plan-toggle" id="plan-toggle">
     <div class="plan-slider" id="plan-slider"></div>
     <div class="plan-option active" id="plan-monthly" data-plan="monthly">
       <div class="plan-name">Monthly</div>
-      <div class="plan-price">$25<small>/mo</small></div>
+      <div class="plan-price" id="cycle-monthly-price">$25<small>/mo</small></div>
     </div>
     <div class="plan-option" id="plan-annual" data-plan="annual">
       <div class="plan-name">Annual</div>
-      <div class="plan-price">$20<small>/mo</small></div>
+      <div class="plan-price" id="cycle-annual-price">$20<small>/mo</small></div>
       <div class="plan-badge">SAVE 20%</div>
     </div>
   </div>
@@ -141,31 +158,66 @@
   var adminBtn = document.getElementById('admin-btn');
   var legalCheckbox = document.getElementById('legal-agree');
   var pollTimer = null;
-  var selectedPlan = 'monthly';
+  var selectedTier  = 'pro';       // 'lite' | 'pro'
+  var selectedCycle = 'monthly';   // 'monthly' | 'annual'
   var subscribeBtnDefault = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg> Subscribe with Stripe';
 
   // Plan toggle logic
   var planMonthly = document.getElementById('plan-monthly');
-  var planAnnual = document.getElementById('plan-annual');
-  var planSlider = document.getElementById('plan-slider');
+  var planAnnual  = document.getElementById('plan-annual');
+  var planSlider  = document.getElementById('plan-slider');
+  var tierLite    = document.getElementById('tier-lite');
+  var tierPro     = document.getElementById('tier-pro');
+  var tierSlider  = document.getElementById('tier-slider');
+  var cycleMonthlyPrice = document.getElementById('cycle-monthly-price');
+  var cycleAnnualPrice  = document.getElementById('cycle-annual-price');
 
-  function updatePlanSlider() {
-    var active = document.querySelector('.plan-option.active');
-    if (active && planSlider) {
-      planSlider.style.left = active.offsetLeft + 'px';
-      planSlider.style.width = active.offsetWidth + 'px';
+  // Pricing matrix — update in one place
+  var PRICING = {
+    lite: { monthly: { mo: '$15' }, annual: { mo: '$12' } },  // $12/mo annual = $144/yr (20% off)
+    pro:  { monthly: { mo: '$25' }, annual: { mo: '$20' } }
+  };
+
+  function updateSliderFor(sliderEl, containerEl) {
+    var active = containerEl.querySelector('.plan-option.active');
+    if (active && sliderEl) {
+      sliderEl.style.left  = active.offsetLeft + 'px';
+      sliderEl.style.width = active.offsetWidth + 'px';
     }
   }
-  setTimeout(updatePlanSlider, 50);
-
-  function selectPlan(plan) {
-    selectedPlan = plan;
-    planMonthly.classList.toggle('active', plan === 'monthly');
-    planAnnual.classList.toggle('active', plan === 'annual');
-    updatePlanSlider();
+  function refreshPricesForTier() {
+    var p = PRICING[selectedTier];
+    if (cycleMonthlyPrice) cycleMonthlyPrice.innerHTML = p.monthly.mo + '<small>/mo</small>';
+    if (cycleAnnualPrice)  cycleAnnualPrice.innerHTML  = p.annual.mo  + '<small>/mo</small>';
   }
-  planMonthly.addEventListener('click', function() { selectPlan('monthly'); });
-  planAnnual.addEventListener('click', function() { selectPlan('annual'); });
+  function refreshAllSliders() {
+    updateSliderFor(planSlider, document.getElementById('plan-toggle'));
+    updateSliderFor(tierSlider, document.getElementById('tier-toggle'));
+  }
+  setTimeout(refreshAllSliders, 50);
+
+  function selectTier(tier) {
+    selectedTier = tier;
+    tierLite.classList.toggle('active', tier === 'lite');
+    tierPro.classList.toggle('active',  tier === 'pro');
+    refreshPricesForTier();
+    refreshAllSliders();
+  }
+  function selectCycle(cycle) {
+    selectedCycle = cycle;
+    planMonthly.classList.toggle('active', cycle === 'monthly');
+    planAnnual.classList.toggle('active',  cycle === 'annual');
+    refreshAllSliders();
+  }
+  // Legacy single-string plan id — what we send to the backend
+  function getPlanId() {
+    if (selectedTier === 'lite') return selectedCycle === 'annual' ? 'lite-annual' : 'lite';
+    return selectedCycle === 'annual' ? 'annual' : 'monthly';
+  }
+  tierLite.addEventListener('click',   function() { selectTier('lite'); });
+  tierPro.addEventListener('click',    function() { selectTier('pro');  });
+  planMonthly.addEventListener('click', function() { selectCycle('monthly'); });
+  planAnnual.addEventListener('click',  function() { selectCycle('annual');  });
 
   // Pre-fill email from auth if available
   window.zap.getSettings().then(function(s) {
@@ -348,7 +400,7 @@
 
     try {
       // Create Stripe Checkout Session with selected plan
-      var session = await window.zap.createCheckoutSession(email, selectedPlan);
+      var session = await window.zap.createCheckoutSession(email, getPlanId());
 
       if (session.error) {
         statusEl.textContent = session.error;
