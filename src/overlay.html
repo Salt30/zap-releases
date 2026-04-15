@@ -533,10 +533,18 @@
     instr.style.display='none';
     resPanel.style.display='none';
     sel.style.display='none';
+    // Force click-through off so the panel is immediately interactive
+    // (don't wait for the user to mouse-in first)
+    try { window.zap.setIgnoreMouseEvents(false); } catch(_){}
     setTimeout(function(){dtArea.focus()},100);
   }
 
-  function hideDT(){dtPanel.style.display='none';dtArea.value=''}
+  function hideDT(){
+    dtPanel.style.display='none';
+    dtArea.value='';
+    // Restore click-through so the overlay returns to passthrough state
+    try { window.zap.setIgnoreMouseEvents(true,{forward:true}); } catch(_){}
+  }
 
   dtClose.addEventListener('click',function(){hideDT();setMode('answer');instr.style.display=''});
 
@@ -762,10 +770,19 @@
   var cwWidget=$('continuous-widget');
   var supportBtnEl=document.getElementById('support-btn');
   var supportPanelEl=document.getElementById('support-panel');
+  // The overlay is click-through by default at the window level (so Escape and
+  // other passthrough events work). When the cursor enters one of our interactive
+  // panels, we need to disable click-through so the user can actually click. When
+  // the cursor leaves, re-enable click-through. This must fire regardless of the
+  // continuousMode flag, because the OS-level click-through is always on.
   [resPanel,inputBar,dtPanel,cwWidget,supportBtnEl,supportPanelEl].forEach(function(el){
     if(!el) return;
-    el.addEventListener('mouseenter',function(){if(clickThroughActive)window.zap.setIgnoreMouseEvents(false)});
-    el.addEventListener('mouseleave',function(){if(clickThroughActive)window.zap.setIgnoreMouseEvents(true,{forward:true})});
+    el.addEventListener('mouseenter',function(){
+      try { window.zap.setIgnoreMouseEvents(false); } catch(_){}
+    });
+    el.addEventListener('mouseleave',function(){
+      try { window.zap.setIgnoreMouseEvents(true,{forward:true}); } catch(_){}
+    });
   });
   function enableClickThrough(){
     clickThroughActive=true;
