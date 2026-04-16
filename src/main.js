@@ -803,9 +803,11 @@ function makeOverlay() {
     enforceContentProtection(overlayWin);
     applyRespondusWindowCloaking(overlayWin);
     registerEscShortcut();
-    // Safety: re-enable click-through on show so cursor isn't trapped
-    // The renderer's enableClickThrough() also does this, but belt-and-suspenders
-    try { overlayWin.setIgnoreMouseEvents(true, { forward: true }); } catch (_) {}
+    // IMPORTANT: Do NOT force click-through ON here. Every use-case (drag-to-
+    // select, buttons, ticket panels) needs clicks to land. The renderer turns
+    // click-through ON explicitly when it enters continuous-widget mode. Leaving
+    // it OFF by default means drag-to-select works out of the box.
+    try { overlayWin.setIgnoreMouseEvents(false); } catch (_) {}
     // Double-apply after a short delay to catch any macOS resets
     setTimeout(() => enforceContentProtection(overlayWin), 50);
     setTimeout(() => enforceContentProtection(overlayWin), 200);
@@ -821,9 +823,10 @@ function makeOverlay() {
   applyOverlayLevel();
   applyCloseResistance(overlayWin); // Resist external close attempts on Windows
 
-  // Default: enable click-through so the overlay doesn't trap the cursor
-  // The renderer will toggle this based on UI interactions (panels, inputs, etc.)
-  try { overlayWin.setIgnoreMouseEvents(true, { forward: true }); } catch (_) {}
+  // Default: overlay is CLICKABLE (not click-through). The renderer explicitly
+  // enables click-through only for continuous-widget mode or pinned responses.
+  // This matches what users actually need: drag-to-select, button clicks, etc.
+  try { overlayWin.setIgnoreMouseEvents(false); } catch (_) {}
   overlayWin.hide();
 
   overlayWin.on('closed', () => { overlayWin = null; });
