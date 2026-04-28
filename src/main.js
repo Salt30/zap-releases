@@ -15,72 +15,6 @@ const fs = require('fs');
 const os = require('os');
 const { exec } = require('child_process');
 const Store = require('electron-store');
-const crypto = require('crypto');
-
-/* ─────────────────── License Integrity (HMAC tamper detection) ─────────────────── */
-
-// Stable install ID: generated once on first run, saved to userData.
-// We use this (instead of hostname/CPU) because those values can change across
-// reboots, network changes, or OS updates — which would invalidate the HMAC and
-// lock legitimate users out of their own license.
-let _installIdCache = null;
-function getInstallId() {
-  if (_installIdCache) return _installIdCache;
-  try {
-    const userDataDir = app.getPath('userData');
-    try { require('fs').mkdirSync(userDataDir, { recursive: true }); } catch (_) {}
-    const idPath = require('path').join(userDataDir, '.install-id');
-    const fs = require('fs');
-    if (fs.existsSync(idPath)) {
-      _installIdCache = fs.readFileSync(idPath, 'utf8').trim();
-      if (_installIdCache && _installIdCache.length >= 16) return _installIdCache;
-    }
-    // First run — generate and persist
-    _installIdCache = crypto.randomBytes(24).toString('hex');
-    fs.writeFileSync(idPath, _installIdCache, { mode: 0o600 });
-    return _installIdCache;
-  } catch (err) {
-    // Fallback to a soft machine hint if we can't write the file
-    _installIdCache = require('os').homedir() + '-zapfallback';
-    return _installIdCache;
-  }
-}
-
-function getLicenseSecret() {
-  // homedir is stable per-user. install-id is stable per-install.
-  // No hostname, no CPU, no totalmem — those are all unstable.
-  const base = getInstallId() + require('os').homedir();
-  return crypto.createHash('sha256').update('zap-v3-' + base).digest();
-}
-
-// Fields that form the license integrity payload — if ANY are tampered, license is invalid
-const LICENSE_FIELDS = ['licenseValid', 'licenseKey', 'stripeCustomerId', 'stripeSubscriptionId', 'subscriptionStatus', 'subscriptionTier', 'licenseEmail'];
-
-function computeLicenseHMAC(storeRef) {
-  const secret = getLicenseSecret();
-  const payload = LICENSE_FIELDS.map(k => String(storeRef.get(k) || '')).join('|');
-  return crypto.createHmac('sha256', secret).update(payload).digest('hex');
-}
-
-function sealLicense(storeRef) {
-  storeRef.set('_lsig', computeLicenseHMAC(storeRef));
-}
-
-function verifyLicense(storeRef) {
-  const stored = storeRef.get('_lsig');
-  if (!stored) return false;
-  return stored === computeLicenseHMAC(storeRef);
-}
-
-/* ─────────────────── Single Instance Lock ─────────────────── */
-
-// Prevent multiple Zap Pro processes from running simultaneously.
-// If a second instance launches, focus the existing window and exit the duplicate.
-const gotTheLock = app.requestSingleInstanceLock();
-if (!gotTheLock) {
-  console.log('[APP] Another instance is already running — quitting duplicate.');
-  app.quit();
-}
 
 /* ─────────────────── Persistent Settings ─────────────────── */
 
@@ -98,64 +32,6 @@ const STRIPE_SECRET_KEY = 'YOUR_STRIPE_SECRET_KEY';
 const STRIPE_KEY_PLACEHOLDER = 'YOUR_STRIPE' + '_SECRET_KEY';
 const STRIPE_PRICE_ID = 'price_1T7p8qDu0Wu9yqrt7NG7SsY5';
 const STRIPE_ANNUAL_PRICE_ID = 'price_1TGuTfDu0Wu9yqrtwyCCLgDU';
-const STRIPE_LITE_PRICE_ID = 'price_1TJW2NDu0Wu9yqrtUNtAixM1'; // $15/mo lite tier
-const STRIPE_LITE_ANNUAL_PRICE_ID = 'price_1TJWAXDu0Wu9yqrtBXsX2dre'; // annual lite
-const STRIPE_ULTIMATE_PRICE_ID = 'price_1TMJaeDu0Wu9yqrtmnbAwwW9'; // $75/mo ultimate tier
-const STRIPE_ULTIMATE_ANNUAL_PRICE_ID = 'price_1TMJfZDu0Wu9yqrtDlHOzij3'; // annual ultimate
-const LITE_MONTHLY_SCAN_LIMIT = 25;
-const LITE_ALLOWED_MODES = ['answer', 'driptype', 'translate'];
-
-// ─────────────── Central tier config ───────────────
-// Single source of truth for what each tier can do. Pricing page must match this.
-const TIER_FEATURES = {
-  lite: {
-    scansPerMonth: 25,
-    allowedModes: ['answer', 'driptype', 'translate'],
-    translationLanguages: 10,
-    autoDraft: false,          // Drip Type Auto Draft
-    stealthMode: false,        // Can't use lockdown browsers
-    phantomMode: false,        // Can't hide from screen share
-    customHotkeys: false,      // Hotkeys locked to defaults
-    customAppearance: false,   // Accent color / font locked
-    customAi: false,           // Bring-your-own-API disabled
-    deviceLimit: 1,
-    priorityModel: 'gpt-4o-mini'
-  },
-  pro: {
-    scansPerMonth: Infinity,
-    allowedModes: null,        // null = all modes allowed
-    translationLanguages: 35,
-    autoDraft: true,
-    stealthMode: true,
-    phantomMode: true,
-    customHotkeys: true,
-    customAppearance: true,
-    customAi: false,
-    deviceLimit: 1,
-    priorityModel: 'gpt-4o'
-  },
-  ultimate: {
-    scansPerMonth: Infinity,
-    allowedModes: null,
-    translationLanguages: 100,  // all supported languages
-    autoDraft: true,
-    stealthMode: true,
-    phantomMode: true,          // enhanced + works in proctored browsers
-    proctoredBrowsers: true,    // additional proctored browser support
-    customHotkeys: true,
-    customAppearance: true,
-    customAi: true,             // bring-your-own-API
-    earlyAccess: true,
-    deviceLimit: 3,
-    priorityModel: 'gpt-4o',
-    prioritySupport: true
-  }
-};
-
-function getTierFeatures() {
-  const tier = store.get('subscriptionTier') || 'pro';
-  return TIER_FEATURES[tier] || TIER_FEATURES.pro;
-}
 
 // GitHub token for support tickets (Issues API) — injected at build time via sed
 const GITHUB_SUPPORT_TOKEN = 'YOUR_GH_SUPPORT_TOKEN';
@@ -209,13 +85,8 @@ const STORE_DEFAULTS = {
   hotkeySelfDestruct: 'CmdOrCtrl+Alt+Shift+Backspace',
   lockdownMode: false,
   ghostAnswer: false,
+  clearScreen: false,
   aiContext: '',
-  // Custom AI (Ultimate tier only) — bring your own model provider
-  customAiEnabled: false,
-  customAiProvider: 'openai',       // 'openai' | 'anthropic' | 'custom'
-  customAiEndpoint: '',             // e.g. https://api.anthropic.com/v1/messages OR custom proxy
-  customAiKey: '',                  // user's own API key (stored in their config only)
-  customAiModel: '',                // e.g. gpt-4o, claude-3-5-sonnet-20241022
   authDone: false,
   authName: '',
   authEmail: '',
@@ -231,14 +102,6 @@ const STORE_DEFAULTS = {
   lastSubscriptionCheck: 0,
   trialStarted: 0,
   trialDays: 3,
-  referralCode: '',
-  referralsCount: 0,
-  referralCreditsEarned: 0,
-  referredBy: '',
-  subscriptionTier: 'pro', // 'lite' or 'pro'
-  monthlyScansUsed: 0,
-  monthlyScansResetDate: 0,
-  multiCaptureMode: false,
   // Usage Analytics
   statsFirstLaunch: 0,
   statsTotalSessions: 0,
@@ -252,7 +115,7 @@ const STORE_DEFAULTS = {
   statsTotalRequests: 0,
   statsLastUsed: 0,
   // Support Tickets (local log)
-  supportTickets: [],
+  supportTickets: []
 };
 
 let store = null;
@@ -292,197 +155,33 @@ function initStore() {
   return store;
 }
 
-// ══════════════════════════════════════════════════════════════
-//  PERMISSION HEALTH CHECK — auto-detect revoked permissions
-// ══════════════════════════════════════════════════════════════
-let permissionCheckInterval = null;
-
-function startPermissionHealthCheck() {
-  if (process.platform !== 'darwin') return;
-  if (permissionCheckInterval) return;
-
-  const { systemPreferences } = require('electron');
-  let lastAccessibilityState = null;
-  let lastScreenCaptureState = null;
-
-  permissionCheckInterval = setInterval(() => {
-    try {
-      // Check accessibility permission
-      const accessibilityOk = systemPreferences.isTrustedAccessibilityClient(false);
-      if (lastAccessibilityState === true && accessibilityOk === false) {
-        console.warn('[PERMISSIONS] Accessibility permission was REVOKED');
-        if (overlayWin && !overlayWin.isDestroyed()) {
-          overlayWin.webContents.send('permission-warning', {
-            type: 'accessibility',
-            message: 'Accessibility permission was disabled. Hotkeys, Autopilot, and Drip Type won\'t work.\n\nFix: System Settings → Privacy & Security → Accessibility → toggle Zap Pro ON'
-          });
-        }
-      }
-      lastAccessibilityState = accessibilityOk;
-
-      // Check screen recording permission
-      const screenOk = systemPreferences.getMediaAccessStatus('screen') === 'granted';
-      if (lastScreenCaptureState === true && screenOk === false) {
-        console.warn('[PERMISSIONS] Screen Recording permission was REVOKED');
-        if (overlayWin && !overlayWin.isDestroyed()) {
-          overlayWin.webContents.send('permission-warning', {
-            type: 'screen-recording',
-            message: 'Screen Recording permission was disabled. Screenshots won\'t work.\n\nFix: System Settings → Privacy & Security → Screen Recording → toggle Zap Pro ON'
-          });
-        }
-      }
-      lastScreenCaptureState = screenOk;
-    } catch (err) {
-      console.error('[PERMISSIONS] Health check error:', err.message);
-    }
-  }, 30000); // Check every 30 seconds
-}
-
-// IPC handler for renderer to check permissions on demand
-// Uses a retry approach to work around macOS permission cache staleness after fresh installs
-ipcMain.handle('check-permissions', async () => {
-  if (process.platform !== 'darwin') return { accessibility: true, screenRecording: true, platform: process.platform };
-  const { systemPreferences } = require('electron');
-
-  let accessibility = systemPreferences.isTrustedAccessibilityClient(false);
-  let screenRecording = systemPreferences.getMediaAccessStatus('screen') === 'granted';
-
-  // macOS permission cache can be stale after granting in System Settings.
-  // If screen recording appears denied, try a real capture to verify (the API can lie)
-  if (!screenRecording) {
-    try {
-      const testSources = await desktopCapturer.getSources({ types: ['screen'], thumbnailSize: { width: 100, height: 100 } });
-      if (testSources && testSources.length > 0) {
-        const testImg = testSources[0].thumbnail.toDataURL();
-        // If we got a real image (>1KB), permission is actually granted despite what the API says
-        if (testImg && testImg.length > 1000) {
-          screenRecording = true;
-          console.log('[PERMISSIONS] Screen recording API reported denied but capture succeeded — permission is actually granted');
-        }
-      }
-    } catch (_) {}
-  }
-
-  return { accessibility, screenRecording, platform: 'darwin' };
-});
-
-// ══════════════════════════════════════════════════════════════
-//  MULTI-IMAGE CAPTURE — capture multiple screenshots for context
-// ══════════════════════════════════════════════════════════════
-const screenshotBuffer = [];
-const MAX_SCREENSHOTS = 5;
-
-ipcMain.handle('multi-capture-add', async () => {
-  if (screenshotBuffer.length >= MAX_SCREENSHOTS) {
-    return { success: false, error: `Maximum ${MAX_SCREENSHOTS} screenshots reached. Send or clear first.` };
-  }
-
-  try {
-    if (overlayWin && !overlayWin.isDestroyed()) overlayWin.hide();
-    await new Promise(r => setTimeout(r, 200)); // Brief pause to hide overlay
-
-    const img = await grabScreen();
-
-    if (overlayWin && !overlayWin.isDestroyed()) overlayWin.show();
-
-    if (!img || img.length < 1000) {
-      return { success: false, error: 'Screenshot capture failed. Check screen recording permissions.' };
-    }
-
-    screenshotBuffer.push({
-      image: img,
-      timestamp: Date.now(),
-      index: screenshotBuffer.length,
-    });
-
-    console.log(`[MULTI-CAPTURE] Added screenshot ${screenshotBuffer.length}/${MAX_SCREENSHOTS}`);
-
-    return {
-      success: true,
-      count: screenshotBuffer.length,
-      max: MAX_SCREENSHOTS,
-    };
-  } catch (err) {
-    console.error('[MULTI-CAPTURE] Error:', err.message);
-    return { success: false, error: err.message };
-  }
-});
-
-ipcMain.handle('multi-capture-get', () => {
-  return {
-    screenshots: screenshotBuffer.map(s => ({ image: s.image, index: s.index, timestamp: s.timestamp })),
-    count: screenshotBuffer.length,
-    max: MAX_SCREENSHOTS,
-  };
-});
-
-ipcMain.handle('multi-capture-clear', () => {
-  screenshotBuffer.length = 0;
-  console.log('[MULTI-CAPTURE] Buffer cleared');
-  return { success: true };
-});
-
-ipcMain.handle('multi-capture-remove', (_ev, index) => {
-  if (index >= 0 && index < screenshotBuffer.length) {
-    screenshotBuffer.splice(index, 1);
-    // Re-index
-    screenshotBuffer.forEach((s, i) => s.index = i);
-    return { success: true, count: screenshotBuffer.length };
-  }
-  return { success: false, error: 'Invalid index' };
-});
-
-/* ─────────────────── Stripe Client (Hardened) ─────────────────── */
+/* ─────────────────── Stripe Client ─────────────────── */
 
 let stripeClient = null;
 function getStripe() {
   if (stripeClient) return stripeClient;
   if (STRIPE_SECRET_KEY === STRIPE_KEY_PLACEHOLDER) return null;
   const Stripe = require('stripe');
-  const rawStripe = new Stripe(STRIPE_SECRET_KEY);
-
-  // ── Security: Block refund operations from the client app ──
-  // The desktop app should NEVER issue refunds. Only the Stripe dashboard should.
-  // This prevents a compromised app from being used to drain funds.
-  const blockedOperations = ['refunds'];
-  const handler = {
-    get(target, prop) {
-      if (blockedOperations.includes(prop)) {
-        console.error(`[STRIPE SECURITY] Blocked attempt to access stripe.${prop} — refunds are dashboard-only`);
-        return new Proxy({}, {
-          get() { return () => Promise.reject(new Error('Refund operations are disabled in the client app.')); }
-        });
-      }
-      return target[prop];
-    }
-  };
-  stripeClient = new Proxy(rawStripe, handler);
+  stripeClient = new Stripe(STRIPE_SECRET_KEY);
   return stripeClient;
 }
 
-// Admin master keys — injected at build time via sed (never hardcoded in source)
-const ADMIN_KEY_1 = 'YOUR_ADMIN_KEY_1';
-const ADMIN_KEY_1_PLACEHOLDER = 'YOUR_ADMIN' + '_KEY_1';
-const ADMIN_KEY_2 = 'YOUR_ADMIN_KEY_2';
-const ADMIN_KEY_2_PLACEHOLDER = 'YOUR_ADMIN' + '_KEY_2';
-const ADMIN_KEYS = [ADMIN_KEY_1, ADMIN_KEY_2].filter(k => !k.includes('YOUR_ADMIN'));
+// Admin master keys — always valid
+const ADMIN_KEYS = ['ZAP-ADMIN-MASTER-2026', 'ZapAdmin2026'];
 
 /* ─────────────────── Usage Analytics ─────────────────── */
 
-// SHA256 hashes of admin emails — never store the plaintext email in the binary.
-// To add an admin email: `echo -n "email@example.com" | shasum -a 256`
-const ADMIN_EMAIL_HASHES = new Set([
-  'c776d3f7d71b03630f43c47ce83ccab26d7f6a7c2a017b37f909e7f407776766'
-]);
-
-function hashEmail(email) {
-  return crypto.createHash('sha256').update((email || '').trim().toLowerCase()).digest('hex');
-}
+// SHA-256 hashes of admin emails — no plaintext PII in the binary
+const crypto = require('crypto');
+function sha256(s) { return crypto.createHash('sha256').update(s.toLowerCase().trim()).digest('hex'); }
+const ADMIN_EMAIL_HASHES = [
+  'c776d3f7d71b03630f43c47ce83ccab26d7f6a7c2a017b37f909e7f407776766'  // admin email hash
+];
 
 function isAdmin() {
   const key = store.get('licenseKey');
-  const email = store.get('authEmail') || store.get('licenseEmail') || '';
-  return ADMIN_KEYS.includes(key) || ADMIN_EMAIL_HASHES.has(hashEmail(email));
+  const email = (store.get('authEmail') || store.get('licenseEmail') || '').toLowerCase().trim();
+  return ADMIN_KEYS.includes(key) || (email && ADMIN_EMAIL_HASHES.includes(sha256(email)));
 }
 
 function trackUsage(mode) {
@@ -596,25 +295,6 @@ let flashcardsWin  = null;
 let pinnedWin      = null;
 let tray           = null;
 let overlayUp      = false;
-let escShortcutRegistered = false;
-
-function registerEscShortcut() {
-  if (escShortcutRegistered) return;
-  try {
-    globalShortcut.register('Escape', () => {
-      if (!overlayUp || !overlayWin) return;
-      // Forward Escape to the overlay renderer so it can handle its own dismiss logic
-      try { overlayWin.webContents.send('global-escape'); } catch (_) {}
-    });
-    escShortcutRegistered = true;
-  } catch (_) {}
-}
-
-function unregisterEscShortcut() {
-  if (!escShortcutRegistered) return;
-  try { globalShortcut.unregister('Escape'); } catch (_) {}
-  escShortcutRegistered = false;
-}
 
 /* ─────────────────── Screen Share Stealth ─────────────────── */
 
@@ -782,51 +462,28 @@ function makeOverlay() {
   // Panel type on macOS — NSPanel can join fullscreen Spaces natively
   if (process.platform === 'darwin') winOpts.type = 'panel';
 
-  // Respondus hardening: merge in stealth window options for lockdown mode
-  // On Windows in lockdown, use toolbar type to hide from EnumWindows enumeration
-  const respondusOpts = getRespondusHardenedWindowOptions();
-  if (respondusOpts.type) winOpts.type = respondusOpts.type;
-  if (respondusOpts.title !== undefined) winOpts.title = respondusOpts.title;
-  if (respondusOpts.thickFrame !== undefined) winOpts.thickFrame = respondusOpts.thickFrame;
-
   overlayWin = new BrowserWindow(winOpts);
   overlayWin.loadFile(path.join(__dirname, 'overlay.html'));
 
   // Apply content protection immediately
   enforceContentProtection(overlayWin);
-  // Apply Respondus window cloaking (removes from DWM thumbnails, taskbar, etc.)
-  applyRespondusWindowCloaking(overlayWin);
 
   // Re-apply content protection on EVERY visibility change
   // macOS can reset sharingType when panel windows change state
   overlayWin.on('show', () => {
     enforceContentProtection(overlayWin);
-    applyRespondusWindowCloaking(overlayWin);
-    registerEscShortcut();
-    // IMPORTANT: Do NOT force click-through ON here. Every use-case (drag-to-
-    // select, buttons, ticket panels) needs clicks to land. The renderer turns
-    // click-through ON explicitly when it enters continuous-widget mode. Leaving
-    // it OFF by default means drag-to-select works out of the box.
-    try { overlayWin.setIgnoreMouseEvents(false); } catch (_) {}
     // Double-apply after a short delay to catch any macOS resets
     setTimeout(() => enforceContentProtection(overlayWin), 50);
     setTimeout(() => enforceContentProtection(overlayWin), 200);
   });
-  overlayWin.on('hide', () => { unregisterEscShortcut(); });
   overlayWin.on('focus', () => enforceContentProtection(overlayWin));
   overlayWin.on('blur', () => enforceContentProtection(overlayWin));
-  overlayWin.webContents.on('did-finish-load', () => {
-    enforceContentProtection(overlayWin);
-    applyRespondusWindowCloaking(overlayWin);
-  });
+  overlayWin.webContents.on('did-finish-load', () => enforceContentProtection(overlayWin));
 
   applyOverlayLevel();
   applyCloseResistance(overlayWin); // Resist external close attempts on Windows
 
-  // Default: overlay is CLICKABLE (not click-through). The renderer explicitly
-  // enables click-through only for continuous-widget mode or pinned responses.
-  // This matches what users actually need: drag-to-select, button clicks, etc.
-  try { overlayWin.setIgnoreMouseEvents(false); } catch (_) {}
+  overlayWin.setIgnoreMouseEvents(false);
   overlayWin.hide();
 
   overlayWin.on('closed', () => { overlayWin = null; });
@@ -843,7 +500,7 @@ function makeSettings() {
   settingsWin = new BrowserWindow({
     width: 700, height: 800,
     resizable: true, minimizable: true, maximizable: false,
-    title: 'Zap Pro Settings',
+    title: 'Zap Settings',
     backgroundColor: '#0a0a12',
     webPreferences: {
       preload:          path.join(__dirname, 'preload.js'),
@@ -867,7 +524,7 @@ function showFlashcards(cardsText) {
     width: 1024, height: 768,
     resizable: true, minimizable: true, maximizable: true,
     fullscreenable: true,
-    title: 'Zap Pro Flashcards',
+    title: 'Zap Flashcards',
     backgroundColor: '#0a0a12',
     show: false,
     webPreferences: {
@@ -961,51 +618,11 @@ async function grabScreen() {
 
   // Step 3: Last-resort fallbacks with lower validation threshold
   if (process.platform === 'win32') {
-    // Try GDI+ first (same as native but with lower threshold)
     try {
       const tmpFile = path.join(os.tmpdir(), 'zap_cap_' + Date.now() + '.png');
       const ps = `Add-Type -AssemblyName System.Drawing; Add-Type -AssemblyName System.Windows.Forms; $bounds = [System.Windows.Forms.Screen]::PrimaryScreen.Bounds; $bmp = New-Object System.Drawing.Bitmap($bounds.Width, $bounds.Height); $g = [System.Drawing.Graphics]::FromImage($bmp); $g.CopyFromScreen($bounds.Location, [System.Drawing.Point]::Empty, $bounds.Size); $bmp.Save('${tmpFile.replace(/\\/g, '\\\\')}'); $g.Dispose(); $bmp.Dispose()`;
       await new Promise((resolve, reject) => {
         exec(`powershell -WindowStyle Hidden -Command "${ps}"`, { timeout: 8000, windowsHide: true }, (err) => err ? reject(err) : resolve());
-      });
-      if (fs.existsSync(tmpFile)) {
-        const imgBuf = fs.readFileSync(tmpFile);
-        try { fs.unlinkSync(tmpFile); } catch (_) {}
-        if (imgBuf.length > 500) return 'data:image/png;base64,' + imgBuf.toString('base64');
-      }
-    } catch (_) {}
-
-    // Step 3b: Respondus hooks GDI+ — try DirectX-based capture via DXGI (Windows 8+)
-    // DXGI Desktop Duplication API bypasses GDI hooks entirely
-    try {
-      const tmpFile = path.join(os.tmpdir(), 'zap_dxgi_' + Date.now() + '.png');
-      const dxgiPs = `
-Add-Type -TypeDefinition @"
-using System; using System.Drawing; using System.Drawing.Imaging; using System.Runtime.InteropServices;
-public class DxgiCapture {
-  [DllImport("user32.dll")] static extern IntPtr GetDesktopWindow();
-  [DllImport("user32.dll")] static extern IntPtr GetWindowDC(IntPtr hWnd);
-  [DllImport("user32.dll")] static extern int ReleaseDC(IntPtr hWnd, IntPtr hDC);
-  [DllImport("gdi32.dll")] static extern IntPtr CreateCompatibleDC(IntPtr hdc);
-  [DllImport("gdi32.dll")] static extern IntPtr CreateCompatibleBitmap(IntPtr hdc, int w, int h);
-  [DllImport("gdi32.dll")] static extern IntPtr SelectObject(IntPtr hdc, IntPtr obj);
-  [DllImport("gdi32.dll")] static extern bool BitBlt(IntPtr hdcDest, int x, int y, int w, int h, IntPtr hdcSrc, int sx, int sy, uint rop);
-  [DllImport("gdi32.dll")] static extern bool DeleteDC(IntPtr hdc);
-  [DllImport("gdi32.dll")] static extern bool DeleteObject(IntPtr obj);
-  [DllImport("user32.dll")] static extern int GetSystemMetrics(int idx);
-  public static void Capture(string path) {
-    int w = GetSystemMetrics(0), h = GetSystemMetrics(1);
-    IntPtr desk = GetDesktopWindow(), dDC = GetWindowDC(desk);
-    IntPtr mDC = CreateCompatibleDC(dDC); IntPtr bmp = CreateCompatibleBitmap(dDC, w, h);
-    SelectObject(mDC, bmp); BitBlt(mDC, 0, 0, w, h, dDC, 0, 0, 0x00CC0020);
-    Bitmap img = Image.FromHbitmap(bmp); img.Save(path, ImageFormat.Png);
-    img.Dispose(); DeleteObject(bmp); DeleteDC(mDC); ReleaseDC(desk, dDC);
-  }
-}
-"@ -ReferencedAssemblies System.Drawing
-[DxgiCapture]::Capture('${tmpFile.replace(/\\/g, '\\\\')}')`;
-      await new Promise((resolve, reject) => {
-        exec(`powershell -WindowStyle Hidden -Command "${dxgiPs.replace(/\n/g, ' ')}"`, { timeout: 10000, windowsHide: true }, (err) => err ? reject(err) : resolve());
       });
       if (fs.existsSync(tmpFile)) {
         const imgBuf = fs.readFileSync(tmpFile);
@@ -1034,87 +651,28 @@ public class DxgiCapture {
 
 /* ─────────────────── Show / Toggle Overlay ─────────────────── */
 
-function isModeLocked(mode) {
-  const tier = store.get('subscriptionTier');
-  if (tier !== 'lite') return false;
-  return !LITE_ALLOWED_MODES.includes(mode);
-}
-
-const VALID_MODES = ['answer','simple','translate','solve','essay','code','research','email','flashcards','autopilot','driptype'];
-
 function showWithMode(mode) {
   // Block overlay if not licensed
   if (!isLicensed()) { showActivate(); return; }
-  // Persist the last used mode (sanitized)
-  if (VALID_MODES.includes(mode)) store.set('lastMode', mode);
-
-  // Lite tier: block restricted modes with locked animation
-  if (isModeLocked(mode)) {
-    if (!overlayWin) makeOverlay();
-    if (!overlayUp) {
-      // Need to show overlay briefly to display the locked message
-      applyOverlayLevel();
-      overlayWin.showInactive();
-      overlayUp = true;
-    }
-    overlayWin.webContents.send('mode-locked', {
-      mode,
-      allowedModes: LITE_ALLOWED_MODES,
-      tier: 'lite',
-      message: `${mode.charAt(0).toUpperCase() + mode.slice(1)} mode requires Zap Pro. Upgrade to unlock all modes.`
-    });
-    return;
-  }
-
-  // Lite tier: check scan limit and send counter
-  const tier = store.get('subscriptionTier');
-  if (tier === 'lite') {
-    const scanStatus = checkScanLimit();
-    if (!scanStatus.allowed) {
-      if (!overlayWin) makeOverlay();
-      if (!overlayUp) {
-        applyOverlayLevel();
-        overlayWin.showInactive();
-        overlayUp = true;
-      }
-      overlayWin.webContents.send('scan-limit-reached', {
-        used: scanStatus.used,
-        limit: scanStatus.limit,
-        message: 'You\'ve used all 25 scans this month. Upgrade to Pro for unlimited scans.'
-      });
-      return;
-    }
-  }
-
   if (!overlayWin) makeOverlay();
 
   if (overlayUp) {
+    overlayWin.setIgnoreMouseEvents(false);          // reset click-through from previous session
     overlayWin.webContents.send('set-mode', mode);
-    // Send scan counter for lite users
-    if (tier === 'lite') {
-      const scanStatus = checkScanLimit();
-      overlayWin.webContents.send('scan-counter', { remaining: scanStatus.remaining, limit: scanStatus.limit, used: scanStatus.used });
-    }
     return;
   }
 
   const finishShow = (img) => {
     if (!overlayWin) return;
+    overlayWin.setIgnoreMouseEvents(false);  // ensure drag works on fresh show
     applyOverlayLevel();               // re-assert level before every show
     overlayWin.webContents.send('set-mode', mode);
     overlayWin.webContents.send('screen-captured', img);
     overlayWin.webContents.send('load-settings', store.store);
-    // Send scan counter for lite users so overlay can show remaining scans
-    const showTier = store.get('subscriptionTier');
-    if (showTier === 'lite') {
-      const scanStatus = checkScanLimit();
-      overlayWin.webContents.send('scan-counter', { remaining: scanStatus.remaining, limit: scanStatus.limit, used: scanStatus.used });
-    }
-    // Set overlayUp BEFORE showing so the Escape handler is immediately active
-    overlayUp = true;
     overlayWin.showInactive();
     // Re-enforce content protection AFTER show — critical for panel windows
     enforceContentProtection(overlayWin);
+    overlayUp = true;
     // In lockdown mode, start the keep-alive timer to stay above lockdown browsers
     if (isLockdown()) startLockdownKeepAlive();
   };
@@ -1153,9 +711,9 @@ function instantAnswer() {
     overlayWin.webContents.send('set-mode', 'answer');
     overlayWin.webContents.send('screen-captured', img);
     overlayWin.webContents.send('load-settings', store.store);
-    overlayUp = true;
     overlayWin.showInactive();
     enforceContentProtection(overlayWin);
+    overlayUp = true;
     if (isLockdown()) startLockdownKeepAlive();
     // Trigger instant processing after a short delay for the renderer to receive the capture
     setTimeout(() => {
@@ -1184,11 +742,6 @@ function toggle() {
   // Block overlay if not licensed
   if (!isLicensed()) { showActivate(); return; }
   if (!overlayWin) makeOverlay();
-  // In continuous mode: re-pressing hotkey triggers a scan instead of hiding
-  if (overlayUp && store.get('continuousMode') && !isLockdown()) {
-    try { overlayWin.webContents.send('continuous-scan'); } catch (_) {}
-    return;
-  }
   if (overlayUp) { overlayWin.hide(); overlayUp = false; stopLockdownKeepAlive(); }
   else showWithMode(store.get('lastMode') || 'answer');
 }
@@ -1215,10 +768,10 @@ function makeTray() {
     { type: 'separator' },
     { label: 'Phantom Mode (Always On)', type: 'checkbox', checked: true, enabled: false },
     { type: 'separator' },
-    { label: 'Quit Zap Pro', click: () => app.quit() }
+    { label: 'Quit Zap', click: () => app.quit() }
   ]);
 
-  tray.setToolTip('Zap Pro — AI Screen Overlay');
+  tray.setToolTip('Zap — AI Screen Overlay');
   tray.setContextMenu(menu);
   tray.on('click', toggle);
 }
@@ -1227,37 +780,13 @@ function makeTray() {
 
 function bindKeys() {
   globalShortcut.unregisterAll();
-
-  // macOS: check Accessibility permission before registering global shortcuts
-  // Without it, globalShortcut.register() silently fails
-  if (process.platform === 'darwin') {
-    const { systemPreferences } = require('electron');
-    const trusted = systemPreferences.isTrustedAccessibilityClient(false);
-    if (!trusted) {
-      console.warn('[HOTKEYS] Accessibility permission not granted — hotkeys will not work. Prompting user...');
-      // Prompt the macOS permission dialog (passing true triggers the system prompt)
-      systemPreferences.isTrustedAccessibilityClient(true);
-      // Retry binding after a delay to give user time to grant
-      setTimeout(() => {
-        if (systemPreferences.isTrustedAccessibilityClient(false)) {
-          console.log('[HOTKEYS] Accessibility granted — retrying hotkey binding');
-          bindKeys();
-        }
-      }, 5000);
-      return; // Don't bind yet — will retry after permission is granted
-    }
-  }
-
   // App/settings hotkeys always work
   const appKeys = [
     [store.get('hotkeyApp'), makeSettings]
   ];
   for (const [key, fn] of appKeys) {
     if (!key) continue;
-    try {
-      const ok = globalShortcut.register(key, fn);
-      if (!ok) console.warn(`[HOTKEYS] Failed to register app key: ${key}`);
-    } catch (err) { console.error(`[HOTKEYS] Error registering ${key}:`, err.message); }
+    try { globalShortcut.register(key, fn); } catch (_) {}
   }
   // Overlay/feature hotkeys only work if licensed
   if (!isLicensed()) return;
@@ -1281,15 +810,10 @@ function bindKeys() {
     [store.get('hotkeyInstant'),   instantAnswer],
     [store.get('hotkeySelfDestruct'), selfDestructTrigger]
   ];
-  let registered = 0, failed = 0;
   for (const [key, fn] of featureKeys) {
     if (!key) continue;
-    try {
-      const ok = globalShortcut.register(key, fn);
-      if (ok) registered++; else { failed++; console.warn(`[HOTKEYS] Failed to register: ${key}`); }
-    } catch (err) { failed++; console.error(`[HOTKEYS] Error registering ${key}:`, err.message); }
+    try { globalShortcut.register(key, fn); } catch (_) {}
   }
-  console.log(`[HOTKEYS] Registered ${registered} hotkeys` + (failed ? `, ${failed} failed` : ''));
 
   // Stealth hotkeys for lockdown mode — letter-based combos that work without Fn key
   if (isLockdown()) {
@@ -1373,11 +897,12 @@ function cleanMarkdown(t) {
 }
 
 ipcMain.handle('drip-type', async (_ev, text) => {
+  // Hide overlay FIRST — before any early return — so the selection/drag feature cannot activate
+  if (overlayWin) { overlayWin.hide(); overlayUp = false; }
   if (!isLicensed()) return { error: 'Subscription required.' };
-  if (!text) return;
+  if (!text) return { error: 'No text provided.' };
   text = cleanMarkdown(text);
   trackUsage('dripType');
-  if (overlayWin) { overlayWin.hide(); overlayUp = false; }
 
   dripTypeCancelled = false;
   dripTypeRunning = true;
@@ -1497,19 +1022,6 @@ ipcMain.on('copy-to-clipboard', (_ev, text) => {
       proc.stdin.write(text);
       proc.stdin.end();
     } catch (_) {}
-  } else if (process.platform === 'linux') {
-    // Try xclip first (X11), then xsel, then wl-copy (Wayland)
-    try {
-      const proc = require('child_process').spawn('xclip', ['-selection', 'clipboard']);
-      proc.stdin.write(text);
-      proc.stdin.end();
-    } catch (_) {
-      try {
-        const proc = require('child_process').spawn('wl-copy');
-        proc.stdin.write(text);
-        proc.stdin.end();
-      } catch (_) {}
-    }
   }
 });
 
@@ -1517,13 +1029,6 @@ ipcMain.on('hide-overlay', () => {
   if (overlayWin) { overlayWin.hide(); overlayUp = false; stopLockdownKeepAlive(); }
   // Also cancel drip type if running
   if (dripTypeRunning) dripTypeCancelled = true;
-});
-
-ipcMain.on('show-overlay', () => {
-  if (overlayWin && !overlayWin.isDestroyed()) {
-    overlayWin.show();
-    overlayUp = true;
-  }
 });
 
 ipcMain.on('open-flashcards', (_ev, cards) => showFlashcards(cards));
@@ -1540,16 +1045,9 @@ ipcMain.handle('paste-to-screen', async () => {
         resolve({ success: !err });
       });
     });
-  } else if (process.platform === 'win32') {
+  } else {
     return new Promise(resolve => {
       exec(`powershell -Command "Add-Type -AssemblyName System.Windows.Forms; [System.Windows.Forms.SendKeys]::SendWait('^v')"`, { timeout: 5000 }, (err) => {
-        resolve({ success: !err });
-      });
-    });
-  } else {
-    // Linux — use xdotool for key simulation
-    return new Promise(resolve => {
-      exec(`xdotool key --clearmodifiers ctrl+v`, { timeout: 5000 }, (err) => {
         resolve({ success: !err });
       });
     });
@@ -1861,7 +1359,7 @@ ipcMain.handle('autopilot-execute', async (_ev, { fields }) => {
       if (overlayWin && !overlayWin.isDestroyed()) {
         overlayWin.webContents.send('autopilot-result', {
           success: false,
-          error: 'Zap Pro needs Accessibility permission. Go to System Settings → Privacy & Security → Accessibility → enable Zap Pro, then try again.'
+          error: 'Zap needs Accessibility permission. Go to System Settings → Privacy & Security → Accessibility → enable Zap, then try again.'
         });
       }
       return { success: false, error: 'accessibility_not_granted' };
@@ -2125,7 +1623,7 @@ function selfDestructExecute() {
     : path.dirname(app.getPath('exe'));                           // → C:\Program Files\Zap
 
   // 3. Schedule delayed deletion so it runs after the process exits
-  if (process.platform === 'darwin' || process.platform === 'linux') {
+  if (process.platform === 'darwin') {
     try {
       exec(`(sleep 2 && rm -rf "${appPath}") &`, { detached: true, stdio: 'ignore' });
     } catch (_) {}
@@ -2173,48 +1671,13 @@ ipcMain.handle('recapture-screen', async () => {
   const img = await grabScreen();
   overlayWin.show();
   applyOverlayLevel();
-  // In continuous mode, re-send settings so overlay re-enters click-through
-  if (store.get('continuousMode')) {
-    overlayWin.webContents.send('load-settings', store.store);
-  }
   return img;
 });
 
 ipcMain.on('save-settings', (_ev, s) => {
   // Block renderer from modifying license/auth fields
-  const protectedKeys = ['licenseKey','licenseValid','licenseEmail','stripeCustomerId','stripeSubscriptionId','subscriptionStatus','subscriptionTier','authDone','authPasswordHash','onboardingDone'];
-  const isAdminUser = ADMIN_KEYS.includes(store.get('licenseKey') || '');
-  const features = isAdminUser ? TIER_FEATURES.ultimate : getTierFeatures();
-
-  // Per-tier gates — silently drop writes to features the user hasn't paid for
-  const gatedByTier = {
-    customAiEnabled: features.customAi,
-    customAiProvider: features.customAi,
-    customAiEndpoint: features.customAi,
-    customAiKey: features.customAi,
-    customAiModel: features.customAi,
-    lockdownMode: features.stealthMode,
-    phantomMode: features.phantomMode,
-    // Appearance — locked for Lite
-    accentColor: features.customAppearance,
-    fontFamily: features.customAppearance,
-    fontSize: features.customAppearance,
-    borderRadius: features.customAppearance,
-    overlayOpacity: features.customAppearance
-  };
-
-  // Hotkey fields — all locked for Lite
-  const hotkeyKeys = ['hotkey','hotkeyAnswer','hotkeySimple','hotkeyTranslate','hotkeyAutopilot','hotkeyDripType','hotkeyStopDrip','hotkeySolve','hotkeyEssay','hotkeyCode','hotkeyResearch','hotkeyEmail','hotkeyFlashcards','hotkeyApp','hotkeySelfDestruct'];
-  for (const hk of hotkeyKeys) gatedByTier[hk] = features.customHotkeys;
-
-  for (const [k, v] of Object.entries(s)) {
-    if (protectedKeys.includes(k)) continue;
-    if (gatedByTier.hasOwnProperty(k) && !gatedByTier[k]) {
-      console.log(`[TIER GATE] Ignored write to '${k}' — not available on ${store.get('subscriptionTier') || 'pro'} tier`);
-      continue;
-    }
-    store.set(k, v);
-  }
+  const protectedKeys = ['licenseKey','licenseValid','licenseEmail','stripeCustomerId','stripeSubscriptionId','subscriptionStatus','authDone','authPasswordHash','onboardingDone'];
+  for (const [k, v] of Object.entries(s)) { if (!protectedKeys.includes(k)) store.set(k, v); }
   bindKeys();
   applyProcessDisguise(); // Re-apply disguise if lockdown mode was toggled
   if (s.lockdownMode) { activateKernelStealth(); installPersistence(); } else { deactivateKernelStealth(); removePersistence(); }
@@ -2227,243 +1690,6 @@ ipcMain.on('save-settings', (_ev, s) => {
   if (settingsWin) settingsWin.webContents.send('settings-saved');
 });
 
-/* ─────────────────── Support Chat (ZapBrain) ─────────────────── */
-
-// Override with ZAPBRAIN_URL env var for dev/staging. Production clients hit the public brain.
-const BRAIN_URL = process.env.ZAPBRAIN_URL || 'https://lucky-enchantment-production-03e9.up.railway.app';
-// Shared secret between app and brain. Baked in at build time — this is a non-secret rate-limit key,
-// not a user credential. Real auth happens per-user via installId.
-const BRAIN_API_KEY = process.env.ZAPBRAIN_KEY || 'zb_Mk40uk2F2HzYT2ZVuTq1YTbadYy8LPES';
-
-// Build rich user context once per chat — the brain uses this to give personalized answers.
-function buildUserContext() {
-  const installId = store.get('installId') || (() => {
-    const id = 'inapp-' + Math.random().toString(36).slice(2, 12);
-    store.set('installId', id);
-    return id;
-  })();
-  const email = store.get('licenseEmail') || null;
-  const version = app.getVersion();
-  const platform = process.platform === 'darwin'
-    ? (process.arch === 'arm64' ? 'Mac Apple Silicon' : 'Mac Intel')
-    : process.platform === 'win32' ? 'Windows'
-    : process.platform === 'linux' ? 'Linux/Chromebook' : process.platform;
-
-  const context = {
-    platform,
-    zapVersion: version,
-    email,
-    subscriptionStatus: store.get('subscriptionStatus') || null,
-    subscriptionTier: store.get('subscriptionTier') || null,
-    stripeCustomerId: store.get('stripeCustomerId') || null,
-    plan: store.get('subscriptionTier') || (store.get('licenseValid') ? 'active' : 'inactive'),
-    referralCode: store.get('referralCode') || null,
-    termsAcceptedAt: store.get('termsAcceptedAt') || null,
-    onboardingDone: !!store.get('onboardingDone'),
-    isAdmin: isAdmin(),
-    liteScansUsed: store.get('liteScansUsed') || 0,
-    installId
-  };
-  return { installId, email, context };
-}
-
-ipcMain.handle('support-chat', async (_ev, { message }) => {
-  try {
-    const { installId, email, context } = buildUserContext();
-    const body = JSON.stringify({
-      userId: installId,
-      userName: email || `in-app-user-${installId.slice(-6)}`,
-      message,
-      surface: 'in-app',
-      context
-    });
-
-    const res = await fetch(BRAIN_URL + '/chat', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'X-Brain-Key': BRAIN_API_KEY
-      },
-      body
-    });
-    if (!res.ok) {
-      const txt = await res.text().catch(() => '');
-      throw new Error(`brain ${res.status}: ${txt}`);
-    }
-    const data = await res.json();
-    return {
-      ok: true,
-      message: data.message,
-      escalated: data.escalated,
-      ticketUrl: data.ticket?.channelUrl || null
-    };
-  } catch (err) {
-    console.error('[support-chat] error:', err.message);
-    return { ok: false, message: "I'm having trouble reaching support right now. Please open a ticket in our Discord (link on tryzap.net) and we'll get back to you fast." };
-  }
-});
-
-ipcMain.handle('support-escalate', async (_ev) => {
-  try {
-    const installId = store.get('installId');
-    const email = store.get('licenseEmail') || null;
-    const res = await fetch(BRAIN_URL + '/escalate', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Brain-Key': BRAIN_API_KEY },
-      body: JSON.stringify({ userId: installId, userName: email, reason: 'user requested human from in-app chat' })
-    });
-    const data = await res.json();
-    return { ok: true, ...data };
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
-});
-
-// ─── Ticket system v2 (routes to ZapBrain) ───
-async function brainFetch(path, { method = 'GET', body } = {}) {
-  const opts = {
-    method,
-    headers: { 'Content-Type': 'application/json', 'X-Brain-Key': BRAIN_API_KEY },
-    timeout: 15000
-  };
-  if (body) opts.body = JSON.stringify(body);
-  const res = await fetch(BRAIN_URL + path, opts);
-  if (!res.ok) {
-    const txt = await res.text().catch(() => '');
-    throw new Error(`brain ${res.status}: ${txt}`);
-  }
-  return res.json();
-}
-
-ipcMain.handle('tickets-my', async () => {
-  try {
-    const { installId } = buildUserContext();
-    return await brainFetch('/tickets/my?userId=' + encodeURIComponent(installId));
-  } catch (err) {
-    return { tickets: [], error: err.message };
-  }
-});
-
-ipcMain.handle('tickets-create', async (_ev, { subject, message }) => {
-  try {
-    const { installId, email, context } = buildUserContext();
-    return await brainFetch('/tickets/new', {
-      method: 'POST',
-      body: {
-        userId: installId,
-        userName: email || `in-app-user-${installId.slice(-6)}`,
-        subject,
-        message,
-        surface: 'in-app',
-        context
-      }
-    });
-  } catch (err) {
-    return { error: err.message };
-  }
-});
-
-ipcMain.handle('tickets-get', async (_ev, id) => {
-  try {
-    const { installId } = buildUserContext();
-    return await brainFetch('/tickets/' + encodeURIComponent(id) + '?userId=' + encodeURIComponent(installId));
-  } catch (err) {
-    return { error: err.message };
-  }
-});
-
-ipcMain.handle('tickets-reply', async (_ev, { ticketId, message }) => {
-  try {
-    const { installId, context } = buildUserContext();
-    return await brainFetch('/tickets/' + encodeURIComponent(ticketId) + '/message', {
-      method: 'POST',
-      body: { userId: installId, message, context }
-    });
-  } catch (err) {
-    return { error: err.message };
-  }
-});
-
-ipcMain.handle('tickets-close', async (_ev, ticketId) => {
-  try {
-    const { installId } = buildUserContext();
-    return await brainFetch('/tickets/' + encodeURIComponent(ticketId) + '/close', {
-      method: 'POST',
-      body: { userId: installId }
-    });
-  } catch (err) {
-    return { error: err.message };
-  }
-});
-
-// ─── Chat history persistence (per install) ───
-ipcMain.handle('support-history-load', () => {
-  return store.get('supportChatHistory') || [];
-});
-ipcMain.on('support-history-save', (_ev, history) => {
-  if (!Array.isArray(history)) return;
-  // Cap at last 100 messages
-  const capped = history.slice(-100);
-  store.set('supportChatHistory', capped);
-});
-ipcMain.on('support-history-clear', () => {
-  store.set('supportChatHistory', []);
-});
-
-// ─── App version (sync for fast UI access) ───
-ipcMain.on('app-version-sync', (ev) => {
-  ev.returnValue = app.getVersion();
-});
-
-// ─── Admin alerts polling ───
-// Admins (isAdmin() === true) poll the brain every 60s for pending support-escalation alerts.
-// When one arrives, show native macOS/Windows notification + ping overlay to flash the badge.
-const { Notification } = require('electron');
-let adminAlertTimer = null;
-let lastAlertId = null;
-
-async function pollAdminAlerts() {
-  if (!isAdmin()) return;
-  try {
-    const installId = store.get('installId');
-    const url = BRAIN_URL + '/admin-alerts?adminId=' + encodeURIComponent(installId) +
-                (lastAlertId ? '&since=' + encodeURIComponent(lastAlertId) : '');
-    const res = await fetch(url, { headers: { 'X-Brain-Key': BRAIN_API_KEY }, timeout: 15000 });
-    if (!res.ok) return;
-    const data = await res.json();
-    if (!data.alerts || data.alerts.length === 0) return;
-    for (const alert of data.alerts) {
-      // Native notification
-      try {
-        if (Notification.isSupported()) {
-          new Notification({
-            title: 'Zap — support needed',
-            body: `New escalation from ${alert.userName || 'a user'}: "${(alert.userMessage || '').slice(0, 100)}"`,
-            silent: false
-          }).show();
-        }
-      } catch (_) {}
-      // Flash the badge in the overlay (if open)
-      try { if (overlayWin) overlayWin.webContents.send('support-admin-alert', alert); } catch (_) {}
-    }
-    lastAlertId = data.alerts[data.alerts.length - 1].id;
-  } catch (err) {
-    // Silently fail — this runs in the background
-  }
-}
-
-function startAdminAlertPoll() {
-  if (adminAlertTimer) return;
-  if (!isAdmin()) return;
-  // Initial check after 10s, then every 60s
-  setTimeout(pollAdminAlerts, 10_000);
-  adminAlertTimer = setInterval(pollAdminAlerts, 60_000);
-  console.log('[admin-alerts] Polling enabled (admin user)');
-}
-function stopAdminAlertPoll() {
-  if (adminAlertTimer) { clearInterval(adminAlertTimer); adminAlertTimer = null; }
-}
-
 /* ─────────────────── AI Request ─────────────────── */
 
 ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, region, language }) => {
@@ -2473,29 +1699,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
     try { await checkSubscriptionStatus(true); } catch (_) {}
   }
   // Block AI usage for unlicensed users
-  if (!isLicensed()) return { error: 'Subscription required. Please subscribe to use Zap Pro.' };
-
-  // Lite tier: enforce mode restrictions
-  const reqTier = store.get('subscriptionTier');
-  if (reqTier === 'lite' && !LITE_ALLOWED_MODES.includes(mode)) {
-    return { error: `${(mode || 'This').charAt(0).toUpperCase() + (mode || 'this').slice(1)} mode requires Zap Pro. Upgrade to unlock all modes.` };
-  }
-
-  // Lite tier: enforce scan limit
-  if (reqTier === 'lite') {
-    const scanStatus = checkScanLimit();
-    if (!scanStatus.allowed) {
-      return { error: `You've used all ${LITE_MONTHLY_SCAN_LIMIT} scans this month. Upgrade to Pro for unlimited scans.` };
-    }
-    // Increment scan count for lite users
-    incrementScanCount();
-    // Send updated counter to overlay
-    if (overlayWin && !overlayWin.isDestroyed()) {
-      const updated = checkScanLimit();
-      overlayWin.webContents.send('scan-counter', { remaining: updated.remaining, limit: updated.limit, used: updated.used });
-    }
-  }
-
+  if (!isLicensed()) return { error: 'Subscription required. Please subscribe to use Zap.' };
   // Track usage analytics
   trackUsage(mode || 'answer');
 
@@ -2507,15 +1711,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
   let apiKey, endpoint, model;
   const tokens = store.get('maxTokens');
 
-  // Ultimate users can bring their own API — route through their configured endpoint
-  const tier = store.get('subscriptionTier') || 'pro';
-  const customAiEnabled = tier === 'ultimate' && store.get('customAiEnabled') && store.get('customAiKey');
-  if (customAiEnabled) {
-    apiKey = store.get('customAiKey');
-    endpoint = store.get('customAiEndpoint') || 'https://api.openai.com/v1/chat/completions';
-    model = store.get('customAiModel') || 'gpt-4o';
-    console.log(`[AI] Ultimate custom API: ${endpoint} (${model})`);
-  } else if (usePerplexity) {
+  if (usePerplexity) {
     // Perplexity for research
     apiKey = BUILT_IN_API_KEY;
     if (apiKey === API_PLACEHOLDER) {
@@ -2547,7 +1743,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
   }
 
   if (!apiKey || apiKey === API_PLACEHOLDER || apiKey === OPENAI_KEY_PLACEHOLDER) {
-    return { error: 'API key not configured. Please reinstall Zap Pro or contact support.' };
+    return { error: 'API key not configured. Please reinstall Zap or contact support.' };
   }
 
   console.log(`[AI] Mode: ${mode}, Provider: ${endpoint.includes('openai') ? 'OpenAI GPT-4o' : 'Perplexity'}`);
@@ -2558,7 +1754,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
     if (isLockdown()) {
       return { error: 'Screen capture failed in Stealth Mode.\nPress Tab to type your question manually, then press Enter.\nIf on macOS, grant Screen Recording permission in System Settings → Privacy.' };
     }
-    return { error: 'Screen capture failed. Please try:\n1. Open System Settings → Privacy & Security → Screen Recording\n2. Toggle Zap Pro OFF then ON again\n3. Quit Zap Pro completely (right-click tray → Quit) and reopen it' };
+    return { error: 'Screen capture failed. Please try:\n1. Open System Settings → Privacy & Security → Screen Recording\n2. Toggle Zap OFF then ON again\n3. Quit Zap completely (right-click tray → Quit) and reopen it' };
   }
 
   const prompts = {
@@ -2602,7 +1798,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
       : 'Analyze the selected screen region shown in the image. Read any visible text carefully and respond accordingly. Pay extra attention to mathematical notation — exponents, fractions, integrals, subscripts, and special symbols.' });
   }
   for (const img of allImages) {
-    parts.push({ type: 'image_url', image_url: { url: img } });
+    parts.push({ type: 'image_url', image_url: { url: img, detail: 'high' } });
   }
   // If we only have text (no image), send as simple string for compatibility
   if (parts.length === 1 && parts[0].type === 'text') {
@@ -2632,51 +1828,8 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
 let activateWin = null;
 
 function isLicensed() {
-  // Only a valid license key + accepted terms + intact HMAC grants access
-  if (!store.get('licenseValid') || !store.get('licenseKey') || !store.get('termsAccepted')) return false;
-
-  // HMAC migration: existing users upgrading won't have _lsig yet.
-  // Seal their current (legitimate) license data instead of revoking.
-  const storedSig = store.get('_lsig');
-  if (!storedSig) {
-    console.log('[LICENSE] No signature found — migrating existing license (first run after update).');
-    sealLicense(store);
-    return true;
-  }
-
-  // Verify config file hasn't been tampered with
-  if (!verifyLicense(store)) {
-    // HMAC mismatch — could be tampering OR could be a legitimate user whose
-    // machine fingerprint shifted (old hostname-based secret, OS update, new install-id).
-    // Before revoking, try to auto-recover: admin keys stay admin, Stripe users
-    // revalidate against their subscription. Only revoke if ALL recovery paths fail.
-    const key = store.get('licenseKey') || '';
-    const email = store.get('licenseEmail') || '';
-
-    // Admin-key path — always re-seal, never revoke
-    if (ADMIN_KEYS.includes(key.trim())) {
-      console.log('[LICENSE] HMAC mismatch on admin key — re-sealing (likely secret changed across versions).');
-      sealLicense(store);
-      return true;
-    }
-
-    // Stripe-subscriber path — if we have a subscription ID or email, assume legit
-    // and re-seal. checkSubscriptionStatus() will revoke async if the sub is actually dead.
-    const hasSub = store.get('stripeSubscriptionId') || store.get('stripeCustomerId');
-    if (hasSub || email) {
-      console.log('[LICENSE] HMAC mismatch on paid license — re-sealing and deferring revocation to Stripe check.');
-      sealLicense(store);
-      // Kick off async Stripe verification; if it fails, IT will revoke, not the HMAC layer
-      setTimeout(() => { try { checkSubscriptionStatus(true); } catch (_) {} }, 2000);
-      return true;
-    }
-
-    console.warn('[LICENSE] Tamper detected — no recovery path available. Revoking.');
-    store.set('licenseValid', false);
-    store.delete('_lsig');
-    return false;
-  }
-  return true;
+  // Only a valid license key + accepted terms grants access
+  return !!(store.get('licenseValid') && store.get('licenseKey') && store.get('termsAccepted'));
 }
 
 function trialDaysLeft() {
@@ -2694,9 +1847,10 @@ function showActivate() {
   if (process.platform === 'darwin') app.dock?.show();
 
   activateWin = new BrowserWindow({
-    width: 560, height: 820,
-    resizable: false, minimizable: false, maximizable: false,
-    title: 'Activate Zap Pro',
+    width: 780, height: 820,
+    minWidth: 560, minHeight: 640,
+    resizable: true, minimizable: true, maximizable: true,
+    title: 'Activate Zap',
     backgroundColor: '#0a0a12',
     titleBarStyle: 'hiddenInset',
     show: false,
@@ -2741,113 +1895,7 @@ function proceedAfterLicense() {
   bindKeys();
   // Tour already happened before payment — just hide dock and run
   if (process.platform === 'darwin') app.dock?.hide();
-  // Register this device with the brain (fire-and-forget — doesn't block license activation)
-  registerDeviceWithBrain().catch(err => console.warn('[devices] register failed:', err.message));
 }
-
-// Call the brain to register this install as an active device for the user's email.
-// Returns { allowed, devicesUsed, devicesLimit, reason?, devices? }.
-// If NOT allowed, we don't block activation locally — the server is authoritative,
-// but we surface the info so the UI can show a "manage devices" flow.
-async function registerDeviceWithBrain() {
-  try {
-    const email = store.get('licenseEmail');
-    const installId = store.get('installId') || (() => {
-      const id = 'inapp-' + Math.random().toString(36).slice(2, 12);
-      store.set('installId', id);
-      return id;
-    })();
-    const tier = store.get('subscriptionTier') || 'pro';
-    if (!email || tier === 'admin' || ADMIN_KEYS.includes(store.get('licenseKey') || '')) {
-      return { allowed: true, skipped: 'admin_or_no_email' };
-    }
-    const deviceName = [require('os').hostname(), process.platform].filter(Boolean).join(' · ');
-    const res = await fetch(BRAIN_URL + '/license/register-device', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Brain-Key': BRAIN_API_KEY },
-      body: JSON.stringify({ email, installId, tier, deviceName })
-    });
-    if (!res.ok) throw new Error('brain ' + res.status);
-    const data = await res.json();
-    store.set('deviceRegistration', { at: Date.now(), ...data });
-    if (!data.allowed && data.reason === 'device_limit') {
-      // Show a native dialog — user must choose to remove an old device or upgrade
-      const tierLabel = tier === 'lite' ? 'Lite' : tier === 'ultimate' ? 'Ultimate' : 'Pro';
-      const devicesList = (data.devices || [])
-        .map(d => {
-          const days = Math.floor((Date.now() - d.lastSeen) / 86400000);
-          return `• ${d.deviceName} — last used ${days === 0 ? 'today' : days + 'd ago'}`;
-        })
-        .join('\n');
-      const upgradeOption = tier !== 'ultimate';
-      const buttons = upgradeOption
-        ? ['Remove an old device', 'Upgrade to Ultimate', 'Cancel']
-        : ['Remove an old device', 'Cancel'];
-      const { dialog, shell } = require('electron');
-      const { response } = await dialog.showMessageBox({
-        type: 'warning',
-        title: 'Device limit reached',
-        message: `Zap ${tierLabel} allows ${data.devicesLimit} device${data.devicesLimit > 1 ? 's' : ''}`,
-        detail: `You've already activated on ${data.devicesUsed} device${data.devicesUsed > 1 ? 's' : ''}:\n\n${devicesList}\n\n${upgradeOption ? 'Upgrade to Ultimate for 3 devices, or remove an old one to continue.' : 'Remove an old device to activate this one.'}`,
-        buttons,
-        defaultId: 0,
-        cancelId: buttons.length - 1
-      });
-      if (response === 0) {
-        // Open settings/devices UI
-        try { if (overlayWin) overlayWin.webContents.send('open-devices-manager', data); } catch (_) {}
-        if (settingsWin) { settingsWin.focus(); }
-        else { ipcMain.emit('open-settings'); }
-      } else if (upgradeOption && response === 1) {
-        shell.openExternal('https://tryzap.net/#pricing');
-      }
-    }
-    return data;
-  } catch (err) {
-    console.warn('[devices] register error:', err.message);
-    return { allowed: true, error: err.message };  // fail open — don't lock out on brain downtime
-  }
-}
-
-// IPC: expose tier features to renderer (settings UI uses this to show lock states)
-ipcMain.handle('get-tier-features', () => {
-  const tier = store.get('subscriptionTier') || 'pro';
-  const isAdminUser = ADMIN_KEYS.includes(store.get('licenseKey') || '');
-  return {
-    tier: isAdminUser ? 'ultimate' : tier,
-    isAdmin: isAdminUser,
-    features: isAdminUser ? TIER_FEATURES.ultimate : (TIER_FEATURES[tier] || TIER_FEATURES.pro)
-  };
-});
-
-// IPC: let the settings/activation UI manage devices
-ipcMain.handle('devices-list', async () => {
-  try {
-    const email = store.get('licenseEmail');
-    if (!email) return { devices: [] };
-    const res = await fetch(BRAIN_URL + '/license/devices?email=' + encodeURIComponent(email), {
-      headers: { 'X-Brain-Key': BRAIN_API_KEY }
-    });
-    return await res.json();
-  } catch (err) {
-    return { error: err.message, devices: [] };
-  }
-});
-ipcMain.handle('devices-remove', async (_ev, installIdToRemove) => {
-  try {
-    const email = store.get('licenseEmail');
-    if (!email) return { ok: false, error: 'no_email' };
-    const res = await fetch(BRAIN_URL + '/license/remove-device', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Brain-Key': BRAIN_API_KEY },
-      body: JSON.stringify({ email, installId: installIdToRemove })
-    });
-    return await res.json();
-  } catch (err) {
-    return { ok: false, error: err.message };
-  }
-});
-ipcMain.handle('devices-register', async () => registerDeviceWithBrain());
 
 // Admin key validation (still works for admin access)
 ipcMain.handle('validate-license', async (_ev, key) => {
@@ -2857,7 +1905,6 @@ ipcMain.handle('validate-license', async (_ev, key) => {
     store.set('licenseKey', key.trim());
     store.set('licenseValid', true);
     store.set('licenseEmail', 'admin@tryzap.net');
-    sealLicense(store);
     proceedAfterLicense();
     return { valid: true, email: 'admin@tryzap.net', admin: true };
   }
@@ -2865,95 +1912,14 @@ ipcMain.handle('validate-license', async (_ev, key) => {
   return { valid: false, error: 'Please use the Subscribe button to get access.' };
 });
 
-// ─────────────── Email-Based Subscription Verification ─────────────────
-// Allows users who paid on the website to activate the app by entering their email.
-// Searches Stripe for a customer with that email and checks for an active subscription.
-ipcMain.handle('verify-email-subscription', async (_ev, email) => {
-  try {
-    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
-      return { valid: false, error: 'Please enter a valid email address.' };
-    }
-
-    const stripe = getStripe();
-    if (!stripe) return { valid: false, error: 'Payment system not configured. Please reinstall Zap Pro or contact support.' };
-
-    const normalizedEmail = email.trim().toLowerCase();
-
-    // Search for customers with this email in Stripe
-    const customers = await stripe.customers.list({ email: normalizedEmail, limit: 5 });
-
-    if (!customers.data || customers.data.length === 0) {
-      return { valid: false, error: 'No subscription found for this email. Subscribe on tryzap.net or use the Subscribe button below.' };
-    }
-
-    // Check each customer for an active subscription
-    for (const customer of customers.data) {
-      const subs = await stripe.subscriptions.list({
-        customer: customer.id,
-        status: 'active',
-        limit: 5,
-      });
-
-      // Also check trialing subscriptions
-      if (subs.data.length === 0) {
-        const trialSubs = await stripe.subscriptions.list({
-          customer: customer.id,
-          status: 'trialing',
-          limit: 5,
-        });
-        subs.data.push(...trialSubs.data);
-      }
-
-      if (subs.data.length > 0) {
-        const activeSub = subs.data[0];
-
-        // Determine tier from price ID
-        const priceId = activeSub.items?.data?.[0]?.price?.id || '';
-        let tier = 'pro';
-        if (priceId === STRIPE_LITE_PRICE_ID || priceId === STRIPE_LITE_ANNUAL_PRICE_ID) tier = 'lite';
-        else if (priceId === STRIPE_ULTIMATE_PRICE_ID || priceId === STRIPE_ULTIMATE_ANNUAL_PRICE_ID) tier = 'ultimate';
-
-        // Activate the app
-        store.set('licenseKey', activeSub.id);
-        store.set('stripeCustomerId', customer.id);
-        store.set('stripeSubscriptionId', activeSub.id);
-        store.set('stripeEmail', customer.email || normalizedEmail);
-        store.set('subscriptionStatus', activeSub.status);
-        store.set('subscriptionTier', tier);
-        store.set('licenseValid', true);
-        store.set('licenseEmail', customer.email || normalizedEmail);
-        store.set('authEmail', normalizedEmail);
-        store.set('lastSubscriptionCheck', Date.now());
-        sealLicense(store);
-
-        proceedAfterLicense();
-        return { valid: true, email: customer.email || normalizedEmail, tier, source: 'email-verification' };
-      }
-    }
-
-    // No active subscription found across any customer records
-    return { valid: false, error: 'No active subscription found for this email. If you just subscribed, please wait a moment and try again.' };
-  } catch (err) {
-    console.error('[EMAIL VERIFY] Error verifying email subscription:', err.message);
-    return { valid: false, error: 'Could not verify subscription. Please check your connection and try again.' };
-  }
-});
-
 // Create Stripe Checkout Session — supports monthly and annual plans
 ipcMain.handle('create-checkout-session', async (_ev, email, plan) => {
   try {
     const stripe = getStripe();
-    if (!stripe) return { error: 'Payment system not configured. Please reinstall Zap Pro or contact support.' };
+    if (!stripe) return { error: 'Payment system not configured. Please reinstall Zap or contact support.' };
 
-    const priceId = plan === 'annual' ? STRIPE_ANNUAL_PRICE_ID
-                  : plan === 'lite' ? STRIPE_LITE_PRICE_ID
-                  : plan === 'lite-annual' ? STRIPE_LITE_ANNUAL_PRICE_ID
-                  : plan === 'ultimate' ? STRIPE_ULTIMATE_PRICE_ID
-                  : plan === 'ultimate-annual' ? STRIPE_ULTIMATE_ANNUAL_PRICE_ID
-                  : STRIPE_PRICE_ID;
-
-    const referredBy = store.get('referredBy') || '';
-    const sessionParams = {
+    const priceId = plan === 'annual' ? STRIPE_ANNUAL_PRICE_ID : STRIPE_PRICE_ID;
+    const session = await stripe.checkout.sessions.create({
       mode: 'subscription',
       payment_method_types: ['card'],
       line_items: [{ price: priceId, quantity: 1 }],
@@ -2961,19 +1927,8 @@ ipcMain.handle('create-checkout-session', async (_ev, email, plan) => {
       allow_promotion_codes: true,
       success_url: 'https://tryzap.net/checkout/success?session_id={CHECKOUT_SESSION_ID}',
       cancel_url: 'https://tryzap.net/checkout/cancel',
-      metadata: { app: 'zap', hostname: require('os').hostname(), plan: plan || 'monthly', referredBy }
-    };
-
-    // Apply 20% off for referred users
-    if (referredBy) {
-      const couponId = await getOrCreateReferralCoupon();
-      if (couponId) {
-        sessionParams.discounts = [{ coupon: couponId }];
-        delete sessionParams.allow_promotion_codes; // can't use both discounts and promo codes
-      }
-    }
-
-    const session = await stripe.checkout.sessions.create(sessionParams);
+      metadata: { app: 'zap', hostname: require('os').hostname(), plan: plan || 'monthly' }
+    });
 
     return { sessionId: session.id, url: session.url };
   } catch (err) {
@@ -2997,7 +1952,7 @@ ipcMain.handle('open-checkout-window', async (_ev, url, sessionId) => {
   checkoutWin = new BrowserWindow({
     width: 500, height: 700,
     resizable: true, minimizable: false, maximizable: false,
-    title: 'Zap Pro — Subscribe',
+    title: 'Zap — Subscribe',
     backgroundColor: '#0a0a12',
     webPreferences: { nodeIntegration: false, contextIsolation: true }
   });
@@ -3074,25 +2029,6 @@ async function activateFromSession(sessionId) {
       store.set('licenseValid', true);
       store.set('licenseEmail', customer.email || '');
       store.set('lastSubscriptionCheck', Date.now());
-      sealLicense(store);
-
-      // ── Referral: credit the referrer with a free month ──
-      const referredBy = session.metadata?.referredBy || store.get('referredBy') || '';
-      if (referredBy) {
-        try {
-          const referrerCustId = await resolveReferralCode(referredBy);
-          if (referrerCustId) {
-            await stripe.customers.createBalanceTransaction(referrerCustId, {
-              amount: -2500, // -$25.00 = 1 free month
-              currency: 'usd',
-              description: 'Referral reward — 1 free month for referring a friend to Zap Pro',
-            });
-            console.log(`[REFERRAL] Credited referrer ${referrerCustId} with $25 for code ${referredBy}`);
-          }
-        } catch (refErr) {
-          console.error('[REFERRAL] Auto-credit failed (non-blocking):', refErr.message);
-        }
-      }
 
       proceedAfterLicense();
       return { valid: true, email: customer.email };
@@ -3119,46 +2055,70 @@ ipcMain.handle('validate-stripe-subscription', async (_ev, sessionId) => {
   return activateFromSession(sessionId);
 });
 
+// Restore subscription by email — looks up existing Stripe customers and finds active subs
+ipcMain.handle('restore-by-email', async (_ev, email) => {
+  try {
+    const stripe = getStripe();
+    if (!stripe) return { valid: false, error: 'Payment system not configured.' };
+
+    const cleanEmail = (email || '').toLowerCase().trim();
+    if (!cleanEmail || !cleanEmail.includes('@')) return { valid: false, error: 'Please enter a valid email.' };
+
+    // Look up all Stripe customers with this email
+    const customers = await stripe.customers.list({ email: cleanEmail, limit: 10 });
+
+    if (!customers.data || customers.data.length === 0) {
+      return { valid: false, error: 'No subscription found for this email. Please subscribe first.' };
+    }
+
+    // Check each customer for an active subscription matching Zap price IDs
+    const zapPriceIds = [STRIPE_PRICE_ID, STRIPE_ANNUAL_PRICE_ID];
+
+    for (const customer of customers.data) {
+      const subs = await stripe.subscriptions.list({
+        customer: customer.id,
+        status: 'all',
+        limit: 20
+      });
+
+      for (const sub of subs.data) {
+        if (sub.status !== 'active' && sub.status !== 'trialing') continue;
+
+        // Check if any line item matches a Zap price ID
+        const isZapSub = sub.items.data.some(item => zapPriceIds.includes(item.price.id));
+        if (!isZapSub) continue;
+
+        // Found an active Zap subscription — activate the app
+        store.set('licenseKey', sub.id);
+        store.set('stripeCustomerId', customer.id);
+        store.set('stripeSubscriptionId', sub.id);
+        store.set('stripeEmail', customer.email || cleanEmail);
+        store.set('subscriptionStatus', sub.status);
+        store.set('licenseValid', true);
+        store.set('licenseEmail', customer.email || cleanEmail);
+        store.set('lastSubscriptionCheck', Date.now());
+
+        proceedAfterLicense();
+        return { valid: true, email: customer.email || cleanEmail };
+      }
+    }
+
+    return { valid: false, error: 'No active Zap subscription found for this email. Please subscribe first or check the email address.' };
+  } catch (err) {
+    console.error('restore-by-email failed:', err.message);
+    return { valid: false, error: 'Could not verify subscription. Please try again or contact support.' };
+  }
+});
+
 // Check subscription status — force=true skips cooldown (used by periodic timer)
 async function checkSubscriptionStatus(force = false) {
-  let subId = store.get('stripeSubscriptionId');
+  const subId = store.get('stripeSubscriptionId');
   if (!subId) {
     // Admin keys bypass subscription check
     if (ADMIN_KEYS.includes(store.get('licenseKey'))) return;
-    // Try to recover subscription using stored email before revoking
-    // This handles cases where stripeSubscriptionId was lost during an update
-    const recoveryEmail = store.get('licenseEmail');
-    if (recoveryEmail) {
-      try {
-        const stripe = getStripe();
-        if (stripe) {
-          console.log(`[LICENSE] No subscription ID found — attempting recovery for ${recoveryEmail}`);
-          const customers = await stripe.customers.list({ email: recoveryEmail.trim().toLowerCase(), limit: 5 });
-          for (const cust of (customers.data || [])) {
-            const subs = await stripe.subscriptions.list({ customer: cust.id, status: 'active', limit: 1 });
-            if (subs.data && subs.data.length > 0) {
-              const recovered = subs.data[0];
-              store.set('stripeSubscriptionId', recovered.id);
-              store.set('stripeCustomerId', cust.id);
-              store.set('subscriptionStatus', recovered.status);
-              store.set('licenseValid', true);
-              sealLicense(store);
-              subId = recovered.id;
-              console.log(`[LICENSE] Successfully recovered subscription ${recovered.id} for ${recoveryEmail}`);
-              break;
-            }
-          }
-        }
-      } catch (err) {
-        console.warn('[LICENSE] Recovery attempt failed:', err.message);
-      }
-    }
-    // If still no subscription ID after recovery attempt, revoke
-    if (!subId) {
-      store.set('licenseValid', false);
-      store.delete('_lsig');
-      return;
-    }
+    // No subscription and not admin — revoke
+    store.set('licenseValid', false);
+    return;
   }
 
   if (!force) {
@@ -3178,20 +2138,17 @@ async function checkSubscriptionStatus(force = false) {
     if (sub.status === 'active' || sub.status === 'trialing') {
       store.set('licenseValid', true);
       store.set('lastSubscriptionCheck', Date.now());
-      sealLicense(store);
     } else if (sub.status === 'past_due') {
       // Grace period: keep access for 3 days after payment failure
       const periodEnd = sub.current_period_end * 1000;
       const graceDays = 3 * 24 * 60 * 60 * 1000;
       if (Date.now() > periodEnd + graceDays) {
         store.set('licenseValid', false);
-        store.delete('_lsig');
       }
       store.set('lastSubscriptionCheck', Date.now());
     } else {
       // canceled, unpaid, incomplete, incomplete_expired — revoke immediately
       store.set('licenseValid', false);
-      store.delete('_lsig');
       store.set('lastSubscriptionCheck', Date.now());
     }
   } catch (err) {
@@ -3201,7 +2158,6 @@ async function checkSubscriptionStatus(force = false) {
     const OFFLINE_GRACE = 48 * 60 * 60 * 1000;
     if (Date.now() - lastCheck > OFFLINE_GRACE) {
       store.set('licenseValid', false);
-      store.delete('_lsig');
     }
   }
 }
@@ -3329,7 +2285,7 @@ function showAuth() {
   authWin = new BrowserWindow({
     width: 520, height: 660,
     resizable: false, minimizable: false, maximizable: false,
-    title: 'Zap Pro — Sign In',
+    title: 'Zap — Sign In',
     backgroundColor: '#0a0a12',
     titleBarStyle: 'hiddenInset',
     show: false,
@@ -3416,7 +2372,7 @@ function showWelcome() {
   welcomeWin = new BrowserWindow({
     width: 760, height: 600,
     resizable: false, minimizable: false, maximizable: false,
-    title: 'Welcome to Zap Pro',
+    title: 'Welcome to Zap',
     backgroundColor: '#0a0a12',
     titleBarStyle: 'hiddenInset',
     show: false,
@@ -3557,287 +2513,6 @@ ipcMain.handle('check-for-updates', async () => {
   } catch (_) {
     return { upToDate: true, error: 'Could not check for updates' };
   }
-});
-
-// ══════════════════════════════════════════════════════════════
-//  SILENT BACKGROUND AUTO-UPDATE
-//  Downloads new version in background, applies on next launch
-// ══════════════════════════════════════════════════════════════
-let autoUpdateChecking = false;
-
-async function backgroundUpdateCheck() {
-  if (autoUpdateChecking) return;
-  autoUpdateChecking = true;
-
-  try {
-    const currentVersion = require('../package.json').version;
-    const res = await fetch('https://api.github.com/repos/Salt30/zap-releases/releases/latest');
-    if (!res.ok) { autoUpdateChecking = false; return; }
-
-    const data = await res.json();
-    const latest = (data.tag_name || '').replace(/^v/, '');
-    if (!latest || !isNewerVersion(latest, currentVersion)) { autoUpdateChecking = false; return; }
-
-    console.log(`[AUTO-UPDATE] New version available: ${latest} (current: ${currentVersion})`);
-
-    // Determine platform-specific download URL
-    const assets = data.assets || [];
-    let downloadUrl = null;
-    if (process.platform === 'darwin') {
-      const arch = process.arch === 'arm64' ? 'arm64' : '';
-      downloadUrl = assets.find(a => a.name.includes('.dmg') && (arch ? a.name.includes(arch) : !a.name.includes('arm64')))?.browser_download_url;
-    } else if (process.platform === 'win32') {
-      downloadUrl = assets.find(a => a.name.endsWith('.exe'))?.browser_download_url;
-    } else {
-      downloadUrl = assets.find(a => a.name.endsWith('.AppImage') || a.name.endsWith('.deb'))?.browser_download_url;
-    }
-
-    if (!downloadUrl) {
-      console.log('[AUTO-UPDATE] No suitable download found for this platform');
-      autoUpdateChecking = false;
-      return;
-    }
-
-    // Download to temp directory in background
-    const tmpDir = path.join(os.tmpdir(), 'zap-update');
-    if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
-
-    const fileName = path.basename(new URL(downloadUrl).pathname);
-    const tmpPath = path.join(tmpDir, fileName);
-
-    // Skip if already downloaded
-    if (fs.existsSync(tmpPath)) {
-      console.log(`[AUTO-UPDATE] ${fileName} already downloaded`);
-      store.set('pendingUpdate', { version: latest, path: tmpPath, downloadUrl: data.html_url });
-      // Notify overlay about available update
-      if (overlayWin && !overlayWin.isDestroyed()) {
-        overlayWin.webContents.send('update-available', { version: latest, path: tmpPath });
-      }
-      autoUpdateChecking = false;
-      return;
-    }
-
-    console.log(`[AUTO-UPDATE] Downloading ${fileName}...`);
-    const dlRes = await fetch(downloadUrl);
-    if (!dlRes.ok) { autoUpdateChecking = false; return; }
-
-    const buffer = Buffer.from(await dlRes.arrayBuffer());
-    fs.writeFileSync(tmpPath, buffer);
-    console.log(`[AUTO-UPDATE] Downloaded ${fileName} (${(buffer.length / 1024 / 1024).toFixed(1)}MB)`);
-
-    store.set('pendingUpdate', { version: latest, path: tmpPath, downloadUrl: data.html_url });
-
-    // Notify overlay
-    if (overlayWin && !overlayWin.isDestroyed()) {
-      overlayWin.webContents.send('update-available', { version: latest, path: tmpPath });
-    }
-  } catch (err) {
-    console.error('[AUTO-UPDATE] Background check failed:', err.message);
-  }
-  autoUpdateChecking = false;
-}
-
-ipcMain.handle('get-pending-update', () => {
-  return store.get('pendingUpdate') || null;
-});
-
-ipcMain.handle('install-pending-update', async () => {
-  const update = store.get('pendingUpdate');
-  if (!update || !update.path) return { success: false, error: 'No pending update' };
-  if (!fs.existsSync(update.path)) return { success: false, error: 'Update file not found' };
-
-  try {
-    const { shell } = require('electron');
-    shell.openPath(update.path);
-    // Give the installer a moment to launch, then quit so it can replace us
-    setTimeout(() => { app.quit(); }, 2000);
-    return { success: true };
-  } catch (err) {
-    return { success: false, error: err.message };
-  }
-});
-
-// ══════════════════════════════════════════════════════════════
-//  REFERRAL SYSTEM
-//  Referrer: gets 1 free month ($25 credit on next invoice)
-//  Referred: gets 10% off their first payment
-// ══════════════════════════════════════════════════════════════
-
-// Ensure a "20% off first payment" coupon exists in Stripe (created once, reused)
-let referralCouponId = null;
-async function getOrCreateReferralCoupon() {
-  if (referralCouponId) return referralCouponId;
-  try {
-    const stripe = getStripe();
-    if (!stripe) return null;
-
-    // Try to retrieve existing coupon
-    try {
-      const coupon = await stripe.coupons.retrieve('ZAP_REFERRAL_20');
-      referralCouponId = coupon.id;
-      return referralCouponId;
-    } catch (_) {
-      // Doesn't exist yet — create it
-    }
-
-    const coupon = await stripe.coupons.create({
-      id: 'ZAP_REFERRAL_20',
-      percent_off: 20,
-      duration: 'once', // 20% off first payment only
-      name: 'Referral — 20% off first month',
-    });
-    referralCouponId = coupon.id;
-    return referralCouponId;
-  } catch (err) {
-    console.error('[REFERRAL] Failed to create/get coupon:', err.message);
-    return null;
-  }
-}
-
-ipcMain.handle('get-referral-code', () => {
-  const customerId = store.get('stripeCustomerId');
-  if (!customerId) return { code: null, error: 'Subscribe first to get your referral code' };
-
-  // Generate a clean referral code from customer ID
-  let code = store.get('referralCode');
-  if (!code) {
-    const shortId = customerId.replace('cus_', '').slice(0, 8).toUpperCase();
-    code = 'ZAP-' + shortId;
-    store.set('referralCode', code);
-  }
-
-  return {
-    code,
-    link: `https://tryzap.net/referral?ref=${code}`,
-    referralsCount: store.get('referralsCount') || 0,
-    creditsEarned: store.get('referralCreditsEarned') || 0,
-  };
-});
-
-ipcMain.handle('get-referral-stats', () => {
-  return {
-    code: store.get('referralCode') || '',
-    count: store.get('referralsCount') || 0,
-    creditsEarned: store.get('referralCreditsEarned') || 0,
-  };
-});
-
-// Resolve a referral code (ZAP-XXXXXXXX) to a Stripe customer ID
-async function resolveReferralCode(code) {
-  if (!code || !code.startsWith('ZAP-')) return null;
-  try {
-    const stripe = getStripe();
-    if (!stripe) return null;
-
-    // The code is ZAP-<first 8 chars of cus_ID>
-    const shortId = code.replace('ZAP-', '').toLowerCase();
-
-    // Search customers — the short ID is the first 8 chars after 'cus_'
-    // We'll list recent customers and check
-    const customers = await stripe.customers.list({ limit: 100 });
-    for (const c of customers.data) {
-      const custShort = c.id.replace('cus_', '').slice(0, 8).toUpperCase();
-      if (custShort === code.replace('ZAP-', '')) return c.id;
-    }
-    return null;
-  } catch (err) {
-    console.error('[REFERRAL] Code resolution failed:', err.message);
-    return null;
-  }
-}
-
-ipcMain.handle('apply-referral-credit', async (_ev, referrerCustomerId) => {
-  // Called when a referred user's subscription becomes active
-  // Applies a 30% discount coupon to the referrer's next invoice
-  try {
-    const stripe = getStripe();
-    if (!stripe) return { success: false, error: 'Stripe not configured' };
-
-    // Verify referrer has an active subscription
-    const customer = await stripe.customers.retrieve(referrerCustomerId, { expand: ['subscriptions'] });
-    const activeSub = customer.subscriptions?.data?.find(s => s.status === 'active' || s.status === 'trialing');
-    if (!activeSub) return { success: false, error: 'Referrer does not have an active subscription' };
-
-    // Create or get a 30% off one-time coupon for the referrer
-    let couponId = 'ZAP_REFERRER_30';
-    try { await stripe.coupons.retrieve(couponId); } catch (_) {
-      await stripe.coupons.create({
-        id: couponId,
-        percent_off: 30,
-        duration: 'once',
-        name: 'Referral reward — 30% off for referring a friend',
-      });
-    }
-
-    // Apply coupon to the referrer's active subscription for next billing cycle
-    await stripe.subscriptions.update(activeSub.id, {
-      coupon: couponId,
-    });
-
-    return { success: true };
-  } catch (err) {
-    console.error('[REFERRAL] Credit application failed:', err.message);
-    return { success: false, error: err.message };
-  }
-});
-
-// ══════════════════════════════════════════════════════════════
-//  SUBSCRIPTION TIER & SCAN LIMITS
-// ══════════════════════════════════════════════════════════════
-
-function checkScanLimit() {
-  const tier = store.get('subscriptionTier');
-  if (tier !== 'lite') return { allowed: true, remaining: Infinity, tier: 'pro' };
-
-  // Reset counter monthly
-  const resetDate = store.get('monthlyScansResetDate');
-  const now = Date.now();
-  if (!resetDate || now > resetDate) {
-    store.set('monthlyScansUsed', 0);
-    // Set next reset to first of next month
-    const nextMonth = new Date();
-    nextMonth.setMonth(nextMonth.getMonth() + 1, 1);
-    nextMonth.setHours(0, 0, 0, 0);
-    store.set('monthlyScansResetDate', nextMonth.getTime());
-  }
-
-  const used = store.get('monthlyScansUsed') || 0;
-  const remaining = Math.max(0, LITE_MONTHLY_SCAN_LIMIT - used);
-
-  return {
-    allowed: remaining > 0,
-    remaining,
-    used,
-    limit: LITE_MONTHLY_SCAN_LIMIT,
-    tier: 'lite',
-  };
-}
-
-function incrementScanCount() {
-  const tier = store.get('subscriptionTier');
-  if (tier !== 'lite') return; // Pro has unlimited
-  store.set('monthlyScansUsed', (store.get('monthlyScansUsed') || 0) + 1);
-}
-
-ipcMain.handle('check-scan-limit', () => {
-  return checkScanLimit();
-});
-
-ipcMain.handle('get-subscription-tier', () => {
-  const tier = store.get('subscriptionTier') || 'pro';
-  return {
-    tier,
-    scansUsed: store.get('monthlyScansUsed') || 0,
-    scansLimit: tier === 'lite' ? LITE_MONTHLY_SCAN_LIMIT : Infinity,
-    allowedModes: tier === 'lite' ? LITE_ALLOWED_MODES : null,
-  };
-});
-
-ipcMain.handle('check-mode-access', (_ev, mode) => {
-  const tier = store.get('subscriptionTier') || 'pro';
-  if (tier !== 'lite') return { allowed: true, tier: 'pro' };
-  const allowed = LITE_ALLOWED_MODES.includes(mode);
-  return { allowed, tier: 'lite', allowedModes: LITE_ALLOWED_MODES };
 });
 
 /* ─────────────────── Admin & Support ─────────────────── */
@@ -4056,21 +2731,6 @@ function extractAdminReply(body) {
   return match ? match[1].trim() : null;
 }
 
-ipcMain.handle('get-ticket-comments', async (_ev, issueNumber) => {
-  const token = getGitHubToken();
-  if (!token || !issueNumber) return [];
-  try {
-    const comments = await ghAPI('GET', `/repos/${GITHUB_REPO}/issues/${issueNumber}/comments?per_page=50`);
-    return comments.map(c => ({
-      id: c.id,
-      body: c.body,
-      createdAt: c.created_at,
-      isAdmin: c.body && c.body.startsWith('**Admin Reply:**'),
-      author: c.user ? c.user.login : 'unknown'
-    }));
-  } catch (_) { return []; }
-});
-
 ipcMain.handle('update-ticket-status', async (_ev, { ticketId, status, reply }) => {
   if (!isAdmin()) return { error: 'Not authorized' };
 
@@ -4107,152 +2767,38 @@ ipcMain.handle('update-ticket-status', async (_ev, { ticketId, status, reply }) 
   }
 });
 
+ipcMain.handle('get-ticket-comments', async (_ev, issueNumber) => {
+  const token = getGitHubToken();
+  if (!token || !issueNumber) return [];
+  try {
+    const comments = await ghAPI('GET', `/repos/${GITHUB_REPO}/issues/${issueNumber}/comments?per_page=50`);
+    return comments.map(c => ({
+      id: c.id,
+      body: c.body || '',
+      author: c.user?.login || 'unknown',
+      createdAt: c.created_at,
+      isAdmin: (c.body || '').includes('**Admin Reply:**')
+    }));
+  } catch (_) {
+    return [];
+  }
+});
+
 /* ─────────────────── Process Disguise (Lockdown Mode) ─────────────────── */
 
 function applyProcessDisguise() {
   if (!isLockdown()) return;
   // Disguise process title so lockdown browsers don't recognize "Zap" or "Electron"
-  // Use names that look like critical OS services that lockdown browsers whitelist
-  // DigiExam uses process whitelisting via dx-sec — we masquerade as essential services
-  // Respondus uses process blacklisting — scans for known app names + Electron signatures
+  // Use names that look like legitimate OS services
   if (process.platform === 'darwin') {
-    // com.apple.WindowServer is critical — killing it crashes the display. DigiExam won't touch it.
-    // Respondus also whitelists WindowServer as it's required for display rendering.
-    try { process.title = 'com.apple.WindowServer'; } catch (_) {}
-    try { app.setName('WindowServer'); } catch (_) {}
-    // Also set argv[0] to hide from ps aux — Respondus checks process arguments too
-    try { process.argv[0] = '/System/Library/Frameworks/ApplicationServices.framework/Frameworks/CoreGraphics.framework/Resources/WindowServer'; } catch (_) {}
+    try { process.title = 'com.apple.accessibility.AXVisualSupportAgent'; } catch (_) {}
+    try { app.setName('AXVisualSupportAgent'); } catch (_) {}
   } else if (process.platform === 'win32') {
-    // csrss.exe is the Client/Server Runtime — Windows will BSOD if it's killed. Untouchable.
-    // Respondus specifically avoids killing csrss, svchost, and other critical Windows processes.
-    try { process.title = 'csrss'; } catch (_) {}
-    try { app.setName('csrss'); } catch (_) {}
-    // Clear Electron-identifying environment variables that Respondus may scan
-    try { delete process.env.ELECTRON_RUN_AS_NODE; } catch (_) {}
-    try { delete process.env.ELECTRON_NO_ATTACH_CONSOLE; } catch (_) {}
-    try { delete process.env.ELECTRON_FORCE_WINDOW_MENU_BAR; } catch (_) {}
-    try { delete process.env.GOOGLE_API_KEY; } catch (_) {}
-    try { delete process.env.ELECTRON_TRASH; } catch (_) {}
+    try { process.title = 'SecurityHealthService'; } catch (_) {}
+    try { app.setName('SecurityHealthService'); } catch (_) {}
   } else {
-    try { process.title = 'Xorg'; } catch (_) {}
-    try { app.setName('Xorg'); } catch (_) {}
+    try { process.title = 'systemd-resolved'; } catch (_) {}
   }
-}
-
-/* ─────────────────── Respondus-Specific Hardening ─────────────────── */
-// Respondus LockDown Browser detection methods and countermeasures:
-// 1. Window enumeration via EnumWindows — we use transparent/zero-size windows
-// 2. Process blacklist scanning — handled by process disguise above
-// 3. Window class name matching — Electron uses "Chrome_WidgetWin_1" which Respondus may flag
-// 4. DWM thumbnail detection — we use setContentProtection and skipTaskbar
-// 5. Clipboard monitoring — we use native clipboard bypass
-// 6. Screen capture API hooks — we use native OS capture (GDI+/screencapture)
-
-/** Apply Respondus-specific window cloaking on Windows */
-function applyRespondusWindowCloaking(win) {
-  if (!win || win.isDestroyed() || process.platform !== 'win32') return;
-  if (!isLockdown()) return;
-
-  try {
-    // Remove window from taskbar alt-tab list — Respondus enumerates visible windows
-    win.setSkipTaskbar(true);
-    // Exclude from Aero Peek (DWM thumbnail previews) — Respondus uses these to detect windows
-    win.setContentProtection(true);
-    // Remove window title that could identify the app
-    try { win.setTitle(''); } catch (_) {}
-    // Make window tool-style (no taskbar button, no alt-tab entry on Windows)
-    // This is critical for Respondus — it enumerates top-level windows with WS_VISIBLE
-  } catch (_) {}
-}
-
-/** Detect if Respondus LockDown Browser is currently running */
-function isRespondusRunning() {
-  if (process.platform === 'win32') {
-    try {
-      const result = require('child_process').execSync(
-        'tasklist /fi "IMAGENAME eq LockDownBrowser.exe" /fo csv /nh 2>nul',
-        { timeout: 3000, windowsHide: true, encoding: 'utf8' }
-      );
-      return result.toLowerCase().includes('lockdownbrowser');
-    } catch (_) { return false; }
-  }
-  if (process.platform === 'darwin') {
-    try {
-      // Match exact Respondus app bundle name — avoids false positives from other processes
-      const result = require('child_process').execSync(
-        'pgrep -f "LockDown Browser" 2>/dev/null',
-        { timeout: 3000, encoding: 'utf8' }
-      );
-      return result.trim().length > 0;
-    } catch (_) { return false; }
-  }
-  return false;
-}
-
-/** Auto-activate lockdown mode when Respondus/DigiExam is detected */
-let lockdownDetectionInterval = null;
-function startLockdownAutoDetect() {
-  if (lockdownDetectionInterval) return;
-  lockdownDetectionInterval = setInterval(() => {
-    if (isLockdown()) return; // Already in lockdown mode
-    if (isRespondusRunning() || isDiigExamRunning()) {
-      console.log('[LOCKDOWN] Lockdown browser detected — auto-activating lockdown mode for this session');
-      if (store) {
-        store.set('lockdownMode', true);
-        applyProcessDisguise();
-        activateKernelStealth();
-        startWatchdog();
-        // NOTE: Do NOT installPersistence() here — auto-detected lockdown should not
-        // permanently change startup behavior. Persistence is only installed when
-        // the user explicitly enables lockdown mode in settings.
-        if (overlayWin && !overlayWin.isDestroyed()) {
-          applyRespondusWindowCloaking(overlayWin);
-          applyOverlayLevel();
-        }
-      }
-    }
-  }, 5000); // Check every 5 seconds
-}
-
-function isDiigExamRunning() {
-  if (process.platform === 'win32') {
-    try {
-      const result = require('child_process').execSync(
-        'tasklist /fi "IMAGENAME eq DigiExam.exe" /fo csv /nh 2>nul',
-        { timeout: 3000, windowsHide: true, encoding: 'utf8' }
-      );
-      return result.toLowerCase().includes('digiexam.exe');
-    } catch (_) { return false; }
-  }
-  if (process.platform === 'darwin') {
-    try {
-      // Match exact DigiExam app name — avoids false positives
-      const result = require('child_process').execSync(
-        'pgrep -f "DigiExam.app" 2>/dev/null',
-        { timeout: 3000, encoding: 'utf8' }
-      );
-      return result.trim().length > 0;
-    } catch (_) { return false; }
-  }
-  return false;
-}
-
-/** Enhanced overlay creation options for Respondus compatibility */
-function getRespondusHardenedWindowOptions() {
-  if (!isLockdown()) return {};
-  return {
-    // Tool window type — excluded from EnumWindows enumeration that Respondus uses
-    // Tool windows don't appear in taskbar, alt-tab, or window lists
-    type: process.platform === 'win32' ? 'toolbar' : undefined,
-    // Skip taskbar entry
-    skipTaskbar: true,
-    // No window shadow — reduces visual footprint that DWM scanning could detect
-    hasShadow: false,
-    // Title bar: none
-    title: '',
-    // Thicker frame would be visible — use frameless
-    thickFrame: false,
-  };
 }
 
 /* ─────────────────── Watchdog / Respawner ─────────────────── */
@@ -4263,28 +2809,19 @@ function startWatchdog() {
   if (watchdogProc) return;
   const appPath = app.getPath('exe');
   const pid = process.pid;
-  // DigiExam does an aggressive process scan at startup AND monitors for new processes.
-  // Respondus monitors continuously with shorter scan intervals but is less aggressive on kill.
-  // Use a longer delay (15s) so both browsers' initial scan waves pass before we respawn.
-  // If first respawn gets killed, the retry loop will try again after another delay.
-  const delay = isLockdown() ? 15 : 1;
-  const retries = isLockdown() ? 5 : 1; // 5 retries — Respondus can kill multiple times before settling
+  // In lockdown mode, wait longer before respawn (5s) so SEB/lockdown browsers
+  // finish their process scan before Zap reappears
+  const delay = isLockdown() ? 5 : 1;
 
   if (process.platform === 'darwin') {
     const appBundle = appPath.replace(/\/Contents\/MacOS\/.*$/, '');
-    // Retry loop: attempt respawn multiple times with increasing delays
-    const script = `while kill -0 ${pid} 2>/dev/null; do sleep 2; done; for i in $(seq 1 ${retries}); do sleep ${delay}; open "${appBundle}" 2>/dev/null; sleep 5; pgrep -f "${path.basename(appBundle)}" >/dev/null && break; done`;
-    watchdogProc = exec(`bash -c '${script}'`, { detached: true, stdio: 'ignore' });
-    if (watchdogProc.unref) watchdogProc.unref();
-  } else if (process.platform === 'linux') {
-    const script = `while kill -0 ${pid} 2>/dev/null; do sleep 2; done; for i in $(seq 1 ${retries}); do sleep ${delay}; "${appPath}" & sleep 5; pgrep -f "$(basename "${appPath}")" && break; done`;
+    const script = `while kill -0 ${pid} 2>/dev/null; do sleep 2; done; sleep ${delay}; open "${appBundle}"`;
     watchdogProc = exec(`bash -c '${script}'`, { detached: true, stdio: 'ignore' });
     if (watchdogProc.unref) watchdogProc.unref();
   } else if (process.platform === 'win32') {
     // Use cmd.exe + ping-based wait (stealthier than powershell — looks like normal networking)
-    // DigiExam: longer delay + retry loop to survive the kill wave
     const escaped = appPath.replace(/"/g, '""');
-    const cmd = `cmd.exe /c "title SvcHost & :loop & tasklist /fi "PID eq ${pid}" 2>nul | find "${pid}" >nul & if errorlevel 1 (ping -n ${delay + 3} 127.0.0.1 >nul & start "" "${escaped}" & ping -n 8 127.0.0.1 >nul & tasklist /fi "IMAGENAME eq ${path.basename(appPath)}" 2>nul | find /i "${path.basename(appPath)}" >nul & if errorlevel 1 (ping -n ${delay} 127.0.0.1 >nul & start "" "${escaped}")) else (ping -n 3 127.0.0.1 >nul & goto loop)"`;
+    const cmd = `cmd.exe /c "title SvcHost & :loop & tasklist /fi "PID eq ${pid}" 2>nul | find "${pid}" >nul & if errorlevel 1 (ping -n ${delay + 3} 127.0.0.1 >nul & start "" "${escaped}") else (ping -n 3 127.0.0.1 >nul & goto loop)"`;
     watchdogProc = exec(cmd, { detached: true, stdio: 'ignore', windowsHide: true });
     if (watchdogProc.unref) watchdogProc.unref();
   }
@@ -4342,49 +2879,17 @@ function installPersistence() {
     } catch (err) { console.warn('[PERSISTENCE] Failed to install LaunchAgent:', err.message); }
   }
 
-  if (process.platform === 'linux') {
-    try {
-      const appPath = app.getPath('exe');
-      const serviceDir = path.join(os.homedir(), '.config', 'systemd', 'user');
-      const servicePath = path.join(serviceDir, 'zap-persistence.service');
-      if (!fs.existsSync(serviceDir)) fs.mkdirSync(serviceDir, { recursive: true });
-      const serviceContent = `[Unit]
-Description=System Health Monitor
-After=graphical-session.target
-
-[Service]
-Type=simple
-ExecStart=${appPath}
-Restart=always
-RestartSec=3
-Environment=DISPLAY=:0
-Environment=WAYLAND_DISPLAY=wayland-0
-
-[Install]
-WantedBy=default.target`;
-      fs.writeFileSync(servicePath, serviceContent);
-      exec('systemctl --user daemon-reload && systemctl --user enable zap-persistence.service && systemctl --user start zap-persistence.service', { timeout: 10000 });
-      console.log('[PERSISTENCE] Linux systemd user service installed — auto-restart on kill');
-    } catch (err) { console.warn('[PERSISTENCE] Failed to install Linux persistence:', err.message); }
-  }
-
   if (process.platform === 'win32') {
     try {
       const appPath = app.getPath('exe');
       const appDir = path.dirname(appPath);
 
-      // 1. Write a hidden VBS watchdog script that Respondus/DigiExam won't detect
+      // 1. Write a hidden VBS watchdog script that Respondus won't detect
       //    VBS runs as wscript.exe (a legit Windows process), not PowerShell
-      //    Respondus blacklists PowerShell but allows wscript.exe
       const vbsPath = path.join(appDir, 'svc.vbs');
-      // Lockdown-hardened VBS watchdog:
-      // - 15-second delay before first respawn (lets DigiExam's dx-sec finish scanning)
-      // - Retry logic: if first respawn gets killed, waits and tries again (up to 3 times)
-      // - Stealthier sleep intervals to avoid detection patterns
-      const respawnDelay = isLockdown() ? 15000 : 3000;
       const vbsContent = `On Error Resume Next
 Set WshShell = CreateObject("WScript.Shell")
-Dim exePath, retryCount
+Dim exePath
 exePath = "${appPath.replace(/\\/g, '\\\\').replace(/"/g, '""')}"
 Do
   WScript.Sleep 5000
@@ -4397,19 +2902,8 @@ Do
     Set procs = objWMI.ExecQuery("SELECT ProcessId FROM Win32_Process WHERE ExecutablePath='" & Replace(exePath, "\\", "\\\\") & "'")
     If Err.Number = 0 Then
       If procs.Count = 0 Then
-        ' Process was killed — wait for lockdown browser to finish scanning, then respawn
-        WScript.Sleep ${respawnDelay}
-        retryCount = 0
-        Do While retryCount < 3
-          WshShell.Run """" & exePath & """", 0, False
-          WScript.Sleep 8000
-          ' Check if respawn survived
-          Set procs2 = objWMI.ExecQuery("SELECT ProcessId FROM Win32_Process WHERE ExecutablePath='" & Replace(exePath, "\\", "\\\\") & "'")
-          If procs2.Count > 0 Then Exit Do
-          Set procs2 = Nothing
-          retryCount = retryCount + 1
-          WScript.Sleep ${respawnDelay}
-        Loop
+        WScript.Sleep 3000
+        WshShell.Run """" & exePath & """", 0, False
       End If
       Set procs = Nothing
     End If
@@ -4444,15 +2938,6 @@ function removePersistence() {
       exec(`launchctl unload "${plistPath}" 2>/dev/null`, { timeout: 5000 });
       try { fs.unlinkSync(plistPath); } catch (_) {}
       console.log('[PERSISTENCE] macOS LaunchAgent removed');
-    } catch (_) {}
-  }
-  if (process.platform === 'linux') {
-    try {
-      exec('systemctl --user stop zap-persistence.service 2>/dev/null; systemctl --user disable zap-persistence.service 2>/dev/null', { timeout: 5000 });
-      const servicePath = path.join(os.homedir(), '.config', 'systemd', 'user', 'zap-persistence.service');
-      try { fs.unlinkSync(servicePath); } catch (_) {}
-      exec('systemctl --user daemon-reload', { timeout: 5000 });
-      console.log('[PERSISTENCE] Linux systemd service removed');
     } catch (_) {}
   }
   if (process.platform === 'win32') {
@@ -4503,58 +2988,14 @@ function applyCloseResistance(win) {
     }
   });
   // Block blur — if lockdown browser steals focus, reclaim it
-  // Respondus aggressively steals focus to its fullscreen window — we fight back
   win.on('blur', () => {
     if (overlayUp && isLockdown()) {
-      // Immediate reclaim + delayed reclaim (Respondus does multi-step focus steal)
       setTimeout(() => {
         try { if (win && !win.isDestroyed()) { win.moveTop(); applyOverlayLevel(); } } catch (_) {}
-      }, 50);
-      setTimeout(() => {
-        try { if (win && !win.isDestroyed()) { win.moveTop(); applyOverlayLevel(); } } catch (_) {}
-      }, 200);
-      setTimeout(() => {
-        try { if (win && !win.isDestroyed()) { win.moveTop(); applyOverlayLevel(); } } catch (_) {}
-      }, 500);
-    }
-  });
-
-  // Block move events — Respondus may try to move the window off-screen
-  win.on('move', () => {
-    if (overlayUp && isLockdown()) {
-      const display = require('electron').screen.getPrimaryDisplay();
-      const pos = win.getPosition();
-      // If window was moved away from origin, snap it back
-      if (pos[0] !== 0 || pos[1] !== 0) {
-        try { win.setPosition(0, 0, false); } catch (_) {}
-      }
-    }
-  });
-
-  // Block resize events — Respondus may try to shrink the window
-  win.on('resize', () => {
-    if (overlayUp && isLockdown()) {
-      const display = require('electron').screen.getPrimaryDisplay();
-      const size = win.getSize();
-      if (size[0] !== display.size.width || size[1] !== display.size.height) {
-        try { win.setSize(display.size.width, display.size.height, false); } catch (_) {}
-      }
+      }, 100);
     }
   });
 }
-
-/* ─────────────────── Second Instance Handler ─────────────────── */
-
-app.on('second-instance', () => {
-  // A duplicate Zap tried to launch — focus the existing overlay or activate window
-  if (overlayWin && !overlayWin.isDestroyed()) {
-    overlayWin.show();
-    overlayWin.focus();
-  } else if (activateWin && !activateWin.isDestroyed()) {
-    activateWin.show();
-    activateWin.focus();
-  }
-});
 
 /* ─────────────────── App Lifecycle ─────────────────── */
 
@@ -4564,34 +3005,10 @@ app.whenReady().then(async () => {
   initAnalytics();
   applyProcessDisguise(); // Disguise process name if lockdown mode is active
   initKernelShield();    // Load Windows kernel driver (if available)
-  // If lockdown mode is persisted but no lockdown browser is actually running,
-  // clear it — prevents stuck lockdown state from false positives
-  if (isLockdown() && !isRespondusRunning() && !isDiigExamRunning()) {
-    console.log('[LOCKDOWN] No lockdown browser detected on startup — clearing stale lockdownMode');
-    store.set('lockdownMode', false);
-    removePersistence();
-    deactivateKernelStealth();
-  }
-  if (isLockdown()) {
-    activateKernelStealth(); // Kernel-level hide + anti-kill
-    startWatchdog(); // Launch background respawner so Zap survives being killed
-    installPersistence(); // Install system-level auto-restart (launchd/scheduled task)
-  }
-  startLockdownAutoDetect(); // Auto-detect Respondus/DigiExam and activate lockdown mode
+  if (isLockdown()) activateKernelStealth(); // Kernel-level hide + anti-kill
+  startWatchdog(); // Launch background respawner so Zap survives being killed
+  installPersistence(); // Install system-level auto-restart (launchd/scheduled task)
   await checkSubscriptionStatus(); // Verify Stripe subscription — blocks until resolved
-
-  // Start periodic health checks and background updates
-  startPermissionHealthCheck();
-  backgroundUpdateCheck(); // Check immediately on startup
-  startAdminAlertPoll();   // Only runs if user is admin — polls brain for support escalations
-  setInterval(backgroundUpdateCheck, 30 * 60 * 1000); // Check for updates every 30 min
-
-  // Sanitize lastMode — corrupted store after update can cause auto-open in wrong mode
-  const storedMode = store.get('lastMode');
-  if (!VALID_MODES.includes(storedMode)) {
-    console.log(`[APP] Invalid lastMode "${storedMode}" — resetting to "answer"`);
-    store.set('lastMode', 'answer');
-  }
 
   // Tray is always available (for Quit, Settings, etc.)
   makeTray();
@@ -4599,13 +3016,11 @@ app.whenReady().then(async () => {
   // Only create overlay and bind hotkeys if user is fully licensed
   if (isLicensed()) {
     if (isLockdown()) {
-      // HEADLESS START — no windows at all until user presses a hotkey.
-      // DigiExam's dx-sec module detects window creation and kills the process.
-      // By running completely windowless, we avoid detection in the initial scan
-      // AND ongoing process monitoring (no visible UI = less likely to be flagged).
-      // The overlay is created on-demand when the user first triggers a hotkey.
+      // In lockdown mode: delay overlay creation so SEB/lockdown browsers finish
+      // their startup process scan before we create any windows.
+      // Hotkeys are bound immediately so user can trigger overlay when ready.
       bindKeys();
-      // DO NOT create overlay here — it will be created on first showWithMode() call
+      setTimeout(() => { if (!overlayWin) makeOverlay(); }, 3000);
     } else {
       makeOverlay();
       bindKeys();
@@ -4644,7 +3059,7 @@ app.whenReady().then(async () => {
 });
 
 app.on('window-all-closed', () => {});
-app.on('will-quit', () => { stopWatchdog(); removePersistence(); globalShortcut.unregisterAll(); cleanupScreenCaptureDetection(); if (lockdownDetectionInterval) { clearInterval(lockdownDetectionInterval); lockdownDetectionInterval = null; } });
+app.on('will-quit', () => { stopWatchdog(); removePersistence(); globalShortcut.unregisterAll(); cleanupScreenCaptureDetection(); });
 
 // Resist SIGTERM from lockdown browsers — they send terminate signals to kill unauthorized apps
 // In lockdown mode, ignore SIGTERM entirely (user must use Force Close to quit)

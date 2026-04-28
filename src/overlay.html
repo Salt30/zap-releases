@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zap Pro Overlay</title>
+<title>Zap Overlay</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
   :root {
@@ -100,122 +100,6 @@
   ::-webkit-scrollbar{width:5px}
   ::-webkit-scrollbar-track{background:transparent}
   ::-webkit-scrollbar-thumb{background:rgba(255,255,255,0.12);border-radius:3px}
-
-  /* ─── Lite Tier: Scan Counter Badge ─── */
-  #scan-counter{position:fixed;bottom:28px;left:20px;z-index:100;display:none;align-items:center;gap:6px;padding:6px 14px;background:var(--glass);backdrop-filter:blur(40px) saturate(180%);-webkit-backdrop-filter:blur(40px) saturate(180%);border:1px solid var(--glass-border);border-radius:12px;font-size:11px;font-weight:600;color:var(--text-muted);box-shadow:0 2px 12px rgba(0,0,0,0.2),inset 0 1px 0 var(--glass-glow);animation:fadeUp .3s ease-out both;transition:all .3s}
-  #scan-counter .count{color:var(--accent);font-size:13px;font-weight:700}
-  #scan-counter.low .count{color:#f59e0b}
-  #scan-counter.critical .count{color:#ef4444}
-  #scan-counter.critical{border-color:rgba(239,68,68,0.3)}
-
-  /* ─── Lite Tier: Mode Locked Overlay ─── */
-  #mode-locked-overlay{position:fixed;top:0;left:0;width:100%;height:100%;z-index:500;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-  #mode-locked-card{background:var(--bg-solid);border:1px solid var(--glass-border);border-radius:20px;padding:32px 40px;text-align:center;max-width:360px;animation:lockIn .4s cubic-bezier(.16,1,.3,1)}
-  @keyframes lockIn{0%{opacity:0;transform:scale(.9) translateY(10px)}100%{opacity:1;transform:scale(1) translateY(0)}}
-  @keyframes lockShake{0%,100%{transform:translateX(0)}15%{transform:translateX(-8px)}30%{transform:translateX(6px)}45%{transform:translateX(-5px)}60%{transform:translateX(3px)}75%{transform:translateX(-2px)}}
-  #mode-locked-card.shake{animation:lockShake .5s ease-in-out}
-  #mode-locked-card .lock-icon{font-size:40px;margin-bottom:12px;display:block}
-  #mode-locked-card .lock-title{font-size:18px;font-weight:700;color:var(--text);margin-bottom:6px}
-  #mode-locked-card .lock-subtitle{font-size:13px;color:var(--text-muted);margin-bottom:20px;line-height:1.5}
-  #mode-locked-card .lock-modes{font-size:11px;color:var(--text-dim);margin-bottom:18px;line-height:1.6}
-  #mode-locked-card .upgrade-btn{padding:12px 28px;border:none;border-radius:10px;background:var(--accent);color:#000;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:all .15s;box-shadow:0 2px 16px rgba(250,204,21,.3)}
-  #mode-locked-card .upgrade-btn:hover{background:var(--accent-hover);box-shadow:0 4px 24px rgba(250,204,21,.45);transform:translateY(-1px)}
-  #mode-locked-card .dismiss-btn{display:block;margin:12px auto 0;padding:6px 16px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text-dim);font-size:11px;font-family:inherit;cursor:pointer;transition:all .12s}
-  #mode-locked-card .dismiss-btn:hover{color:var(--text-muted);border-color:var(--border-hover)}
-
-  /* ─── Lite Tier: Scan Limit Reached ─── */
-  #scan-limit-overlay{position:fixed;top:0;left:0;width:100%;height:100%;z-index:500;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px)}
-  #scan-limit-card{background:var(--bg-solid);border:1px solid rgba(239,68,68,0.2);border-radius:20px;padding:32px 40px;text-align:center;max-width:360px;animation:lockIn .4s cubic-bezier(.16,1,.3,1)}
-  #scan-limit-card .limit-icon{font-size:40px;margin-bottom:12px;display:block}
-  #scan-limit-card .limit-title{font-size:18px;font-weight:700;color:#ef4444;margin-bottom:6px}
-  #scan-limit-card .limit-subtitle{font-size:13px;color:var(--text-muted);margin-bottom:20px;line-height:1.5}
-  #scan-limit-card .upgrade-btn{padding:12px 28px;border:none;border-radius:10px;background:var(--accent);color:#000;font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;transition:all .15s;box-shadow:0 2px 16px rgba(250,204,21,.3)}
-  #scan-limit-card .upgrade-btn:hover{background:var(--accent-hover);transform:translateY(-1px)}
-  #scan-limit-card .dismiss-btn{display:block;margin:12px auto 0;padding:6px 16px;background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text-dim);font-size:11px;font-family:inherit;cursor:pointer;transition:all .12s}
-  #scan-limit-card .dismiss-btn:hover{color:var(--text-muted);border-color:var(--border-hover)}
-
-  /* ─── Continuous Mode: Floating Widget ─── */
-  #continuous-widget{position:fixed;bottom:24px;right:24px;z-index:300;display:none;flex-direction:column;gap:0;background:var(--bg-solid);backdrop-filter:blur(60px) saturate(200%);-webkit-backdrop-filter:blur(60px) saturate(200%);border:1px solid var(--glass-border);border-radius:16px;overflow:hidden;box-shadow:0 12px 48px rgba(0,0,0,.5),0 0 0 0.5px rgba(255,255,255,0.08),inset 0 1px 0 var(--glass-glow);animation:widgetIn .35s cubic-bezier(.16,1,.3,1);min-width:180px;cursor:default}
-  @keyframes widgetIn{from{opacity:0;transform:translateY(12px) scale(.92)}to{opacity:1;transform:translateY(0) scale(1)}}
-  #cw-header{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid rgba(255,255,255,0.06);cursor:move}
-  #cw-header .cw-title{font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.6px;text-transform:uppercase;display:flex;align-items:center;gap:6px}
-  #cw-header .cw-title .cw-dot{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:cwPulse 2s ease-in-out infinite}
-  @keyframes cwPulse{0%,100%{opacity:1}50%{opacity:.4}}
-  #cw-close{background:transparent;border:none;color:var(--text-dim);font-size:14px;cursor:pointer;padding:2px 4px;transition:color .15s}
-  #cw-close:hover{color:var(--text)}
-  #cw-body{padding:10px 14px;display:flex;flex-direction:column;gap:8px}
-  #cw-mode-row{display:flex;align-items:center;gap:6px}
-  #cw-mode-label{font-size:10px;color:var(--text-dim);text-transform:uppercase;letter-spacing:.4px}
-  #cw-mode-select{background:rgba(255,255,255,0.06);border:1px solid var(--border);color:var(--text);font-family:inherit;font-size:11px;padding:4px 8px;border-radius:6px;cursor:pointer;outline:none;flex:1}
-  #cw-mode-select:focus{border-color:var(--accent)}
-  #cw-mode-select option{background:#1c1c1e;color:var(--text)}
-  #cw-scan-btn{width:100%;padding:10px 16px;border:none;border-radius:10px;background:var(--accent);color:#000;font-family:inherit;font-size:13px;font-weight:700;cursor:pointer;transition:all .15s;display:flex;align-items:center;justify-content:center;gap:8px}
-  #cw-scan-btn:hover{background:var(--accent-hover);transform:translateY(-1px);box-shadow:0 4px 16px rgba(250,204,21,.3)}
-  #cw-scan-btn:active{transform:translateY(0)}
-  #cw-scan-btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
-  #cw-scan-btn .cw-hotkey{font-size:10px;opacity:.6;background:rgba(0,0,0,0.15);padding:2px 6px;border-radius:4px}
-  #cw-status{font-size:10px;color:var(--text-dim);text-align:center;min-height:14px;transition:color .2s}
-  #cw-status.success{color:#22c55e}
-  #cw-status.error{color:#ef4444}
-
-  /* Support Chat — in-app Help (Claude/ChatGPT-style) */
-  #support-btn{position:fixed;bottom:20px;right:20px;z-index:300;width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#6366f1,#8b5cf6);border:none;color:#fff;font-size:22px;font-weight:600;cursor:pointer;box-shadow:0 8px 24px rgba(99,102,241,.4),0 0 0 1px rgba(255,255,255,.08) inset;display:none;align-items:center;justify-content:center;transition:all .2s cubic-bezier(.16,1,.3,1)}
-  #support-btn:hover{transform:scale(1.06) translateY(-2px);box-shadow:0 12px 32px rgba(99,102,241,.5),0 0 0 1px rgba(255,255,255,.12) inset}
-  #support-btn .badge{position:absolute;top:-2px;right:-2px;min-width:18px;height:18px;padding:0 5px;border-radius:9px;background:#ef4444;color:#fff;font-size:10px;font-weight:700;display:none;align-items:center;justify-content:center;box-shadow:0 0 0 2px var(--bg-solid,#0a0a12)}
-
-  #support-panel{position:fixed;bottom:84px;right:20px;z-index:305;width:440px;height:640px;max-height:calc(100vh - 120px);display:none;flex-direction:column;background:var(--bg-solid,rgba(12,12,20,.98));backdrop-filter:blur(60px) saturate(180%);-webkit-backdrop-filter:blur(60px) saturate(180%);border:1px solid rgba(255,255,255,.08);border-radius:20px;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.6),0 0 0 1px rgba(99,102,241,.08);animation:widgetIn .35s cubic-bezier(.16,1,.3,1);font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Inter,system-ui,sans-serif}
-
-  #support-header{padding:16px 20px;background:rgba(255,255,255,.02);border-bottom:1px solid rgba(255,255,255,.05);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
-  #support-header .title-block{display:flex;flex-direction:column;gap:2px}
-  #support-header .title{font-size:15px;font-weight:600;color:var(--text,#fafafa);display:flex;align-items:center;gap:8px;letter-spacing:-.01em}
-  #support-header .title .dot{width:7px;height:7px;border-radius:50%;background:#22c55e;box-shadow:0 0 10px #22c55e,0 0 0 3px rgba(34,197,94,.15);animation:dotPulse 2s ease-in-out infinite}
-  #support-header .subtitle{font-size:11px;color:var(--text-dim,#888);font-weight:400}
-  #support-header .actions{display:flex;align-items:center;gap:6px}
-  .support-header-btn{background:none;border:none;color:var(--text-dim,#888);font-size:16px;cursor:pointer;padding:6px 8px;border-radius:8px;transition:all .15s;line-height:1;font-family:inherit}
-  .support-header-btn:hover{color:var(--text,#fafafa);background:rgba(255,255,255,.06)}
-  @keyframes dotPulse{0%,100%{box-shadow:0 0 10px #22c55e,0 0 0 3px rgba(34,197,94,.15)}50%{box-shadow:0 0 14px #22c55e,0 0 0 4px rgba(34,197,94,.25)}}
-
-  #support-body{flex:1;overflow-y:auto;padding:20px;display:flex;flex-direction:column;gap:14px;scroll-behavior:smooth}
-  #support-body::-webkit-scrollbar{width:6px}
-  #support-body::-webkit-scrollbar-thumb{background:rgba(255,255,255,.1);border-radius:3px}
-  #support-body::-webkit-scrollbar-thumb:hover{background:rgba(255,255,255,.2)}
-
-  .support-welcome{padding:20px 16px;text-align:center;color:var(--text-dim,#999);animation:fadeIn .4s ease}
-  .support-welcome-icon{font-size:38px;margin-bottom:10px;opacity:.9}
-  .support-welcome-title{font-size:17px;font-weight:600;color:var(--text,#fafafa);margin-bottom:6px;letter-spacing:-.01em}
-  .support-welcome-sub{font-size:13px;line-height:1.5;margin-bottom:18px}
-  .support-suggestions{display:flex;flex-direction:column;gap:6px}
-  .support-suggest-btn{background:rgba(255,255,255,.03);border:1px solid rgba(255,255,255,.06);color:var(--text,#fafafa);padding:10px 14px;border-radius:10px;font-size:12.5px;cursor:pointer;font-family:inherit;text-align:left;transition:all .15s;font-weight:400}
-  .support-suggest-btn:hover{background:rgba(99,102,241,.1);border-color:rgba(99,102,241,.3);transform:translateY(-1px)}
-  @keyframes fadeIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
-
-  .msg{padding:10px 14px;border-radius:14px;font-size:13.5px;line-height:1.55;max-width:88%;word-wrap:break-word;white-space:pre-wrap;animation:msgIn .25s cubic-bezier(.16,1,.3,1)}
-  @keyframes msgIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
-  .msg.user{background:linear-gradient(135deg,#6366f1,#7c3aed);color:#fff;align-self:flex-end;border-bottom-right-radius:4px;box-shadow:0 2px 8px rgba(99,102,241,.25)}
-  .msg.bot{background:rgba(255,255,255,.04);color:var(--text,#fafafa);align-self:flex-start;border-bottom-left-radius:4px;border:1px solid rgba(255,255,255,.04)}
-  .msg.bot.escalated{background:linear-gradient(135deg,rgba(34,197,94,.1),rgba(34,197,94,.05));border:1px solid rgba(34,197,94,.25);color:var(--text,#fafafa)}
-  .msg.bot.escalated::before{content:'👋 ';margin-right:2px}
-  .msg.system{align-self:center;background:none;color:var(--text-dim,#888);font-size:11px;font-style:italic;padding:4px 8px;max-width:100%}
-
-  .msg-typing{align-self:flex-start;display:flex;gap:4px;padding:14px 16px;background:rgba(255,255,255,.04);border-radius:14px;border-bottom-left-radius:4px;border:1px solid rgba(255,255,255,.04)}
-  .msg-typing span{width:6px;height:6px;border-radius:50%;background:var(--text-dim,#888);animation:typing 1.4s infinite ease-in-out}
-  .msg-typing span:nth-child(2){animation-delay:.2s}
-  .msg-typing span:nth-child(3){animation-delay:.4s}
-  @keyframes typing{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-6px);opacity:1}}
-
-  #support-input-wrap{padding:14px 16px 16px;border-top:1px solid rgba(255,255,255,.05);background:rgba(255,255,255,.01);flex-shrink:0}
-  #support-input-row{display:flex;gap:8px;align-items:flex-end;background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.08);border-radius:14px;padding:8px 8px 8px 14px;transition:border-color .15s}
-  #support-input-row:focus-within{border-color:rgba(99,102,241,.5);box-shadow:0 0 0 3px rgba(99,102,241,.1)}
-  #support-input{flex:1;background:none;border:none;color:var(--text,#fafafa);font-size:13.5px;line-height:1.5;padding:6px 0;font-family:inherit;outline:none;resize:none;max-height:120px;min-height:20px}
-  #support-input::placeholder{color:var(--text-dim,#888)}
-  #support-send{background:linear-gradient(135deg,#6366f1,#7c3aed);border:none;color:#fff;border-radius:10px;width:34px;height:34px;font-size:14px;cursor:pointer;font-family:inherit;transition:all .15s;flex-shrink:0;display:flex;align-items:center;justify-content:center}
-  #support-send:hover:not(:disabled){transform:scale(1.05);box-shadow:0 4px 12px rgba(99,102,241,.4)}
-  #support-send:disabled{opacity:.4;cursor:not-allowed;background:rgba(255,255,255,.1)}
-
-  #support-footer{display:flex;justify-content:space-between;align-items:center;margin-top:8px;padding:0 4px}
-  #support-request-human{background:none;border:none;color:var(--text-dim,#888);font-size:11px;cursor:pointer;font-family:inherit;padding:2px 4px;border-radius:4px;transition:color .15s}
-  #support-request-human:hover{color:#22c55e}
-  #support-context-status{font-size:10px;color:var(--text-dim,#666)}
 </style>
 </head>
 <body>
@@ -223,7 +107,7 @@
 <div id="capture-layer"></div>
 <div id="selection"><div id="selection-label"></div></div>
 <div id="mode-indicator">Answer</div>
-<button id="open-app-btn" title="Open Zap Pro App" style="position:fixed;top:12px;right:52px;z-index:100;width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:var(--glass);backdrop-filter:blur(40px) saturate(180%);-webkit-backdrop-filter:blur(40px) saturate(180%);border:1px solid var(--glass-border);border-radius:10px;color:var(--text-dim);font-size:14px;cursor:pointer;transition:all .15s;box-shadow:0 2px 12px rgba(0,0,0,0.2),inset 0 1px 0 var(--glass-glow)">&#9889;</button>
+<button id="open-app-btn" title="Open Zap App" style="position:fixed;top:12px;right:52px;z-index:100;width:32px;height:32px;display:flex;align-items:center;justify-content:center;background:var(--glass);backdrop-filter:blur(40px) saturate(180%);-webkit-backdrop-filter:blur(40px) saturate(180%);border:1px solid var(--glass-border);border-radius:10px;color:var(--text-dim);font-size:14px;cursor:pointer;transition:all .15s;box-shadow:0 2px 12px rgba(0,0,0,0.2),inset 0 1px 0 var(--glass-glow)">&#9889;</button>
 <button id="settings-btn" title="Settings">&#9881;</button>
 <div id="instructions">Drag to select &middot; <kbd>Tab</kbd> type question &middot; <kbd>Esc</kbd> close</div>
 <button id="add-capture-btn" title="Capture another screen to include" style="position:fixed;bottom:28px;right:20px;z-index:100;display:none;width:36px;height:36px;align-items:center;justify-content:center;background:var(--glass);backdrop-filter:blur(40px) saturate(180%);-webkit-backdrop-filter:blur(40px) saturate(180%);border:1px solid var(--glass-border);border-radius:10px;color:var(--accent);font-size:18px;font-weight:700;cursor:pointer;transition:all .15s;box-shadow:0 2px 12px rgba(0,0,0,0.2),inset 0 1px 0 var(--glass-glow)">+</button>
@@ -249,7 +133,7 @@
     <button class="dt-close" id="dt-close-btn">Close</button>
   </div>
   <div class="dt-body">
-    <div class="dt-desc">Paste the text you want typed below. Zap Pro will hide, switch to your previous app, and type it out character by character — like a real human, complete with natural speed variation and occasional typos that get corrected.</div>
+    <div class="dt-desc">Paste the text you want typed below. Zap will hide, switch to your previous app, and type it out character by character — like a real human, complete with natural speed variation and occasional typos that get corrected.</div>
     <textarea id="dt-textarea" placeholder="Paste or type your text here..."></textarea>
   </div>
   <div class="dt-footer">
@@ -259,86 +143,9 @@
   </div>
 </div>
 
-<!-- Continuous Mode: Floating Widget -->
-<div id="continuous-widget">
-  <div id="cw-header">
-    <span class="cw-title"><span class="cw-dot"></span> Zap Pro</span>
-    <button id="cw-close" title="Close">&times;</button>
-  </div>
-  <div id="cw-body">
-    <div id="cw-mode-row">
-      <span id="cw-mode-label">Mode</span>
-      <select id="cw-mode-select">
-        <option value="answer">Answer</option>
-        <option value="simple">Simple</option>
-        <option value="solve">Solve</option>
-        <option value="essay">Essay</option>
-        <option value="code">Code</option>
-        <option value="research">Research</option>
-        <option value="translate">Translate</option>
-      </select>
-    </div>
-    <button id="cw-scan-btn">Scan Screen <span class="cw-hotkey">hotkey</span></button>
-    <div id="cw-status"></div>
-  </div>
-</div>
-
-
-<!-- Lite Tier: Scan Counter Badge -->
-<div id="scan-counter"><span class="count" id="scan-count-num">25</span> scans left</div>
-
-<!-- Support Chat — in-app Help (Claude/ChatGPT-style) -->
-<button id="support-btn" title="Get help"><span>?</span><span class="badge" id="support-admin-badge">1</span></button>
-<div id="support-panel" role="dialog" aria-label="Support chat">
-  <div id="support-header">
-    <div class="title-block">
-      <span class="title"><span class="dot"></span>Zap Support</span>
-      <span class="subtitle" id="support-subtitle">We usually reply in seconds</span>
-    </div>
-    <div class="actions">
-      <button class="support-header-btn" id="support-new" title="Start new conversation">&#x21bb;</button>
-      <button class="support-header-btn" id="support-close" title="Close">&times;</button>
-    </div>
-  </div>
-  <div id="support-body"></div>
-  <div id="support-input-wrap">
-    <div id="support-input-row">
-      <textarea id="support-input" placeholder="Message Zap Support…" maxlength="2000" rows="1"></textarea>
-      <button id="support-send" title="Send">&#x2191;</button>
-    </div>
-    <div id="support-footer">
-      <button id="support-request-human" title="Skip the AI and get a human">&#128100; Talk to a human</button>
-      <span id="support-context-status"></span>
-    </div>
-  </div>
-</div>
-
-<!-- Lite Tier: Mode Locked Overlay -->
-<div id="mode-locked-overlay">
-  <div id="mode-locked-card">
-    <span class="lock-icon">&#128274;</span>
-    <div class="lock-title" id="lock-mode-name">Pro Mode</div>
-    <div class="lock-subtitle" id="lock-message">This mode requires a Zap Pro upgrade.</div>
-    <div class="lock-modes">Lite includes: <strong style="color:var(--accent)">Answer</strong>, <strong style="color:var(--accent)">Drip Type</strong>, <strong style="color:var(--accent)">Translate</strong></div>
-    <button class="upgrade-btn" id="lock-upgrade-btn">Upgrade to Pro</button>
-    <button class="dismiss-btn" id="lock-dismiss-btn">Go Back</button>
-  </div>
-</div>
-
-<!-- Lite Tier: Scan Limit Reached Overlay -->
-<div id="scan-limit-overlay">
-  <div id="scan-limit-card">
-    <span class="limit-icon">&#9888;&#65039;</span>
-    <div class="limit-title">Monthly Limit Reached</div>
-    <div class="limit-subtitle" id="limit-message">You've used all 25 scans this month. Upgrade to Pro for unlimited scans.</div>
-    <button class="upgrade-btn" id="limit-upgrade-btn">Upgrade to Pro</button>
-    <button class="dismiss-btn" id="limit-dismiss-btn">Close</button>
-  </div>
-</div>
-
 <script>
 (function(){
-  var currentMode='answer', isSelecting=false, selStart=null, selRect=null, capture=null, captures=[], settings={}, textMode=false;
+  var currentMode='answer', isSelecting=false, selStart=null, selRect=null, capture=null, captures=[], settings={}, textMode=false, dripTypeActive=false;
 
   var $=function(id){return document.getElementById(id)};
   var layer=$('capture-layer'), sel=$('selection'), selLbl=$('selection-label');
@@ -349,28 +156,10 @@
   var inputBar=$('text-input-bar'), inputEl=$('text-input');
   var dtPanel=$('drip-type-panel'), dtArea=$('dt-textarea'), dtStart=$('dt-start-btn'), dtClose=$('dt-close-btn'), dtPencil=$('dt-pencil-btn');
 
-  window.zap.onScreenCaptured(function(u){
-    capture=u;if(captures.length===0&&u)captures=[u];updateCaptureUI();
-    // Reset click-through on fresh capture so drag-to-select works
-    disableClickThrough();
-    // Hide previous response panel so user can drag-select fresh
-    resPanel.style.display='none';resPanel.style.transform='';
-    sel.style.display='none';selRect=null;instr.style.display='';
-  });
+  window.zap.onScreenCaptured(function(u){capture=u;if(captures.length===0&&u)captures=[u];updateCaptureUI()});
 
   window.zap.onLoadSettings(function(s){
     settings=s;
-    // Tier-based feature gating in the overlay
-    var tier=(s.subscriptionTier)||'pro';
-    // Auto Draft is Pro+ only — hide for Lite
-    var autoDraftBtn=document.getElementById('dt-pencil-btn');
-    if(autoDraftBtn){
-      if(tier==='lite'){
-        autoDraftBtn.style.display='none';
-      }else{
-        autoDraftBtn.style.display='';
-      }
-    }
     var r=document.documentElement;
     if(s.accentColor) r.style.setProperty('--accent',s.accentColor);
     if(s.fontSize)    r.style.setProperty('--font-size',s.fontSize+'px');
@@ -379,29 +168,30 @@
     var op=(s.overlayOpacity!=null?s.overlayOpacity:0)/10;
     layer.style.background=op>0?'rgba(0,0,0,'+op+')':'transparent';
 
+    // Clear Screen mode: hide ALL UI chrome (mode indicator, instructions, buttons)
+    // Overlay is completely invisible — only the response panel appears after drag-select
+    if(s.clearScreen){
+      modeInd.style.display='none';
+      instr.style.display='none';
+      $('settings-btn').style.display='none';
+      $('open-app-btn').style.display='none';
+    }else{
+      modeInd.style.display='';
+      // instructions restored below if needed
+      $('settings-btn').style.display='';
+      $('open-app-btn').style.display='';
+    }
+
     // Stealth mode: auto-open text input since screen capture is disabled
     if(s.lockdownMode && currentMode!=='driptype'){
       textMode=true;
       inputBar.style.display='block';
       instr.innerHTML='Type your question and press <kbd>Enter</kbd> &middot; <kbd>Esc</kbd> close';
       setTimeout(function(){inputEl.focus()},150);
-    } else if(!s.lockdownMode && currentMode!=='driptype'){
-      textMode=false;
-      inputBar.style.display='none';
-      instr.style.display='';
-    }
-    // Continuous mode: if enabled, switch to floating widget UI
-    if(s.continuousMode && !s.lockdownMode && currentMode!=='driptype' && currentMode!=='autopilot'){
-      enterContinuousMode();
     }
   });
 
-  window.zap.onSetMode(function(m){
-    setMode(m);
-    // Force click-through off so drag-to-select works from the first drag.
-    // (Unless we're in continuous mode where we want click-through on.)
-    if(!continuousMode) primeCaptureClicks();
-  });
+  window.zap.onSetMode(function(m){setMode(m)});
 
   // Instant Answer — full screen capture → AI, no drag/selection needed
   window.zap.onInstantAnswer(function(){
@@ -446,75 +236,11 @@
     }
   });
 
-  // ─── Lite Tier: Scan Counter ───
-  var scanCounterEl=$('scan-counter'), scanCountNum=$('scan-count-num');
-
-  window.zap.onScanCounter(function(d){
-    scanCounterEl.style.display='flex';
-    scanCountNum.textContent=d.remaining;
-    scanCounterEl.className='';
-    if(d.remaining<=5) scanCounterEl.className='critical';
-    else if(d.remaining<=10) scanCounterEl.className='low';
-  });
-
-  // ─── Lite Tier: Mode Locked ───
-  var lockOverlay=$('mode-locked-overlay'), lockCard=$('mode-locked-card');
-  var lockModeName=$('lock-mode-name'), lockMessage=$('lock-message');
-
-  window.zap.onModeLocked(function(d){
-    lockModeName.textContent=(d.mode?d.mode.charAt(0).toUpperCase()+d.mode.slice(1):'This')+ ' Mode';
-    lockMessage.textContent=d.message||'This mode requires a Zap Pro upgrade.';
-    lockOverlay.style.display='flex';
-    // Trigger shake animation
-    lockCard.classList.remove('shake');
-    void lockCard.offsetWidth; // force reflow
-    lockCard.classList.add('shake');
-  });
-
-  $('lock-dismiss-btn').addEventListener('click',function(){
-    lockOverlay.style.display='none';
-    // Switch to answer mode (always allowed)
-    setMode('answer');
-  });
-
-  $('lock-upgrade-btn').addEventListener('click',function(){
-    lockOverlay.style.display='none';
-    window.zap.openApp(); // opens settings/billing to upgrade
-  });
-
-  // ─── Lite Tier: Scan Limit Reached ───
-  var limitOverlay=$('scan-limit-overlay'), limitMessage=$('limit-message');
-
-  window.zap.onScanLimitReached(function(d){
-    limitMessage.textContent=d.message||'You\'ve used all scans this month. Upgrade to Pro for unlimited.';
-    limitOverlay.style.display='flex';
-    // Update counter to 0
-    scanCounterEl.style.display='flex';
-    scanCountNum.textContent='0';
-    scanCounterEl.className='critical';
-  });
-
-  $('limit-dismiss-btn').addEventListener('click',function(){
-    limitOverlay.style.display='none';
-    window.zap.hideOverlay();
-  });
-
-  $('limit-upgrade-btn').addEventListener('click',function(){
-    limitOverlay.style.display='none';
-    window.zap.openApp();
-  });
-
-  // Close locked/limit overlays on Escape
-  document.addEventListener('keydown',function(e){
-    if(e.key==='Escape'){
-      if(lockOverlay.style.display==='flex'){lockOverlay.style.display='none';return}
-      if(limitOverlay.style.display==='flex'){limitOverlay.style.display='none';window.zap.hideOverlay();return}
-    }
-  },true);
-
   var labels={answer:'Answer',simple:'Simple',translate:'Translate',solve:'Solve',essay:'Essay',code:'Code',research:'Research',email:'Email',flashcards:'Flashcards',driptype:'Drip Type',autopilot:'Autopilot'};
   function setMode(m){
     currentMode=m;
+    disableClickThrough();  // reset click-through so drag works on new mode
+    resPanel.style.display='none';resPanel.style.transform='';resetSel();
     if(m!=='autopilot') modeInd.textContent=labels[m]||m;
     if(m==='driptype') showDT(); else hideDT();
     // Autopilot: auto-capture full screen immediately — no drag needed
@@ -538,18 +264,10 @@
     instr.style.display='none';
     resPanel.style.display='none';
     sel.style.display='none';
-    // Force click-through off so the panel is immediately interactive
-    // (don't wait for the user to mouse-in first)
-    try { window.zap.setIgnoreMouseEvents(false); } catch(_){}
     setTimeout(function(){dtArea.focus()},100);
   }
 
-  function hideDT(){
-    dtPanel.style.display='none';
-    dtArea.value='';
-    // Restore click-through so the overlay returns to passthrough state
-    try { window.zap.setIgnoreMouseEvents(true,{forward:true}); } catch(_){}
-  }
+  function hideDT(){dtPanel.style.display='none';dtArea.value=''}
 
   dtClose.addEventListener('click',function(){hideDT();setMode('answer');instr.style.display=''});
 
@@ -558,9 +276,14 @@
     if(!txt.trim())return;
     dtStart.disabled=true;
     dtStart.textContent='Starting...';
+    dripTypeActive=true;
     await new Promise(function(r){setTimeout(r,500)});
     hideDT();
-    await window.zap.dripType(txt);
+    try{
+      var res=await window.zap.dripType(txt);
+      if(res&&res.error){console.error('Drip type error:',res.error)}
+    }catch(err){console.error('Drip type failed:',err)}
+    dripTypeActive=false;
     dtStart.disabled=false;
     dtStart.textContent='Start Typing';
   });
@@ -632,7 +355,7 @@
 
   layer.addEventListener('mousedown',function(e){
     if(e.button!==0||textMode)return;
-    if(currentMode==='driptype'||currentMode==='autopilot')return;
+    if(currentMode==='driptype'||currentMode==='autopilot'||dripTypeActive)return;
     if(resPanel.style.display==='flex')return;
     if(settings.lockdownMode)return; // No screen capture in lockdown — drag is disabled
     isSelecting=true;
@@ -665,22 +388,6 @@
 
   function resetSel(){sel.style.display='none';selRect=null;instr.style.display='';captures=capture?[capture]:[];addCaptureBtn.style.display='none';captureCount.style.display='none'}
 
-  function handleEscape(){
-    if(dtPanel.style.display==='block'){hideDT();setMode('answer');instr.style.display=''}
-    else if(continuousMode && resPanel.style.display==='flex'){
-      // In continuous mode, Esc just closes the result panel (widget stays)
-      resPanel.style.display='none';resPanel.style.transform='';resPanel.style.right='';resPanel.style.bottom='';resetSel();
-      enableClickThrough(); // re-enable click-through after closing panel
-    }
-    else if(continuousMode){exitContinuousMode()}
-    else if(resPanel.style.display==='flex'){disableClickThrough();resPanel.style.display='none';resPanel.style.transform='';resetSel()}
-    else if(textMode){textMode=false;inputBar.style.display='none';inputEl.value='';instr.style.display=''}
-    else{disableClickThrough();window.zap.hideOverlay()}
-  }
-
-  // Global Escape from main process — works even when overlay has no keyboard focus (click-through mode)
-  window.zap.onGlobalEscape(function(){handleEscape()});
-
   document.addEventListener('keydown',function(e){
     if(e.target===dtArea&&e.key!=='Escape')return;
     if(e.key==='Tab'){
@@ -691,8 +398,12 @@
       if(textMode){inputEl.focus();instr.style.display='none'}
       else{instr.style.display='';inputEl.value=''}
     }
-    if(e.key==='Escape') handleEscape();
-
+    if(e.key==='Escape'){
+      if(dtPanel.style.display==='block'){hideDT();setMode('answer');instr.style.display=''}
+      else if(resPanel.style.display==='flex'){disableClickThrough();resPanel.style.display='none';resPanel.style.transform='';resetSel()}
+      else if(textMode){textMode=false;inputBar.style.display='none';inputEl.value='';instr.style.display=''}
+      else{disableClickThrough();window.zap.hideOverlay()}
+    }
     if(e.key==='Enter'&&textMode&&inputEl.value.trim()) processRequest(inputEl.value.trim());
     if((e.ctrlKey||e.metaKey)&&e.key==='c'&&resPanel.style.display==='flex'){
       window.zap.copyToClipboard(resBody.innerText);
@@ -734,7 +445,8 @@
     var img=null, ocr=manual||null, allImages=[];
     if(capture&&selRect){
       img=await cropImg(capture,selRect);
-      if(!ocr&&img){try{ocr=await ocrImg(img)}catch(_){}}
+      // Skip OCR — GPT-4o vision with detail:high reads the image far more accurately
+      // than Tesseract, and bad OCR text actively confuses the model
       allImages=[img];
     } else if(captures.length>0&&!manual){
       // Multi-capture: compress and send all captured screens
@@ -770,159 +482,18 @@
   }
 
   // ── Click-Through: let user click on exam/app below the transparent overlay ──
-  var clickThroughActive=false;
-  // Set up mouseenter/mouseleave ONCE (not per-request) to avoid duplicate listeners
-  var cwWidget=$('continuous-widget');
-  var supportBtnEl=document.getElementById('support-btn');
-  var supportPanelEl=document.getElementById('support-panel');
-  // The overlay is click-through by default at the window level. When the cursor
-  // enters any interactive area (capture layer, panels, buttons), we disable
-  // click-through so clicks and drags land. When the cursor leaves, re-enable
-  // click-through. Include `layer` (capture-layer) so drag-to-select works,
-  // plus `instr`, `modeInd`, and the action buttons — basically anything visible.
-  var captureLayer=$('capture-layer');
-  var modeIndEl=$('mode-indicator');
-  var settingsBtn=$('settings-btn');
-  var openAppBtn=$('open-app-btn');
-  var interactiveEls=[
-    captureLayer, resPanel, inputBar, dtPanel, cwWidget,
-    supportBtnEl, supportPanelEl, modeIndEl, instr, settingsBtn, openAppBtn
-  ];
-  interactiveEls.forEach(function(el){
-    if(!el) return;
-    el.addEventListener('mouseenter',function(){
-      try { window.zap.setIgnoreMouseEvents(false); } catch(_){}
-    });
-    el.addEventListener('mouseleave',function(){
-      try { window.zap.setIgnoreMouseEvents(true,{forward:true}); } catch(_){}
-    });
-  });
-  // Also: when the overlay comes up for capture (not continuous mode), force
-  // click-through OFF so the FIRST drag/click lands even if the cursor is
-  // somewhere the window doesn't have a mouseenter handler yet.
-  function primeCaptureClicks(){
-    try { window.zap.setIgnoreMouseEvents(false); } catch(_){}
-  }
-  // Belt-and-suspenders: disable click-through the moment any mouse interaction
-  // starts within the overlay. Catches edge cases where mouseenter misses.
-  document.addEventListener('mousedown', function(){
-    if(!continuousMode) { try { window.zap.setIgnoreMouseEvents(false); } catch(_){} }
-  }, true);
-  document.addEventListener('mousemove', function(e){
-    // Only act if cursor is plausibly in the window content area
-    if(!continuousMode && e.clientX >= 0 && e.clientY >= 0) {
-      try { window.zap.setIgnoreMouseEvents(false); } catch(_){}
-    }
-  }, { capture: true, passive: true });
   function enableClickThrough(){
-    clickThroughActive=true;
     window.zap.setIgnoreMouseEvents(true,{forward:true});
+    // The response panel and input bar need to receive mouse events
+    [resPanel,inputBar,dtPanel].forEach(function(el){
+      if(!el) return;
+      el.addEventListener('mouseenter',function(){window.zap.setIgnoreMouseEvents(false)});
+      el.addEventListener('mouseleave',function(){window.zap.setIgnoreMouseEvents(true,{forward:true})});
+    });
   }
   function disableClickThrough(){
-    clickThroughActive=false;
     window.zap.setIgnoreMouseEvents(false);
   }
-
-  // ── Continuous Mode — floating widget, click-through, scan-on-demand ──
-
-  var continuousMode=false;
-  var cwScanBtn=$('cw-scan-btn'), cwCloseBtn=$('cw-close'), cwModeSelect=$('cw-mode-select'), cwStatus=$('cw-status');
-  var cwHeader=$('cw-header');
-
-  function enterContinuousMode(){
-    continuousMode=true;
-    // Hide standard overlay UI
-    layer.style.background='transparent';
-    instr.style.display='none';
-    modeInd.style.display='none';
-    $('settings-btn').style.display='none';
-    $('open-app-btn').style.display='none';
-    addCaptureBtn.style.display='none';captureCount.style.display='none';
-    document.body.style.cursor='default';
-    // Show floating widget
-    cwWidget.style.display='flex';
-    // Sync mode selector
-    cwModeSelect.value=currentMode;
-    cwStatus.textContent='';cwStatus.className='';
-    // Enable click-through immediately
-    enableClickThrough();
-  }
-
-  function exitContinuousMode(){
-    continuousMode=false;
-    cwWidget.style.display='none';
-    modeInd.style.display='';
-    $('settings-btn').style.display='';
-    $('open-app-btn').style.display='';
-    document.body.style.cursor='crosshair';
-    disableClickThrough();
-    window.zap.hideOverlay();
-  }
-
-  // Widget: mode selector
-  cwModeSelect.addEventListener('change',function(){
-    currentMode=cwModeSelect.value;
-    modeInd.textContent=cwModeSelect.options[cwModeSelect.selectedIndex].text;
-  });
-
-  // Widget: scan button
-  cwScanBtn.addEventListener('click',async function(){
-    if(cwScanBtn.disabled)return;
-    cwScanBtn.disabled=true;
-    cwScanBtn.textContent='Scanning...';
-    cwStatus.textContent='';cwStatus.className='';
-
-    try{
-      // Recapture screen silently
-      var img=await window.zap.recapture();
-      if(img){capture=img;captures=[img]}
-      if(!capture){cwStatus.textContent='No screen capture available';cwStatus.className='error';cwScanBtn.disabled=false;cwScanBtn.innerHTML='Scan Screen <span class="cw-hotkey">hotkey</span>';return}
-
-      var compressed=await compressImg(capture);
-      // Send to AI
-      var r=await window.zap.aiRequest({mode:currentMode,text:null,imageDataUrl:compressed,region:null,language:settings.language});
-      if(r.error){
-        cwStatus.textContent=r.error;cwStatus.className='error';
-      }else{
-        // Show result in response panel
-        resPanel.style.display='flex';resPanel.style.flexDirection='column';
-        resPanel.style.left='';resPanel.style.top='';resPanel.style.right='24px';resPanel.style.bottom='200px';resPanel.style.transform='';
-        resModeText.textContent=cwModeSelect.options[cwModeSelect.selectedIndex].text;
-        resBody.className='';resBody.innerHTML=fmtMd(r.result);
-        cwStatus.textContent='Done!';cwStatus.className='success';
-        setTimeout(function(){cwStatus.textContent='';cwStatus.className=''},2000);
-      }
-    }catch(err){
-      cwStatus.textContent='Error — try again';cwStatus.className='error';
-    }
-    cwScanBtn.disabled=false;
-    cwScanBtn.innerHTML='Scan Screen <span class="cw-hotkey">hotkey</span>';
-  });
-
-  // Widget: close button
-  cwCloseBtn.addEventListener('click',function(){exitContinuousMode()});
-
-  // Widget: draggable
-  (function(){
-    var dragging=false,ox=0,oy=0;
-    cwHeader.addEventListener('mousedown',function(e){
-      dragging=true;
-      var rect=cwWidget.getBoundingClientRect();
-      ox=e.clientX-rect.left;oy=e.clientY-rect.top;
-      e.preventDefault();
-    });
-    document.addEventListener('mousemove',function(e){
-      if(!dragging)return;
-      cwWidget.style.right='auto';cwWidget.style.bottom='auto';
-      cwWidget.style.left=(e.clientX-ox)+'px';cwWidget.style.top=(e.clientY-oy)+'px';
-    });
-    document.addEventListener('mouseup',function(){dragging=false});
-  })();
-
-  // Listen for continuous-scan event from main process (hotkey re-press in continuous mode)
-  window.zap.onContinuousScan(function(){
-    if(continuousMode&&!cwScanBtn.disabled) cwScanBtn.click();
-  });
 
   // ── Autopilot Mode — fully automatic, no user interaction needed ──
 
@@ -964,7 +535,7 @@
   function showAutopilotResults(result){
     if(!result)return;
     if(result.error==='accessibility_not_granted'){
-      resBody.className='';resBody.innerHTML='<div class="error-msg" style="text-align:center;padding:14px 0"><div style="font-size:28px;margin-bottom:8px">&#128274;</div><div style="font-size:13px;font-weight:600;color:#facc15;margin-bottom:6px">Accessibility Permission Required</div><div style="font-size:11px;color:rgba(255,255,255,0.55);line-height:1.5">Go to <b>System Settings → Privacy &amp; Security → Accessibility</b> and enable <b>Zap Pro</b>. Then press Alt+4 to try again.</div></div>';
+      resBody.className='';resBody.innerHTML='<div class="error-msg" style="text-align:center;padding:14px 0"><div style="font-size:28px;margin-bottom:8px">&#128274;</div><div style="font-size:13px;font-weight:600;color:#facc15;margin-bottom:6px">Accessibility Permission Required</div><div style="font-size:11px;color:rgba(255,255,255,0.55);line-height:1.5">Go to <b>System Settings → Privacy &amp; Security → Accessibility</b> and enable <b>Zap</b>. Then press Alt+4 to try again.</div></div>';
       return;
     }
     var filled=result.filled||0, total=result.total||0;
@@ -997,7 +568,6 @@
       var r=await window.zap.aiRequest({mode:'autopilot',text:null,imageDataUrl:img,region:null,language:settings.language});
       if(r.error){
         // Show error — bring overlay back
-        window.zap.showOverlay();
         resPanel.style.display='flex';resPanel.style.flexDirection='column';
         resPanel.style.left='50%';resPanel.style.top='50%';resPanel.style.transform='translate(-50%,-50%)';
         resBody.className='';resBody.innerHTML='<div class="error-msg">'+esc(r.error)+'</div>';
@@ -1010,21 +580,8 @@
           var m2=r.result.match(/\{[\s\S]*\}/);
           if(m2)parsed=JSON.parse(m2[0]); else throw new Error('No JSON found');
         }
-        if(!parsed.fields||!parsed.fields.length){
-          // No fillable fields detected — tell the user
-          window.zap.showOverlay();
-          resPanel.style.display='flex';resPanel.style.flexDirection='column';
-          resPanel.style.left='50%';resPanel.style.top='50%';resPanel.style.transform='translate(-50%,-50%)';
-          resBody.className='';resBody.innerHTML='<div class="error-msg">No fillable fields detected on screen. Autopilot works with forms, quizzes, and text inputs — make sure they\'re visible and try again.</div>';
-          return;
-        }
-      }catch(e){
-        window.zap.showOverlay();
-        resPanel.style.display='flex';resPanel.style.flexDirection='column';
-        resPanel.style.left='50%';resPanel.style.top='50%';resPanel.style.transform='translate(-50%,-50%)';
-        resBody.className='';resBody.innerHTML='<div class="error-msg">Couldn\'t parse autopilot response. Try again.</div>';
-        return;
-      }
+        if(!parsed.fields||!parsed.fields.length){return}
+      }catch(e){return}
 
       // Execute fills silently
       var result=await window.zap.autopilotExecute({fields:parsed.fields});
@@ -1033,13 +590,7 @@
         showAutopilotResults(result);
       }
       // Done — overlay stays hidden, user is back to normal screen
-    }catch(err){
-      // Unexpected error — show feedback instead of failing silently
-      window.zap.showOverlay();
-      resPanel.style.display='flex';resPanel.style.flexDirection='column';
-      resPanel.style.left='50%';resPanel.style.top='50%';resPanel.style.transform='translate(-50%,-50%)';
-      resBody.className='';resBody.innerHTML='<div class="error-msg">Autopilot encountered an error. Please try again.</div>';
-    }
+    }catch(err){}
     // Reset mode so next hotkey press works fresh
     currentMode='answer';
     modeInd.textContent='Answer';
@@ -1067,12 +618,12 @@
         var sx=i.width/window.innerWidth, sy=i.height/window.innerHeight;
         c.width=r.width*sx; c.height=r.height*sy;
         c.getContext('2d').drawImage(i,r.x*sx,r.y*sy,r.width*sx,r.height*sy,0,0,c.width,c.height);
-        // Use PNG for small/medium crops (under 800px) — lossless, critical for math notation
-        // Use high-quality JPEG for large crops to keep file size manageable
-        if(c.width<=800&&c.height<=800){
+        // Use PNG for crops up to 1600px — lossless, critical for text/math/code readability
+        // Use high-quality JPEG only for very large crops to keep file size under API limits
+        if(c.width<=1600&&c.height<=1600){
           done(c.toDataURL('image/png'));
         }else{
-          done(c.toDataURL('image/jpeg',0.92));
+          done(c.toDataURL('image/jpeg',0.95));
         }
       };
       i.src=url;
@@ -1233,237 +784,6 @@
   });
   document.addEventListener('mousemove',function(e){if(!dragging)return;resPanel.style.left=(e.clientX-dragOff.x)+'px';resPanel.style.top=(e.clientY-dragOff.y)+'px'});
   document.addEventListener('mouseup',function(){dragging=false});
-})();
-
-// ── Support Chat (in-app Help) — Claude/ChatGPT-style ──
-(function(){
-  var btn=document.getElementById('support-btn');
-  var panel=document.getElementById('support-panel');
-  var body=document.getElementById('support-body');
-  var input=document.getElementById('support-input');
-  var send=document.getElementById('support-send');
-  var closeBtn=document.getElementById('support-close');
-  var newBtn=document.getElementById('support-new');
-  var humanBtn=document.getElementById('support-request-human');
-  var subtitle=document.getElementById('support-subtitle');
-  var ctxStatus=document.getElementById('support-context-status');
-  var adminBadge=document.getElementById('support-admin-badge');
-  if(!btn||!panel)return;
-
-  var open=false;
-  var sending=false;
-  var escalated=false;      // true once user asks for human — bot stops suggesting
-  var history=[];           // [{role,content,at}] persisted to electron-store
-
-  var SUGGESTIONS=[
-    "How do I open Zap?",
-    "Zap keeps closing in my lockdown browser",
-    "My subscription is active but app says expired",
-    "How do I upgrade from Lite to Pro?"
-  ];
-
-  // ── Persistence ──
-  async function loadHistory(){
-    try{
-      var h=await window.zap.supportHistoryLoad();
-      if(h&&Array.isArray(h))history=h;
-    }catch(_){ history=[] }
-  }
-  function saveHistory(){
-    try{ window.zap.supportHistorySave(history) }catch(_){}
-  }
-  function clearHistory(){
-    history=[];escalated=false;
-    saveHistory();
-    body.innerHTML='';
-    renderWelcome();
-    subtitle.textContent='We usually reply in seconds';
-  }
-
-  // ── Rendering ──
-  function escHtml(s){return String(s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]})}
-  function markdownLite(text){
-    // Very light markdown: **bold**, `code`, newlines, URLs
-    var t=escHtml(text);
-    t=t.replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>');
-    t=t.replace(/`([^`]+)`/g,'<code style="background:rgba(255,255,255,.08);padding:1px 5px;border-radius:4px;font-family:SFMono-Regular,Menlo,monospace;font-size:12px">$1</code>');
-    t=t.replace(/(https?:\/\/[^\s<]+)/g,'<a href="$1" style="color:#818cf8;text-decoration:underline" onclick="window.zap.openExternal(\'$1\');return false">$1</a>');
-    return t;
-  }
-  function addMsg(role,text,opts){
-    opts=opts||{};
-    var el=document.createElement('div');
-    el.className='msg '+role+(opts.escalated?' escalated':'');
-    el.innerHTML=role==='bot'?markdownLite(text):escHtml(text);
-    body.appendChild(el);
-    body.scrollTop=body.scrollHeight;
-    return el;
-  }
-  function addSystem(text){
-    var el=document.createElement('div');
-    el.className='msg system';
-    el.textContent=text;
-    body.appendChild(el);
-    body.scrollTop=body.scrollHeight;
-    return el;
-  }
-  function showTyping(){
-    var el=document.createElement('div');
-    el.className='msg-typing';
-    el.innerHTML='<span></span><span></span><span></span>';
-    body.appendChild(el);
-    body.scrollTop=body.scrollHeight;
-    return el;
-  }
-
-  function renderWelcome(){
-    var w=document.createElement('div');
-    w.className='support-welcome';
-    w.innerHTML=
-      '<div class="support-welcome-icon">&#128293;</div>'+
-      '<div class="support-welcome-title">How can we help?</div>'+
-      '<div class="support-welcome-sub">Describe your issue and I\'ll help right away. If I can\'t, a real person will step in.</div>'+
-      '<div class="support-suggestions" id="support-suggestions"></div>';
-    body.appendChild(w);
-    var sug=w.querySelector('#support-suggestions');
-    SUGGESTIONS.forEach(function(s){
-      var b=document.createElement('button');
-      b.className='support-suggest-btn';
-      b.textContent=s;
-      b.addEventListener('click',function(){ input.value=s; handleSend() });
-      sug.appendChild(b);
-    });
-  }
-
-  function renderHistory(){
-    body.innerHTML='';
-    if(history.length===0){ renderWelcome(); return }
-    history.forEach(function(m){
-      if(m.role==='system') addSystem(m.content);
-      else addMsg(m.role,m.content,{escalated:m.escalated});
-    });
-  }
-
-  // ── Core send ──
-  async function handleSend(){
-    if(sending||escalated)return;
-    var text=(input.value||'').trim();
-    if(!text)return;
-    input.value='';
-    autosize();
-    // Kill welcome card if present
-    var w=body.querySelector('.support-welcome');
-    if(w)w.remove();
-
-    sending=true;send.disabled=true;
-    history.push({role:'user',content:text,at:Date.now()});
-    addMsg('user',text);
-    saveHistory();
-
-    var typingEl=showTyping();
-    try{
-      var result=await window.zap.supportChat(text);
-      typingEl.remove();
-      if(result&&result.ok){
-        var msg=result.message||"Got it. The team will follow up.";
-        history.push({role:'bot',content:msg,at:Date.now(),escalated:!!result.escalated});
-        addMsg('bot',msg,{escalated:!!result.escalated});
-        if(result.escalated){
-          escalated=true;
-          subtitle.textContent='A human will follow up shortly';
-          addSystem('The team has been pinged — they\'ll reply here or in Discord soon.');
-          history.push({role:'system',content:'The team has been pinged — they\'ll reply here or in Discord soon.',at:Date.now()});
-        }
-      }else{
-        var fallback=(result&&result.message)||"Something went wrong. Try again in a moment.";
-        addMsg('bot',fallback);
-        history.push({role:'bot',content:fallback,at:Date.now()});
-      }
-      saveHistory();
-    }catch(err){
-      typingEl.remove();
-      addMsg('bot',"Couldn't reach support. Try again or open a ticket in our Discord — link on tryzap.net.");
-    }finally{
-      sending=false;send.disabled=false;
-      input.focus();
-    }
-  }
-
-  async function requestHuman(){
-    if(escalated)return;
-    // Pre-fill with human request so the bot's human-detection triggers
-    input.value="I'd like to talk to a human, please.";
-    handleSend();
-  }
-
-  // ── Input autosize ──
-  function autosize(){
-    input.style.height='auto';
-    input.style.height=Math.min(input.scrollHeight,120)+'px';
-  }
-
-  // ── Open/close ──
-  async function show(){
-    panel.style.display='flex';
-    btn.style.display='none';
-    open=true;
-    if(history.length===0) await loadHistory();
-    renderHistory();
-    setTimeout(function(){input.focus()},80);
-    // Clear admin badge when opening
-    if(adminBadge)adminBadge.style.display='none';
-  }
-  function hide(){
-    panel.style.display='none';
-    btn.style.display='flex';
-    open=false;
-  }
-
-  // ── Wire events ──
-  btn.addEventListener('click',show);
-  closeBtn.addEventListener('click',hide);
-  newBtn.addEventListener('click',function(){ if(confirm('Start a new conversation? Your chat history will be cleared.')) clearHistory() });
-  send.addEventListener('click',handleSend);
-  humanBtn.addEventListener('click',requestHuman);
-  input.addEventListener('input',autosize);
-  input.addEventListener('keydown',function(e){
-    if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();handleSend()}
-  });
-
-  // ── Visibility logic ──
-  window.zap.onLoadSettings(function(s){
-    if(s&&s.lockdownMode){btn.style.display='none';return}
-    if(!open)btn.style.display='flex';
-  });
-
-  // ── Admin notifications ──
-  // Desktop app polls brain /admin-alerts when user is admin.
-  // When a new alert arrives, show badge on button + native notification.
-  if(window.zap.onSupportAdminAlert){
-    window.zap.onSupportAdminAlert(function(alert){
-      if(!adminBadge)return;
-      var count=parseInt(adminBadge.textContent)||0;
-      adminBadge.textContent=count+1;
-      adminBadge.style.display='flex';
-      // Shake the button a bit
-      btn.animate([{transform:'scale(1)'},{transform:'scale(1.12)'},{transform:'scale(1)'}],{duration:400});
-    });
-  }
-
-  // Pre-load history in background (won't show until panel opens)
-  loadHistory();
-
-  // Warm up context status
-  window.zap.getSettings().then(function(s){
-    try{
-      var tier=s.subscriptionTier||(s.licenseValid?'pro':'');
-      var v=(window.zap.appVersion&&window.zap.appVersion())||'';
-      var bits=[];
-      if(tier)bits.push(tier);
-      if(v)bits.push('v'+v);
-      if(bits.length&&ctxStatus)ctxStatus.textContent=bits.join(' · ');
-    }catch(_){}
-  });
 })();
 </script>
 </body>

@@ -2,7 +2,6 @@ const { contextBridge, ipcRenderer, clipboard } = require('electron');
 
 contextBridge.exposeInMainWorld('zap', {
   hideOverlay:    ()       => ipcRenderer.send('hide-overlay'),
-  showOverlay:    ()       => ipcRenderer.send('show-overlay'),
   openSettings:   ()       => ipcRenderer.send('open-settings'),
   openApp:        ()       => ipcRenderer.send('open-app'),
   getSettings:    ()       => ipcRenderer.invoke('get-settings'),
@@ -26,15 +25,9 @@ contextBridge.exposeInMainWorld('zap', {
   onInstantAnswer:     (cb) => ipcRenderer.on('instant-answer', () => cb()),
   onSelfDestructArmed: (cb) => ipcRenderer.on('self-destruct-armed', () => cb()),
   onSelfDestructDisarmed: (cb) => ipcRenderer.on('self-destruct-disarmed', () => cb()),
-  onGlobalEscape:        (cb) => ipcRenderer.on('global-escape', () => cb()),
-  onContinuousScan:      (cb) => ipcRenderer.on('continuous-scan', () => cb()),
   setIgnoreMouseEvents: (ignore, opts) => ipcRenderer.send('set-ignore-mouse', ignore, opts),
   onSettingsSaved:  (cb) => ipcRenderer.on('settings-saved',   ()     => cb()),
   onCheckoutCancelled: (cb) => ipcRenderer.on('checkout-cancelled', () => cb()),
-  onModeLocked:    (cb) => ipcRenderer.on('mode-locked', (_, d) => cb(d)),
-  onScanCounter:   (cb) => ipcRenderer.on('scan-counter', (_, d) => cb(d)),
-  onScanLimitReached: (cb) => ipcRenderer.on('scan-limit-reached', (_, d) => cb(d)),
-  checkModeAccess: (mode) => ipcRenderer.invoke('check-mode-access', mode),
 
   authSignup:      (data) => ipcRenderer.invoke('auth-signup', data),
   authSignin:      (data) => ipcRenderer.invoke('auth-signin', data),
@@ -46,11 +39,11 @@ contextBridge.exposeInMainWorld('zap', {
   startTrial:      () => ipcRenderer.send('start-trial'),
   acceptTerms:     () => ipcRenderer.invoke('accept-terms'),
   validateLicense: (key) => ipcRenderer.invoke('validate-license', key),
-  verifyEmailSubscription: (email) => ipcRenderer.invoke('verify-email-subscription', email),
   getLicenseStatus: () => ipcRenderer.invoke('get-license-status'),
   createCheckoutSession: (email, plan) => ipcRenderer.invoke('create-checkout-session', email, plan),
   openCheckoutWindow:    (url, sessionId) => ipcRenderer.invoke('open-checkout-window', url, sessionId),
   validateStripeSubscription: (sid) => ipcRenderer.invoke('validate-stripe-subscription', sid),
+  restoreByEmail:            (email) => ipcRenderer.invoke('restore-by-email', email),
   getSubscriptionInfo:   () => ipcRenderer.invoke('get-subscription-info'),
   cancelSubscription:    () => ipcRenderer.invoke('cancel-subscription'),
   reactivateSubscription:() => ipcRenderer.invoke('reactivate-subscription'),
@@ -63,36 +56,8 @@ contextBridge.exposeInMainWorld('zap', {
     try { ipcRenderer.send('copy-to-clipboard', text); } catch (_) {}
   },
 
-  checkPermissions: () => ipcRenderer.invoke('check-permissions'),
-  getReferralCode: () => ipcRenderer.invoke('get-referral-code'),
-  getReferralStats: () => ipcRenderer.invoke('get-referral-stats'),
   getAppVersion: () => ipcRenderer.invoke('get-app-version'),
   openExternal:  (url) => ipcRenderer.invoke('open-external', url),
-
-  // Tier features (for UI lock states)
-  getTierFeatures:  ()        => ipcRenderer.invoke('get-tier-features'),
-
-  // License / Devices
-  devicesList:      ()        => ipcRenderer.invoke('devices-list'),
-  devicesRemove:    (id)      => ipcRenderer.invoke('devices-remove', id),
-  devicesRegister:  ()        => ipcRenderer.invoke('devices-register'),
-
-  // Ticket system v2 (ZapBrain)
-  ticketsMy:        ()        => ipcRenderer.invoke('tickets-my'),
-  ticketsCreate:    (data)    => ipcRenderer.invoke('tickets-create', data),
-  ticketsGet:       (id)      => ipcRenderer.invoke('tickets-get', id),
-  ticketsReply:     (data)    => ipcRenderer.invoke('tickets-reply', data),
-  ticketsClose:     (id)      => ipcRenderer.invoke('tickets-close', id),
-
-  // Support chat (ZapBrain)
-  supportChat:         (message) => ipcRenderer.invoke('support-chat', { message }),
-  supportEscalate:     ()        => ipcRenderer.invoke('support-escalate'),
-  supportHistoryLoad:  ()        => ipcRenderer.invoke('support-history-load'),
-  supportHistorySave:  (h)       => ipcRenderer.send('support-history-save', h),
-  supportHistoryClear: ()        => ipcRenderer.send('support-history-clear'),
-  appVersion:          ()        => ipcRenderer.sendSync('app-version-sync'),
-  onSupportAdminAlert: (cb)      => ipcRenderer.on('support-admin-alert', (_, d) => cb(d)),
-
   forceClose:    ()    => ipcRenderer.send('force-close'),
   selfDestruct:  ()    => ipcRenderer.send('self-destruct'),
 
