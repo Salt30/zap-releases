@@ -2071,9 +2071,7 @@ ipcMain.handle('restore-by-email', async (_ev, email) => {
       return { valid: false, error: 'No subscription found for this email. Please subscribe first.' };
     }
 
-    // Check each customer for an active subscription matching Zap price IDs
-    const zapPriceIds = [STRIPE_PRICE_ID, STRIPE_ANNUAL_PRICE_ID];
-
+    // Check each customer for ANY active subscription (covers all tiers: Lite, Pro, Ultimate, Legacy)
     for (const customer of customers.data) {
       const subs = await stripe.subscriptions.list({
         customer: customer.id,
@@ -2084,11 +2082,7 @@ ipcMain.handle('restore-by-email', async (_ev, email) => {
       for (const sub of subs.data) {
         if (sub.status !== 'active' && sub.status !== 'trialing') continue;
 
-        // Check if any line item matches a Zap price ID
-        const isZapSub = sub.items.data.some(item => zapPriceIds.includes(item.price.id));
-        if (!isZapSub) continue;
-
-        // Found an active Zap subscription — activate the app
+        // Found an active subscription — activate the app
         store.set('licenseKey', sub.id);
         store.set('stripeCustomerId', customer.id);
         store.set('stripeSubscriptionId', sub.id);
