@@ -102,28 +102,8 @@
   <div class="billing-opt" id="opt-annual" data-billing="annual">Annual <span class="save-tag">Save 20%</span></div>
 </div>
 
-<!-- Plan cards -->
-<div class="plans" id="plans">
-  <!-- LITE -->
-  <div class="plan-card" data-tier="lite" id="card-lite">
-    <div class="plan-badge badge-empty">&nbsp;</div>
-    <div class="plan-name">Zap Lite</div>
-    <div class="plan-price" id="price-lite">$15<small>/mo</small></div>
-    <div class="plan-desc">Great for getting started.</div>
-    <div class="plan-features">
-      <div class="feat"><span class="icon yes">&#10003;</span> 25 selections per month</div>
-      <div class="feat"><span class="icon yes">&#10003;</span> Core AI modes</div>
-      <div class="feat"><span class="icon yes">&#10003;</span> Drip Type (basic)</div>
-      <div class="feat"><span class="icon yes">&#10003;</span> 10 translation languages</div>
-      <div class="feat"><span class="icon yes">&#10003;</span> macOS &amp; Windows</div>
-      <div class="feat"><span class="icon yes">&#10003;</span> Standard support</div>
-      <div class="feat disabled"><span class="icon no">&#10005;</span> Stealth Mode</div>
-      <div class="feat disabled"><span class="icon no">&#10005;</span> Phantom Mode</div>
-      <div class="feat disabled"><span class="icon no">&#10005;</span> Custom hotkeys</div>
-    </div>
-  </div>
-
-  <!-- PRO -->
+<!-- Plan card -->
+<div class="plans" id="plans" style="max-width:320px">
   <div class="plan-card selected" data-tier="pro" id="card-pro">
     <div class="plan-badge badge-empty">&nbsp;</div>
     <div class="plan-name">Zap Pro</div>
@@ -134,28 +114,11 @@
       <div class="feat"><span class="icon yes">&#10003;</span> All 10 AI modes incl. Autopilot &amp; Flashcards</div>
       <div class="feat"><span class="icon yes">&#10003;</span> Drip Type with Auto Draft</div>
       <div class="feat"><span class="icon yes">&#10003;</span> 35+ translation languages</div>
-      <div class="feat"><span class="icon yes">&#10003;</span> macOS &amp; Windows</div>
+      <div class="feat"><span class="icon yes">&#10003;</span> macOS, Windows &amp; Linux</div>
       <div class="feat"><span class="icon yes">&#10003;</span> Priority support</div>
       <div class="feat"><span class="icon yes">&#10003;</span> Stealth Mode</div>
       <div class="feat"><span class="icon yes">&#10003;</span> Phantom Mode — 100% undetectable</div>
       <div class="feat"><span class="icon yes">&#10003;</span> Custom hotkeys &amp; appearance</div>
-    </div>
-  </div>
-
-  <!-- ULTIMATE -->
-  <div class="plan-card" data-tier="ultimate" id="card-ultimate">
-    <div class="plan-badge badge-popular">MOST POPULAR</div>
-    <div class="plan-name">Zap Ultimate</div>
-    <div class="plan-price" id="price-ultimate">$75<small>/mo</small></div>
-    <div class="plan-desc">The full Zap experience.</div>
-    <div class="plan-features">
-      <div class="feat"><span class="icon yes">&#10003;</span> Everything in Pro, plus:</div>
-      <div class="feat"><span class="icon yes">&#10003;</span> Works in restricted &amp; proctored browsers</div>
-      <div class="feat"><span class="icon yes">&#10003;</span> Multi-device license (up to 3)</div>
-      <div class="feat"><span class="icon yes">&#10003;</span> Early access to new features &amp; modes</div>
-      <div class="feat"><span class="icon yes">&#10003;</span> Custom AI model tuning</div>
-      <div class="feat"><span class="icon yes">&#10003;</span> Dedicated priority support</div>
-      <div class="feat"><span class="icon yes">&#10003;</span> Exclusive Discord role &amp; channel</div>
     </div>
   </div>
 </div>
@@ -209,9 +172,7 @@
   var selectedTier = 'pro';
 
   var pricing = {
-    lite:     { monthly: 15, annual: 12 },
-    pro:      { monthly: 25, annual: 20 },
-    ultimate: { monthly: 75, annual: 60 }
+    pro: { monthly: 25, annual: 20 }
   };
 
   // ── Billing toggle ──
@@ -235,24 +196,9 @@
   $('opt-monthly').addEventListener('click', function(){ setBilling('monthly'); });
   $('opt-annual').addEventListener('click', function(){ setBilling('annual'); });
 
-  // ── Plan cards ──
-  function selectTier(tier) {
-    selectedTier = tier;
-    document.querySelectorAll('.plan-card').forEach(function(c) {
-      var isSel = c.dataset.tier === tier;
-      c.classList.toggle('selected', isSel);
-      c.classList.toggle('ultimate-selected', isSel && tier === 'ultimate');
-    });
-  }
-  document.querySelectorAll('.plan-card').forEach(function(c) {
-    c.addEventListener('click', function(){ selectTier(c.dataset.tier); });
-  });
-
   function updatePrices() {
-    ['lite','pro','ultimate'].forEach(function(tier) {
-      var p = pricing[tier][selectedBilling];
-      $('price-' + tier).innerHTML = '$' + p + '<small>/mo</small>';
-    });
+    var p = pricing.pro[selectedBilling];
+    $('price-pro').innerHTML = '$' + p + '<small>/mo</small>';
   }
 
   // ── Pre-fill email ──
