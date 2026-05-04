@@ -800,11 +800,8 @@ function bindKeys() {
     [store.get('hotkeyTranslate'), () => showWithMode('translate')],
     [store.get('hotkeyDripType'),  () => showWithMode('driptype')],
     [store.get('hotkeySolve'),     () => showWithMode('solve')],
-    [store.get('hotkeyEssay'),     () => showWithMode('essay')],
     [store.get('hotkeyCode'),      () => showWithMode('code')],
     [store.get('hotkeyResearch'),  () => showWithMode('research')],
-    [store.get('hotkeyEmail'),     () => showWithMode('email')],
-    [store.get('hotkeyFlashcards'),() => showWithMode('flashcards')],
     [store.get('hotkeyAutopilot'), () => showWithMode('autopilot')],
     [store.get('hotkeyStopDrip'),  () => { dripTypeCancelled = true; }],
     [store.get('hotkeyInstant'),   instantAnswer],
@@ -824,11 +821,8 @@ function bindKeys() {
       ['Control+Shift+T',  () => showWithMode('translate')],
       ['Control+Shift+D',  () => showWithMode('driptype')],
       ['Control+Shift+V',  () => showWithMode('solve')],
-      ['Control+Shift+E',  () => showWithMode('essay')],
       ['Control+Shift+C',  () => showWithMode('code')],
       ['Control+Shift+F',  () => showWithMode('research')],
-      ['Control+Shift+W',  () => showWithMode('email')],
-      ['Control+Shift+Q',  () => showWithMode('flashcards')],
       ['Control+Shift+P',  () => showWithMode('autopilot')],
       ['Control+Shift+X',  () => { dripTypeCancelled = true; }],
       ['Control+Alt+Shift+Backspace', selfDestructTrigger]
@@ -1764,13 +1758,10 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
     summarize: 'You are an expert summarizer. Start with a one-line summary, then key takeaways. Be concise. Never use LaTeX formatting.',
     explain:   'You are an expert teacher. Start with the direct answer, then explain step by step. Keep it clear and readable. NEVER use LaTeX commands like \\frac, \\left, \\right — write math in plain text with / for fractions, ^ for exponents, sqrt() for roots, and Unicode symbols (∫, Σ, π, ², ³). If the content contains math or science, read all notation from the image VERY carefully.',
     solve:     'You are an expert tutor. Solve the problem step-by-step, showing ALL work exactly as a student would write it on paper. Number each step clearly. State the final answer on its own line at the end (e.g. "Final Answer: 42"). NEVER use LaTeX — write math in plain text with / for fractions, ^ for exponents, sqrt() for roots, and Unicode symbols (∫, Σ, π, ∞, ², ³). Read all notation from the image VERY carefully.',
-    essay:     'You are an academic essay writer. Write a well-structured essay on the topic shown. Include: a clear thesis statement, 3-4 body paragraphs with topic sentences and supporting evidence, and a strong conclusion. Use formal academic tone. Aim for 500-800 words. Write in proper paragraph form — no bullet points or lists.',
     code:      'You are an expert programmer. Write clean, well-documented code to solve the problem shown. Use markdown code blocks with the correct language specifier (e.g. ```python, ```javascript, ```java, ```cpp). Include comments explaining key logic. Follow best practices: meaningful variable names, error handling, efficiency. If the language is not specified, infer it from context.',
     research:  store.get('credibleSourcesOnly')
       ? 'You are a research specialist. Provide a thorough analysis using ONLY credible academic and institutional sources (.edu, .org, .gov domains). Do NOT cite .com or commercial sources. Structure: 1) Brief overview, 2) Key findings with data from credible sources only, 3) References — list only .edu/.org/.gov URLs. Be factual and thorough.'
       : 'You are a research specialist. Provide a thorough, well-organized analysis of the topic shown. Structure your response as: 1) Brief overview, 2) Key findings with specific details and data, 3) Sources and references at the end. Use real, credible sources where possible. Be factual and detailed.',
-    email:     'You are a professional communication expert. Draft a polished email reply based on the context shown on screen. Match the tone and formality of the original message. Include an appropriate greeting, clear and concise body, and professional closing. Return ONLY the email text — no Subject line, no "To:" field, no metadata.',
-    flashcards:'You are an educational content creator. Generate 5-8 Q&A flashcards from the material shown on screen. Format each as: **Q:** [question] followed by **A:** [concise answer]. Focus on key concepts, definitions, formulas, and important facts. Number each flashcard.',
     autopilot: 'You are a quiz/form auto-fill AI. Analyze the screenshot and identify ALL visible questions and form fields. Return ONLY valid JSON — no markdown, no code fences, no explanation. Format: {"fields":[{"label":"question or field label","type":"radio","answer":"the correct answer","clickX":123,"clickY":456}],"nextBtn":null}. Field types: "radio" for multiple choice (clickX/clickY = center of the correct radio button/option to click), "checkbox" for checkboxes, "text" for text inputs or textareas (clickX/clickY = center of the input field), "select" for dropdowns. Coordinates must be in pixels matching the image dimensions, measured from top-left corner. For multiple choice: identify the CORRECT answer and provide coordinates of that specific option. Answer every question correctly using your knowledge. Be extremely precise with coordinates — they will be used to click.'
   };
 
