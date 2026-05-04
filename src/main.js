@@ -1809,9 +1809,9 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
       },
       body: JSON.stringify({
         model, messages: msgs, max_tokens: tokens, temperature: 0,
-        // Disable reasoning/thinking for fast responses; enable only for solve (needs step-by-step)
-        // NOTE: reasoning and response_format conflict on Kimi K2.6 — never combine them
-        ...(endpoint.includes('openrouter') ? { reasoning: { enabled: effectiveMode === 'solve' } } : {})
+        // Disable reasoning for fast responses; enable for solve + autopilot (need accuracy)
+        // NOTE: response_format removed — was conflicting with reasoning on Kimi K2.6
+        ...(endpoint.includes('openrouter') ? { reasoning: { enabled: effectiveMode === 'solve' || effectiveMode === 'autopilot' } } : {})
       })
     });
     if (!res.ok) {
