@@ -1784,21 +1784,22 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
   }
   const msgs = [{ role: 'system', content: systemPrompt }];
 
-  // Build user message — include image(s) if available (GPT-4o has excellent vision)
-  // Support multiple images via the `images` array
+  // Build user message — images first, then text (matches Kimi K2.6 expected format)
   const allImages = images && images.length > 0 ? images : (imageDataUrl ? [imageDataUrl] : []);
   const parts = [];
+  // Images come first in the content array
+  for (const img of allImages) {
+    parts.push({ type: 'image_url', image_url: { url: img } });
+  }
+  // Then the text instruction
   if (text && allImages.length > 0) {
     parts.push({ type: 'text', text: text + '\n\n[NOTE: The above text was extracted via OCR and may contain errors, especially with math notation like exponents, fractions, and symbols. ALWAYS rely on the attached image(s) for the exact notation — the images are the ground truth.' + (allImages.length > 1 ? ' Multiple screen captures are provided — analyze ALL of them together.' : '') + ']' });
   } else if (text) {
     parts.push({ type: 'text', text: text });
-  } else {
+  } else if (allImages.length > 0) {
     parts.push({ type: 'text', text: allImages.length > 1
       ? 'Analyze ALL the screen captures shown in the images. Read any visible text carefully and respond to whatever questions or prompts are visible across all images.'
       : 'Analyze the selected screen region shown in the image. Read any visible text carefully and respond accordingly. Pay extra attention to mathematical notation — exponents, fractions, integrals, subscripts, and special symbols.' });
-  }
-  for (const img of allImages) {
-    parts.push({ type: 'image_url', image_url: { url: img, detail: 'high' } });
   }
   // If we only have text (no image), send as simple string for compatibility
   if (parts.length === 1 && parts[0].type === 'text') {
