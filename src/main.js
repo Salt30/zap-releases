@@ -1815,7 +1815,10 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
         Authorization: 'Bearer ' + apiKey,
         ...(endpoint.includes('openrouter') ? { 'HTTP-Referer': 'https://tryzap.net', 'X-Title': 'Zap Pro' } : {})
       },
-      body: JSON.stringify({ model, messages: msgs, max_tokens: tokens, temperature: 0 })
+      body: JSON.stringify({
+        model, messages: msgs, max_tokens: tokens, temperature: 0,
+        ...(effectiveMode === 'autopilot' ? { response_format: { type: 'json_object' } } : {})
+      })
     });
     if (!res.ok) return { error: `API Error (${res.status}): ${await res.text()}` };
     const data = await res.json();
