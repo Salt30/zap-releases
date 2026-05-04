@@ -1732,7 +1732,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
       model = 'sonar-pro';
     } else {
       endpoint = 'https://openrouter.ai/api/v1/chat/completions';
-      model = 'xai/grok-4.1-fast';
+      model = 'x-ai/grok-4-fast';
     }
   }
 
