@@ -1738,9 +1738,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
       model = 'sonar-pro';
     } else {
       endpoint = 'https://openrouter.ai/api/v1/chat/completions';
-      // Kimi K2 doesn't support vision — use Gemini Flash for image requests, Kimi K2 for text-only
-      const hasImages = (images && images.length > 0) || !!imageDataUrl;
-      model = hasImages ? 'google/gemini-2.5-flash' : 'moonshotai/kimi-k2.6';
+      model = 'moonshotai/kimi-k2.6';
     }
   }
 
