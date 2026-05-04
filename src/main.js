@@ -1732,7 +1732,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
       model = 'sonar-pro';
     } else {
       endpoint = 'https://openrouter.ai/api/v1/chat/completions';
-      model = 'moonshotai/kimi-k2.6';
+      model = 'xai/grok-4.1-fast';
     }
   }
 
@@ -1809,9 +1809,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
       },
       body: JSON.stringify({
         model, messages: msgs, max_tokens: tokens, temperature: 0,
-        // Disable reasoning for fast responses; enable for solve + autopilot (need accuracy)
-        // NOTE: response_format removed — was conflicting with reasoning on Kimi K2.6
-        ...(endpoint.includes('openrouter') ? { reasoning: { enabled: effectiveMode === 'solve' || effectiveMode === 'autopilot' } } : {})
+        // Grok 4.1 Fast — no reasoning parameter needed (non-reasoning model, fast + accurate)
       })
     });
     if (!res.ok) {
