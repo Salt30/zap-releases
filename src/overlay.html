@@ -498,12 +498,21 @@
   // ── Autopilot Mode — fully automatic, no user interaction needed ──
 
   async function handleAutopilotResponse(raw){
-    // Parse AI JSON response
+    // Parse AI JSON response — handle markdown fences, thinking blocks, etc.
     var parsed;
     try{
-      try{parsed=JSON.parse(raw)}catch(_){
-        var m=raw.match(/\{[\s\S]*\}/);
-        if(m)parsed=JSON.parse(m[0]); else throw new Error('No JSON found in AI response');
+      // Strip markdown code fences if present (```json ... ``` or ``` ... ```)
+      var cleaned = raw.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+      try{parsed=JSON.parse(cleaned)}catch(_){
+        // Try extracting the last JSON object (skip any thinking/reasoning prefix)
+        var matches = cleaned.match(/\{[^{}]*"fields"\s*:\s*\[[\s\S]*\}\s*\]\s*[^{}]*\}/);
+        if(!matches){
+          // Fallback: grab the largest JSON object
+          var m=cleaned.match(/\{[\s\S]*\}/);
+          if(m)parsed=JSON.parse(m[0]); else throw new Error('No JSON found in AI response');
+        } else {
+          parsed=JSON.parse(matches[0]);
+        }
       }
       if(!parsed.fields||!parsed.fields.length){
         resBody.className='';resBody.innerHTML='<div class="error-msg">No form fields detected on screen. Navigate to a quiz/form and press Alt+4 again.</div>';
@@ -573,12 +582,14 @@
         resBody.className='';resBody.innerHTML='<div class="error-msg">'+esc(r.error)+'</div>';
         return;
       }
-      // Parse AI response
+      // Parse AI response — handle markdown fences, thinking blocks
       var parsed;
       try{
-        try{parsed=JSON.parse(r.result)}catch(_){
-          var m2=r.result.match(/\{[\s\S]*\}/);
-          if(m2)parsed=JSON.parse(m2[0]); else throw new Error('No JSON found');
+        var cleaned2 = r.result.replace(/^```(?:json)?\s*\n?/i, '').replace(/\n?```\s*$/i, '').trim();
+        try{parsed=JSON.parse(cleaned2)}catch(_){
+          var m2=cleaned2.match(/\{[^{}]*"fields"\s*:\s*\[[\s\S]*\}\s*\]\s*[^{}]*\}/);
+          if(!m2){ var m3=cleaned2.match(/\{[\s\S]*\}/); if(m3)parsed=JSON.parse(m3[0]); else throw new Error('No JSON found'); }
+          else parsed=JSON.parse(m2[0]);
         }
         if(!parsed.fields||!parsed.fields.length){return}
       }catch(e){return}

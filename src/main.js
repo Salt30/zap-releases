@@ -1809,12 +1809,16 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
       },
       body: JSON.stringify({
         model, messages: msgs, max_tokens: tokens, temperature: 0,
-        // Disable reasoning/thinking for fast responses; enable only for autopilot (needs precision)
-        ...(endpoint.includes('openrouter') ? { reasoning: { enabled: effectiveMode === 'autopilot' || effectiveMode === 'solve' } } : {}),
-        ...(effectiveMode === 'autopilot' ? { response_format: { type: 'json_object' } } : {})
+        // Disable reasoning/thinking for fast responses; enable only for solve (needs step-by-step)
+        // NOTE: reasoning and response_format conflict on Kimi K2.6 — never combine them
+        ...(endpoint.includes('openrouter') ? { reasoning: { enabled: effectiveMode === 'solve' } } : {})
       })
     });
-    if (!res.ok) return { error: `API Error (${res.status}): ${await res.text()}` };
+    if (!res.ok) {
+      const errText = await res.text();
+      console.error(`[AI] API Error ${res.status}:`, errText);
+      return { error: `API Error (${res.status}): ${errText}` };
+    }
     const data = await res.json();
     let result = data.choices?.[0]?.message?.content || 'No response received.';
 
