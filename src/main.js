@@ -23,9 +23,9 @@ const BUILT_IN_API_KEY = 'YOUR_PERPLEXITY_API_KEY';
 // Constructed so sed doesn't replace it — used to detect if key was injected
 const API_PLACEHOLDER = 'YOUR_PERPLEXITY' + '_API_KEY';
 
-// OpenAI GPT-4o key — injected at build time via sed
-const OPENAI_API_KEY = 'YOUR_OPENAI_API_KEY';
-const OPENAI_KEY_PLACEHOLDER = 'YOUR_OPENAI' + '_API_KEY';
+// OpenRouter API key — single key for all AI models (Kimi, GPT-4o fallback, etc.)
+const OPENROUTER_API_KEY = 'YOUR_OPENROUTER_API_KEY';
+const OPENROUTER_KEY_PLACEHOLDER = 'YOUR_OPENROUTER' + '_API_KEY';
 
 // Stripe configuration — injected at build time via sed
 const STRIPE_SECRET_KEY = 'YOUR_STRIPE_SECRET_KEY';
@@ -40,9 +40,9 @@ const GITHUB_REPO = 'Salt30/Zap';
 
 const STORE_DEFAULTS = {
   apiKey:        BUILT_IN_API_KEY,
-  openaiKey:     OPENAI_API_KEY,
-  apiEndpoint:   'https://api.openai.com/v1/chat/completions',
-  model:         'gpt-4o',
+  openaiKey:     OPENROUTER_API_KEY,
+  apiEndpoint:   'https://openrouter.ai/api/v1/chat/completions',
+  model:         'moonshotai/kimi-k2',
   overlayOpacity: 0.0,
   accentColor:   '#facc15',
   fontSize:      14,
@@ -1721,14 +1721,14 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
     endpoint = 'https://api.perplexity.ai/chat/completions';
     model = 'sonar-pro';
   } else {
-    // OpenAI GPT-4o for all other modes
-    apiKey = OPENAI_API_KEY;
-    if (apiKey === OPENAI_KEY_PLACEHOLDER) {
+    // OpenRouter (Kimi K2) for all other modes — cheap & accurate
+    apiKey = OPENROUTER_API_KEY;
+    if (apiKey === OPENROUTER_KEY_PLACEHOLDER) {
       const stored = store.get('openaiKey');
-      if (stored && stored !== OPENAI_KEY_PLACEHOLDER && stored.length > 10) apiKey = stored;
+      if (stored && stored !== OPENROUTER_KEY_PLACEHOLDER && stored.length > 10) apiKey = stored;
     }
-    // Fallback to Perplexity if OpenAI key not available
-    if (!apiKey || apiKey === OPENAI_KEY_PLACEHOLDER) {
+    // Fallback to Perplexity if OpenRouter key not available
+    if (!apiKey || apiKey === OPENROUTER_KEY_PLACEHOLDER) {
       apiKey = BUILT_IN_API_KEY;
       if (apiKey === API_PLACEHOLDER) {
         const stored = store.get('apiKey');
@@ -1737,16 +1737,16 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
       endpoint = 'https://api.perplexity.ai/chat/completions';
       model = 'sonar-pro';
     } else {
-      endpoint = 'https://api.openai.com/v1/chat/completions';
-      model = 'gpt-4o';
+      endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+      model = 'moonshotai/kimi-k2';
     }
   }
 
-  if (!apiKey || apiKey === API_PLACEHOLDER || apiKey === OPENAI_KEY_PLACEHOLDER) {
+  if (!apiKey || apiKey === API_PLACEHOLDER || apiKey === OPENROUTER_KEY_PLACEHOLDER) {
     return { error: 'API key not configured. Please reinstall Zap or contact support.' };
   }
 
-  console.log(`[AI] Mode: ${mode}, Provider: ${endpoint.includes('openai') ? 'OpenAI GPT-4o' : 'Perplexity'}`);
+  console.log(`[AI] Mode: ${mode}, Provider: ${endpoint.includes('openrouter') ? 'OpenRouter (Kimi K2)' : 'Perplexity'}`);
 
 
   // If we have nothing (no text, no image), show helpful error
@@ -1810,7 +1810,11 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
   try {
     const res = await fetch(endpoint, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + apiKey },
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: 'Bearer ' + apiKey,
+        ...(endpoint.includes('openrouter') ? { 'HTTP-Referer': 'https://tryzap.net', 'X-Title': 'Zap Pro' } : {})
+      },
       body: JSON.stringify({ model, messages: msgs, max_tokens: tokens, temperature: 0 })
     });
     if (!res.ok) return { error: `API Error (${res.status}): ${await res.text()}` };
