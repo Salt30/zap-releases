@@ -1818,6 +1818,8 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
       },
       body: JSON.stringify({
         model, messages: msgs, max_tokens: tokens, temperature: 0,
+        // Disable reasoning/thinking for fast responses; enable only for autopilot (needs precision)
+        ...(endpoint.includes('openrouter') ? { reasoning: { enabled: effectiveMode === 'autopilot' || effectiveMode === 'solve' } } : {}),
         ...(effectiveMode === 'autopilot' ? { response_format: { type: 'json_object' } } : {})
       })
     });
