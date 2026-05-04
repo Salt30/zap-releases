@@ -1738,7 +1738,9 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
       model = 'sonar-pro';
     } else {
       endpoint = 'https://openrouter.ai/api/v1/chat/completions';
-      model = 'moonshotai/kimi-k2';
+      // Kimi K2 doesn't support vision — use Gemini Flash for image requests, Kimi K2 for text-only
+      const hasImages = (images && images.length > 0) || !!imageDataUrl;
+      model = hasImages ? 'google/gemini-2.5-flash' : 'moonshotai/kimi-k2';
     }
   }
 
@@ -1746,7 +1748,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
     return { error: 'API key not configured. Please reinstall Zap or contact support.' };
   }
 
-  console.log(`[AI] Mode: ${mode}, Provider: ${endpoint.includes('openrouter') ? 'OpenRouter (Kimi K2)' : 'Perplexity'}`);
+  console.log(`[AI] Mode: ${mode}, Model: ${model}, Provider: ${endpoint.includes('openrouter') ? 'OpenRouter' : 'Perplexity'}`);
 
 
   // If we have nothing (no text, no image), show helpful error
