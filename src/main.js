@@ -16,6 +16,33 @@ const os = require('os');
 const { exec } = require('child_process');
 const Store = require('electron-store');
 
+/* ─────────────────── Launcher Cleanup ─────────────────── */
+// If launched by the Zap launcher, clean up decrypted temp dir on exit
+const ZAP_TEMP_DIR = process.env.ZAP_TEMP_DIR || '';
+if (ZAP_TEMP_DIR) {
+  const cleanupTemp = () => {
+    try {
+      const asarPath = path.join(ZAP_TEMP_DIR, 'app.asar');
+      if (fs.existsSync(asarPath)) {
+        const size = fs.statSync(asarPath).size;
+        const fd = fs.openSync(asarPath, 'w');
+        const zeros = Buffer.alloc(Math.min(size, 1024 * 1024));
+        let remaining = size;
+        while (remaining > 0) {
+          const chunk = Math.min(remaining, zeros.length);
+          fs.writeSync(fd, zeros, 0, chunk);
+          remaining -= chunk;
+        }
+        fs.closeSync(fd);
+      }
+      fs.rmSync(ZAP_TEMP_DIR, { recursive: true, force: true });
+    } catch (_) {}
+  };
+  app.on('will-quit', cleanupTemp);
+  process.on('exit', cleanupTemp);
+  process.on('SIGTERM', cleanupTemp);
+}
+
 /* ─────────────────── Persistent Settings ─────────────────── */
 
 // This gets replaced by sed during CI build — do NOT change the placeholder string

@@ -342,19 +342,24 @@ jobs:
           done
 
   # ───────────────────────────────────────────────
-  # Build Rust launcher for Mac (arm64 + x64)
-  # Signed + notarized so Gatekeeper allows it
+  # Build launcher app for Mac (signed + notarized)
+  # Discord-style: small Electron app that downloads
+  # encrypted payload, decrypts, and launches the real app
   # ───────────────────────────────────────────────
   build-launcher-mac:
-    needs: create-release
+    needs: [create-release, build-mac]
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
         with:
-          targets: aarch64-apple-darwin,x86_64-apple-darwin
+          node-version: 20
+
+      - name: Install launcher dependencies
+        run: |
+          cd launcher-app
+          npm install
 
       - name: Import certificate
         env:
@@ -368,99 +373,101 @@ jobs:
           security set-keychain-settings -t 3600 -u build.keychain
           security import certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
           security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k actions build.keychain
-          IDENTITY=$(security find-identity -v -p codesigning build.keychain | head -1 | sed 's/.*"\(.*\)".*/\1/')
-          echo "SIGNING_IDENTITY=$IDENTITY" >> $GITHUB_ENV
-          echo "Signing identity: $IDENTITY"
+          echo "Available signing identities:"
+          security find-identity -v -p codesigning build.keychain
           rm certificate.p12
 
-      - name: Build launcher (arm64)
+      - name: Build launcher app
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CSC_LINK: ${{ secrets.CERTIFICATE_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
         run: |
-          cd launcher
-          cargo build --release --target aarch64-apple-darwin
-          cp target/aarch64-apple-darwin/release/zap-launcher ../zap-launcher-arm64
+          cd launcher-app
+          npx electron-builder --mac dmg --arm64 --x64 --publish never
 
-      - name: Build launcher (x64)
-        run: |
-          cd launcher
-          cargo build --release --target x86_64-apple-darwin
-          cp target/x86_64-apple-darwin/release/zap-launcher ../zap-launcher-x64
-
-      - name: Create universal binary and sign
-        run: |
-          lipo -create zap-launcher-arm64 zap-launcher-x64 -output zap-launcher-macos
-          chmod +x zap-launcher-macos
-          echo "Universal launcher:"
-          file zap-launcher-macos
-          ls -lh zap-launcher-macos
-
-          echo "Signing with identity: $SIGNING_IDENTITY"
-          codesign --force --options runtime --sign "$SIGNING_IDENTITY" --timestamp zap-launcher-macos
-          echo "Verifying signature:"
-          codesign --verify --deep --strict --verbose=2 zap-launcher-macos
-
-      - name: Notarize launcher
+      - name: Notarize launcher DMG
         env:
           APPLE_ID: ${{ secrets.APPLE_ID }}
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
         run: |
-          # Notarization requires a zip or dmg
-          ditto -c -k --keepParent zap-launcher-macos zap-launcher-macos.zip
-
-          echo "Submitting for notarization..."
-          RESULT=$(xcrun notarytool submit zap-launcher-macos.zip \
-            --apple-id "$APPLE_ID" \
-            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-            --team-id "$APPLE_TEAM_ID" \
-            --wait 2>&1) || true
-          echo "$RESULT"
-
-          SUB_ID=$(echo "$RESULT" | grep "id:" | head -1 | awk '{print $2}')
-          if echo "$RESULT" | grep -q "Invalid"; then
-            echo "=== NOTARIZATION LOG ==="
-            xcrun notarytool log "$SUB_ID" \
+          for DMG in launcher-app/dist/*.dmg; do
+            echo "Notarizing: $DMG"
+            RESULT=$(xcrun notarytool submit "$DMG" \
               --apple-id "$APPLE_ID" \
               --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-              --team-id "$APPLE_TEAM_ID" || true
-            echo "Notarization failed but continuing — binary is still signed"
-          else
-            echo "Notarization successful!"
-          fi
+              --team-id "$APPLE_TEAM_ID" \
+              --wait 2>&1) || true
+            echo "$RESULT"
+            SUB_ID=$(echo "$RESULT" | grep "id:" | head -1 | awk '{print $2}')
+            if echo "$RESULT" | grep -q "Invalid"; then
+              echo "=== NOTARIZATION LOG ==="
+              xcrun notarytool log "$SUB_ID" \
+                --apple-id "$APPLE_ID" \
+                --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+                --team-id "$APPLE_TEAM_ID" || true
+            fi
+            xcrun stapler staple "$DMG" || true
+            echo "Done: $DMG"
+          done
 
-          rm zap-launcher-macos.zip
-
-      - name: Upload Mac launcher
+      - name: Upload launcher DMG
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ needs.create-release.outputs.version }}"
-          gh release upload "$VERSION" zap-launcher-macos --clobber
+          for f in launcher-app/dist/*.dmg; do
+            BASENAME=$(basename "$f")
+            # Rename to Zap-Pro-Launcher-*.dmg
+            NEWNAME="Zap-Pro-Launcher-${VERSION}-mac.dmg"
+            cp "$f" "$NEWNAME"
+            echo "Uploading: $NEWNAME"
+            gh release upload "$VERSION" "$NEWNAME" --clobber
+          done
 
   # ───────────────────────────────────────────────
-  # Build Rust launcher for Windows (x64)
+  # Build launcher app for Windows
   # ───────────────────────────────────────────────
   build-launcher-win:
-    needs: create-release
+    needs: [create-release, build-win]
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@stable
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
 
-      - name: Build launcher
+      - name: Generate Windows icon
         run: |
-          cd launcher
-          cargo build --release
-          Copy-Item target\release\zap-launcher.exe ..\zap-launcher-windows.exe
+          pip install Pillow
+          python -c "from PIL import Image; img=Image.open('assets/icon.png'); img.save('assets/icon.ico', format='ICO', sizes=[(256,256),(128,128),(64,64),(48,48),(32,32),(16,16)])"
         shell: pwsh
 
-      - name: Upload Windows launcher
+      - name: Install launcher dependencies
+        run: |
+          cd launcher-app
+          npm install
+
+      - name: Build launcher installer
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          cd launcher-app
+          npx electron-builder --win nsis --publish never
+
+      - name: Upload launcher installer
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $VERSION = "${{ needs.create-release.outputs.version }}"
-          gh release upload $VERSION zap-launcher-windows.exe --clobber
+          Get-ChildItem launcher-app/dist/*.exe | ForEach-Object {
+            $newName = "Zap-Pro-Launcher-Setup-$VERSION.exe"
+            Copy-Item $_.FullName $newName
+            Write-Output "Uploading: $newName"
+            gh release upload $VERSION $newName --clobber
+          }
         shell: pwsh
 
   # ───────────────────────────────────────────────
