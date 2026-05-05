@@ -68,7 +68,7 @@ function downloadFile(url, dest, onProgress) {
   return new Promise((resolve, reject) => {
     const get = url.startsWith('https') ? https.get : require('http').get;
     get(url, { headers: { 'User-Agent': 'ZapLauncher/1.0' } }, (res) => {
-      // Follow redirects (Supabase proxy returns 302 to GitHub's signed URL)
+      // Follow redirects
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         return downloadFile(res.headers.location, dest, onProgress).then(resolve).catch(reject);
       }
@@ -78,13 +78,16 @@ function downloadFile(url, dest, onProgress) {
       let received = 0;
       const file = fs.createWriteStream(dest);
 
+      file.on('error', e => reject(e));
+      file.on('finish', () => resolve());
+
       res.on('data', chunk => {
         received += chunk.length;
-        file.write(chunk);
         if (onProgress && total > 0) onProgress(received / total);
       });
-      res.on('end', () => { file.end(); resolve(); });
-      res.on('error', e => { file.end(); reject(e); });
+      res.on('error', e => { file.destroy(); reject(e); });
+
+      res.pipe(file);
     }).on('error', reject);
   });
 }
