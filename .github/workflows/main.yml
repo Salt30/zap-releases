@@ -160,6 +160,24 @@ jobs:
             echo "Notarization and stapling complete for $DMG!"
           done
 
+      - name: Encrypt asar payload
+        run: |
+          pip3 install cryptography
+          # Find the built asar
+          ASAR=$(find dist -name "app.asar" -type f | head -1)
+          if [ -z "$ASAR" ]; then
+            echo "Looking in mac-arm64-unpacked and mac-x64-unpacked..."
+            ASAR=$(find dist -name "app.asar" | head -1)
+          fi
+          if [ -n "$ASAR" ]; then
+            echo "Found asar: $ASAR ($(du -h "$ASAR" | cut -f1))"
+            python3 launcher/tools/encrypt_asar.py "$ASAR" dist/app.asar.enc
+            echo "Encrypted payload: $(du -h dist/app.asar.enc | cut -f1)"
+          else
+            echo "WARNING: No app.asar found, skipping encryption"
+            ls -laR dist/
+          fi
+
       - name: List dist output
         if: always()
         run: ls -la dist/
@@ -170,7 +188,7 @@ jobs:
         run: |
           VERSION="${{ needs.create-release.outputs.version }}"
           echo "Uploading Mac assets to release $VERSION..."
-          for f in dist/*.dmg dist/*.zip; do
+          for f in dist/*.dmg dist/*.zip dist/*.asar.enc; do
             if [ -f "$f" ]; then
               echo "Uploading: $f"
               gh release upload "$VERSION" "$f" --clobber
@@ -324,12 +342,80 @@ jobs:
           done
 
   # ───────────────────────────────────────────────
+  # Build Rust launcher for Mac (arm64 + x64)
+  # ───────────────────────────────────────────────
+  build-launcher-mac:
+    needs: create-release
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
+
+      - name: Build launcher (arm64)
+        run: |
+          cd launcher
+          cargo build --release --target aarch64-apple-darwin
+          cp target/aarch64-apple-darwin/release/zap-launcher ../zap-launcher-arm64
+
+      - name: Build launcher (x64)
+        run: |
+          cd launcher
+          cargo build --release --target x86_64-apple-darwin
+          cp target/x86_64-apple-darwin/release/zap-launcher ../zap-launcher-x64
+
+      - name: Create universal binary
+        run: |
+          lipo -create zap-launcher-arm64 zap-launcher-x64 -output zap-launcher-macos
+          chmod +x zap-launcher-macos
+          echo "Universal launcher:"
+          file zap-launcher-macos
+          ls -lh zap-launcher-macos
+
+      - name: Upload Mac launcher
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          VERSION="${{ needs.create-release.outputs.version }}"
+          gh release upload "$VERSION" zap-launcher-macos --clobber
+
+  # ───────────────────────────────────────────────
+  # Build Rust launcher for Windows (x64)
+  # ───────────────────────────────────────────────
+  build-launcher-win:
+    needs: create-release
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build launcher
+        run: |
+          cd launcher
+          cargo build --release
+          Copy-Item target\release\zap-launcher.exe ..\zap-launcher-windows.exe
+        shell: pwsh
+
+      - name: Upload Windows launcher
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          $VERSION = "${{ needs.create-release.outputs.version }}"
+          gh release upload $VERSION zap-launcher-windows.exe --clobber
+        shell: pwsh
+
+  # ───────────────────────────────────────────────
   # Publish the release (un-draft) and mirror all
   # assets to Salt30/zap-releases so the auto-updater
   # and public downloads work immediately.
   # ───────────────────────────────────────────────
   publish-and-mirror:
-    needs: [create-release, build-mac, build-win, build-linux]
+    needs: [create-release, build-mac, build-win, build-linux, build-launcher-mac, build-launcher-win]
     runs-on: ubuntu-latest
     if: always() && (needs.build-mac.result == 'success' || needs.build-win.result == 'success' || needs.build-linux.result == 'success')
     steps:
@@ -340,4 +426,3 @@ jobs:
           VERSION="${{ needs.create-release.outputs.version }}"
           echo "Publishing $VERSION..."
           gh release edit "$VERSION" --draft=false --latest --repo Salt30/zap-releases
-

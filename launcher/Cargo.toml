@@ -1,0 +1,21 @@
+[package]
+name = "zap-launcher"
+version = "1.0.0"
+edition = "2021"
+description = "Zap Pro encrypted launcher"
+
+[dependencies]
+aes-gcm = "0.10"
+reqwest = { version = "0.12", features = ["blocking", "rustls-tls", "json"], default-features = false }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+dirs = "5"
+zip = "2"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true
+panic = "abort"
