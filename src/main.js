@@ -42,7 +42,7 @@ const STORE_DEFAULTS = {
   apiKey:        BUILT_IN_API_KEY,
   openaiKey:     OPENROUTER_API_KEY,
   apiEndpoint:   'https://openrouter.ai/api/v1/chat/completions',
-  model:         'moonshotai/kimi-k2.6',
+  model:         'x-ai/grok-4-fast',
   overlayOpacity: 0.0,
   accentColor:   '#facc15',
   fontSize:      14,
@@ -56,11 +56,8 @@ const STORE_DEFAULTS = {
   hotkeyStopDrip:  'Alt+0',
   hotkeySimple:    'Alt+6',
   hotkeySolve:     'Alt+7',
-  hotkeyEssay:     'Alt+8',
   hotkeyCode:      'Alt+9',
   hotkeyResearch:  'CmdOrCtrl+Alt+1',
-  hotkeyEmail:     'CmdOrCtrl+Alt+2',
-  hotkeyFlashcards:'CmdOrCtrl+Alt+3',
   hotkeyApp:       'Alt+M',
   language:      'Spanish',
   theme:         'dark',
@@ -166,8 +163,12 @@ function getStripe() {
   return stripeClient;
 }
 
-// Admin master keys — always valid
-const ADMIN_KEYS = ['ZAP-ADMIN-MASTER-2026', 'ZapAdmin2026'];
+// Admin master keys — injected at build time, never in source
+const ADMIN_KEY_1 = 'YOUR_ADMIN_KEY_1';
+const ADMIN_KEY_1_PLACEHOLDER = 'YOUR_ADMIN' + '_KEY_1';
+const ADMIN_KEY_2 = 'YOUR_ADMIN_KEY_2';
+const ADMIN_KEY_2_PLACEHOLDER = 'YOUR_ADMIN' + '_KEY_2';
+const ADMIN_KEYS = [ADMIN_KEY_1, ADMIN_KEY_2].filter(k => k !== ADMIN_KEY_1_PLACEHOLDER && k !== ADMIN_KEY_2_PLACEHOLDER);
 
 /* ─────────────────── Usage Analytics ─────────────────── */
 
@@ -1907,9 +1908,9 @@ ipcMain.handle('validate-license', async (_ev, key) => {
   if (ADMIN_KEYS.includes(key.trim())) {
     store.set('licenseKey', key.trim());
     store.set('licenseValid', true);
-    store.set('licenseEmail', 'admin@tryzap.net');
+    store.set('licenseEmail', 'admin');
     proceedAfterLicense();
-    return { valid: true, email: 'admin@tryzap.net', admin: true };
+    return { valid: true, email: 'admin', admin: true };
   }
 
   return { valid: false, error: 'Please use the Subscribe button to get access.' };

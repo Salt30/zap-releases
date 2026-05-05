@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Zap Pro Settings</title>
+<title>Zap Settings</title>
 <style>
   :root{--accent:#4a6fa5;--accent-glow:#5b82bd;--accent-dim:#3a5a8a;--bg-deep:#0a0a12;--bg:#0f0f1a;--bg-card:rgba(18,18,35,0.85);--bg-card-hover:rgba(24,24,45,0.9);--bg-input:rgba(10,10,22,0.9);--text:#f5f0e8;--text-muted:#b8b0a0;--text-dim:#6e6a60;--border:rgba(74,111,165,0.15);--border-card:rgba(74,111,165,0.12);--glow:rgba(74,111,165,0.08)}
   *{margin:0;padding:0;box-sizing:border-box}
@@ -80,117 +80,13 @@
   ::-webkit-scrollbar-track{background:transparent}
   ::-webkit-scrollbar-thumb{background:rgba(74,111,165,.2);border-radius:3px}
   ::-webkit-scrollbar-thumb:hover{background:rgba(74,111,165,.35)}
-  .perm-item{display:flex;align-items:center;gap:14px;padding:14px 16px;background:rgba(74,111,165,0.04);border:1px solid rgba(74,111,165,0.1);border-radius:12px;transition:border-color .2s}
-  .perm-item.granted{border-color:rgba(52,211,153,0.3);background:rgba(52,211,153,0.04)}
-  .perm-item.denied{border-color:rgba(239,68,68,0.3);background:rgba(239,68,68,0.04)}
-  .perm-icon{font-size:22px;width:36px;text-align:center;flex-shrink:0}
-  .perm-info{flex:1;min-width:0}
-  .perm-name{font-size:13px;font-weight:600;color:var(--text);margin-bottom:2px}
-  .perm-desc{font-size:11px;color:var(--text-dim);line-height:1.4}
-  .perm-status{font-size:11px;font-weight:600;padding:4px 12px;border-radius:6px;flex-shrink:0;white-space:nowrap}
-  .perm-status.granted{color:#34d399;background:rgba(52,211,153,0.12)}
-  .perm-status.denied{color:#ef4444;background:rgba(239,68,68,0.12)}
-  .perm-status.checking{color:var(--text-dim);background:rgba(74,111,165,0.08)}
-  /* ━━━━━ Support ticket v2 (Linear/Intercom-style) ━━━━━ */
-  #tab-support { font-family: -apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif; }
-
-  /* Header */
-  .v2-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; padding: 4px 2px; }
-  .v2-title { font-size: 20px; font-weight: 700; color: var(--text); letter-spacing: -0.01em; }
-  .v2-subtitle { font-size: 13px; color: var(--text-dim); margin-top: 3px; }
-  .v2-new-btn { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: linear-gradient(135deg, #6366f1, #8b5cf6); border: none; color: #fff; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all .15s; box-shadow: 0 2px 12px rgba(99,102,241,0.35); }
-  .v2-new-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(99,102,241,0.5); }
-
-  /* Ticket list */
-  .v2-tickets-list { display: flex; flex-direction: column; gap: 8px; }
-  .v2-ticket-card { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.06); border-radius: 12px; padding: 14px 16px; cursor: pointer; transition: all .18s cubic-bezier(.16,1,.3,1); display: flex; align-items: center; gap: 12px; }
-  .v2-ticket-card:hover { background: rgba(99,102,241,0.06); border-color: rgba(99,102,241,0.25); transform: translateY(-1px); }
-  .v2-ticket-body { flex: 1; min-width: 0; }
-  .v2-ticket-row1 { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
-  .v2-ticket-id { font-size: 11px; font-weight: 700; color: var(--text-dim); font-family: SFMono-Regular, Menlo, monospace; letter-spacing: 0.3px; }
-  .v2-ticket-subject { font-size: 14px; font-weight: 500; color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; letter-spacing: -0.01em; }
-  .v2-ticket-preview { font-size: 12px; color: var(--text-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1.4; }
-  .v2-ticket-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; flex-shrink: 0; }
-  .v2-ticket-time { font-size: 10.5px; color: var(--text-dim); }
-  .v2-ticket-arrow { color: var(--text-dim); opacity: .6; margin-left: 2px; }
-
-  /* Status pills */
-  .v2-status-pill { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 10px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; font-family: -apple-system, sans-serif; }
-  .v2-status-pill.open,
-  .v2-status-pill.awaiting_user { background: rgba(59,130,246,0.12); color: #60a5fa; border: 1px solid rgba(59,130,246,0.25); }
-  .v2-status-pill.awaiting_staff { background: rgba(245,158,11,0.14); color: #fbbf24; border: 1px solid rgba(245,158,11,0.3); }
-  .v2-status-pill.resolved { background: rgba(34,197,94,0.12); color: #4ade80; border: 1px solid rgba(34,197,94,0.28); }
-  .v2-status-pill.closed { background: rgba(148,163,184,0.12); color: #94a3b8; border: 1px solid rgba(148,163,184,0.25); }
-
-  /* Unread dot */
-  .v2-unread-dot { width: 8px; height: 8px; border-radius: 50%; background: #6366f1; box-shadow: 0 0 8px rgba(99,102,241,0.6); flex-shrink: 0; }
-
-  /* Empty state */
-  .v2-empty-state { text-align: center; padding: 48px 20px; color: var(--text-dim); }
-  .v2-empty-icon { font-size: 40px; margin-bottom: 10px; opacity: 0.7; }
-  .v2-empty-title { font-size: 16px; font-weight: 600; color: var(--text); margin-bottom: 6px; }
-  .v2-empty-sub { font-size: 13px; line-height: 1.5; max-width: 300px; margin: 0 auto; }
-
-  /* Detail view */
-  .v2-detail-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; padding: 4px 2px; }
-  .v2-back-btn { display: inline-flex; align-items: center; gap: 4px; background: none; border: none; color: var(--text-dim); font-size: 13px; font-weight: 500; cursor: pointer; padding: 6px 10px 6px 6px; border-radius: 8px; font-family: inherit; transition: all .15s; }
-  .v2-back-btn:hover { color: var(--text); background: rgba(255,255,255,0.06); }
-  .v2-detail-header-meta { display: flex; align-items: center; gap: 8px; }
-  .v2-detail-subject { font-size: 19px; font-weight: 700; color: var(--text); margin-bottom: 16px; letter-spacing: -0.01em; line-height: 1.3; padding: 0 2px; }
-
-  .v2-messages { display: flex; flex-direction: column; gap: 12px; padding: 4px 2px; margin-bottom: 14px; }
-  .v2-msg { max-width: 85%; padding: 10px 14px; border-radius: 14px; font-size: 13.5px; line-height: 1.55; animation: v2MsgIn .2s ease-out; white-space: pre-wrap; word-wrap: break-word; }
-  @keyframes v2MsgIn { from { opacity: 0; transform: translateY(4px) } to { opacity: 1; transform: translateY(0) } }
-  .v2-msg.user { align-self: flex-end; background: linear-gradient(135deg, #6366f1, #7c3aed); color: #fff; border-bottom-right-radius: 4px; box-shadow: 0 2px 8px rgba(99,102,241,0.25); }
-  .v2-msg.ai { align-self: flex-start; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.05); color: var(--text); border-bottom-left-radius: 4px; }
-  .v2-msg.staff { align-self: flex-start; background: linear-gradient(135deg, rgba(34,197,94,0.1), rgba(34,197,94,0.04)); border: 1px solid rgba(34,197,94,0.25); color: var(--text); border-bottom-left-radius: 4px; }
-  .v2-msg-author { font-size: 10px; font-weight: 700; margin-bottom: 4px; letter-spacing: 0.3px; text-transform: uppercase; }
-  .v2-msg.ai .v2-msg-author { color: #a78bfa; }
-  .v2-msg.staff .v2-msg-author { color: #4ade80; }
-  .v2-msg-time { display: block; font-size: 10px; opacity: 0.55; margin-top: 4px; }
-
-  .v2-typing { align-self: flex-start; display: flex; gap: 4px; padding: 14px 16px; background: rgba(255,255,255,0.04); border-radius: 14px; border-bottom-left-radius: 4px; }
-  .v2-typing span { width: 5px; height: 5px; border-radius: 50%; background: var(--text-dim); animation: v2Typing 1.4s infinite ease-in-out; }
-  .v2-typing span:nth-child(2) { animation-delay: .2s; }
-  .v2-typing span:nth-child(3) { animation-delay: .4s; }
-  @keyframes v2Typing { 0%, 60%, 100% { transform: translateY(0); opacity: 0.4 } 30% { transform: translateY(-5px); opacity: 1 } }
-
-  /* Composer */
-  .v2-composer { background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.08); border-radius: 14px; padding: 10px 12px; transition: border-color .15s; }
-  .v2-composer:focus-within { border-color: rgba(99,102,241,0.4); box-shadow: 0 0 0 3px rgba(99,102,241,0.08); }
-  .v2-composer textarea { width: 100%; background: none; border: none; color: var(--text); font-size: 13.5px; line-height: 1.5; padding: 4px 2px; font-family: inherit; outline: none; resize: none; max-height: 140px; }
-  .v2-composer textarea::placeholder { color: var(--text-dim); }
-  .v2-composer-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 6px; }
-  .v2-composer-close { background: none; border: none; color: var(--text-dim); font-size: 11.5px; cursor: pointer; padding: 4px 6px; border-radius: 6px; font-family: inherit; }
-  .v2-composer-close:hover { color: #ef4444; }
-  .v2-composer-send { background: linear-gradient(135deg, #6366f1, #7c3aed); border: none; color: #fff; padding: 7px 16px; border-radius: 9px; font-size: 12.5px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all .15s; }
-  .v2-composer-send:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(99,102,241,0.4); }
-  .v2-composer-send:disabled { opacity: 0.4; cursor: not-allowed; }
-
-  /* New ticket form */
-  .v2-new-form { display: flex; flex-direction: column; gap: 14px; padding: 4px 2px; }
-  .v2-field label { display: block; font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 6px; letter-spacing: 0.01em; }
-  .v2-field input, .v2-field textarea { width: 100%; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); color: var(--text); font-family: inherit; font-size: 13.5px; line-height: 1.5; padding: 10px 12px; border-radius: 10px; outline: none; transition: all .15s; resize: vertical; }
-  .v2-field input:focus, .v2-field textarea:focus { border-color: rgba(99,102,241,0.5); box-shadow: 0 0 0 3px rgba(99,102,241,0.1); }
-  .v2-new-hint { font-size: 11px; color: var(--text-dim); padding: 0 2px; line-height: 1.5; }
-  .v2-new-submit { margin-top: 6px; background: linear-gradient(135deg, #6366f1, #7c3aed); border: none; color: #fff; padding: 12px; border-radius: 11px; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; transition: all .15s; }
-  .v2-new-submit:hover:not(:disabled) { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(99,102,241,0.4); }
-  .v2-new-submit:disabled { opacity: 0.4; cursor: not-allowed; }
-
-  /* Tier lock system */
-  .tier-locked { opacity: 0.45; cursor: not-allowed !important; pointer-events: none; }
-  .tier-lock-wrapper { position: relative; display: inline-block; width: 100%; }
-  .tier-lock-wrapper::after { content: "\1F512"; position: absolute; top: 50%; right: 10px; transform: translateY(-50%); font-size: 14px; pointer-events: none; opacity: 0.7; }
-  .tier-banner { position: sticky; top: 0; z-index: 10; background: linear-gradient(90deg, rgba(251,191,36,0.15), rgba(217,119,6,0.1)); border-bottom: 1px solid rgba(251,191,36,0.3); color: var(--text); padding: 10px 16px; font-size: 13px; text-align: center; }
-  .tier-banner a { color: #fbbf24; font-weight: 600; text-decoration: underline; cursor: pointer; margin-left: 4px; }
-  .tier-banner a:hover { color: #fde68a; }
 </style>
 </head>
 <body>
 
 <div class="header">
   <div class="logo">&#9889;</div>
-  <h1>Zap Pro</h1>
+  <h1>Zap</h1>
   <span class="version">v...</span>
   <button class="update-badge" id="header-update-btn">Update Available</button>
 </div>
@@ -201,7 +97,6 @@
   <button class="tab" data-tab="appearance">Appearance</button>
   <button class="tab" data-tab="hotkeys">Hotkeys</button>
   <button class="tab" data-tab="subscription">Subscription</button>
-  <button class="tab" data-tab="permissions">Permissions</button>
   <button class="tab" data-tab="support">Support</button>
   <button class="tab" data-tab="whatsnew">What's New</button>
   <button class="tab" data-tab="updates">Updates</button>
@@ -212,7 +107,7 @@
   <div class="tab-panel active" id="tab-home">
     <div class="card" style="text-align:center;padding:30px 22px 24px">
       <div style="font-size:44px;margin-bottom:8px;filter:drop-shadow(0 0 20px rgba(74,111,165,0.4))">&#9889;</div>
-      <div style="font-size:22px;font-weight:700;margin-bottom:4px">Welcome to <span style="color:var(--accent-glow)">Zap Pro</span></div>
+      <div style="font-size:22px;font-weight:700;margin-bottom:4px">Welcome to <span style="color:var(--accent-glow)">Zap</span></div>
       <div style="font-size:13px;color:var(--text-dim);margin-bottom:20px">The invisible AI overlay that lives on your screen</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;text-align:left">
         <div style="background:rgba(74,111,165,0.06);border:1px solid rgba(74,111,165,0.1);border-radius:10px;padding:12px">
@@ -319,7 +214,7 @@
         <div class="toggle" id="toggle-simple" data-key="simpleMode"><div class="thumb"></div></div>
       </div>
       <div class="toggle-row">
-        <div class="toggle-info"><div class="toggle-label">Start at Login</div><div class="toggle-desc">Launch Zap Pro automatically when your computer starts</div></div>
+        <div class="toggle-info"><div class="toggle-label">Start at Login</div><div class="toggle-desc">Launch Zap automatically when your computer starts</div></div>
         <div class="toggle" id="toggle-startup" data-key="startAtLogin"><div class="thumb"></div></div>
       </div>
     </div>
@@ -339,53 +234,6 @@
       <div class="card-title">AI Context</div>
       <div style="font-size:12px;color:var(--text-dim);margin-bottom:10px;line-height:1.5">Give the AI custom instructions that apply to every request. For example: "I'm taking a Spanish test, only respond in Spanish" or "I'm in AP Chemistry, show work step by step."</div>
       <textarea id="setting-aiContext" rows="3" style="width:100%;padding:10px 12px;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px;outline:none;resize:vertical;line-height:1.5;transition:border-color .15s" placeholder="e.g. You are helping me with a Spanish test. Only write in Spanish. Use words for numbers (uno, dos) not digits."></textarea>
-    </div>
-
-    <!-- ULTIMATE only: Custom AI Provider -->
-    <div class="card" id="custom-ai-card" style="display:none;border-color:rgba(251,191,36,0.25);background:linear-gradient(180deg,rgba(251,191,36,0.04),rgba(217,119,6,0.02))">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-        <div class="card-title" style="margin:0">Custom AI Provider</div>
-        <span style="background:linear-gradient(135deg,#fbbf24,#d97706);color:#fff;font-size:9px;font-weight:800;padding:2px 7px;border-radius:5px;letter-spacing:.6px">ULTIMATE</span>
-      </div>
-      <div style="font-size:12px;color:var(--text-dim);margin-bottom:14px;line-height:1.5">Bring your own API key for OpenAI, Anthropic, or any OpenAI-compatible endpoint. All AI requests in Zap route through your provider instead of ours — giving you full control over model, cost, and data.</div>
-      <div class="toggle-row" style="margin-bottom:14px">
-        <div class="toggle-info">
-          <div class="toggle-label">Enable custom AI</div>
-          <div class="toggle-desc">When on, Zap uses your API instead of the built-in one.</div>
-        </div>
-        <div class="toggle" id="toggle-customAiEnabled" data-key="customAiEnabled"><div class="thumb"></div></div>
-      </div>
-      <div id="custom-ai-details" style="display:none;border-top:1px solid rgba(251,191,36,0.15);padding-top:14px">
-        <div class="field" style="margin-bottom:12px">
-          <label>Provider</label>
-          <select id="setting-customAiProvider" style="width:100%;padding:10px 12px;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:inherit;font-size:13px">
-            <option value="openai">OpenAI (GPT-4o, GPT-4, etc.)</option>
-            <option value="anthropic">Anthropic (Claude)</option>
-            <option value="custom">Custom / OpenAI-compatible proxy</option>
-          </select>
-        </div>
-        <div class="field" style="margin-bottom:12px">
-          <label>API Endpoint</label>
-          <input type="text" id="setting-customAiEndpoint" placeholder="https://api.openai.com/v1/chat/completions" style="width:100%;padding:10px 12px;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:SFMono-Regular,Menlo,monospace;font-size:12px;outline:none" />
-          <div class="hint" style="font-size:11px;color:var(--text-dim);margin-top:4px">Leave blank to use the provider's default URL.</div>
-        </div>
-        <div class="field" style="margin-bottom:12px">
-          <label>Model</label>
-          <input type="text" id="setting-customAiModel" placeholder="gpt-4o, claude-3-5-sonnet-20241022, etc." style="width:100%;padding:10px 12px;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:SFMono-Regular,Menlo,monospace;font-size:12px;outline:none" />
-        </div>
-        <div class="field">
-          <label>API Key</label>
-          <input type="password" id="setting-customAiKey" placeholder="sk-..." style="width:100%;padding:10px 12px;background:rgba(0,0,0,0.3);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:SFMono-Regular,Menlo,monospace;font-size:12px;outline:none" />
-          <div class="hint" style="font-size:11px;color:var(--text-dim);margin-top:4px">Stored only on this device — never sent to Zap servers.</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- All tiers: Active Devices -->
-    <div class="card" id="devices-card" style="display:none">
-      <div class="card-title">Active Devices</div>
-      <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.5" id="devices-summary">Loading…</div>
-      <div id="devices-list"></div>
     </div>
 
     <div class="card">
@@ -427,7 +275,7 @@
       <div class="toggle-row" style="border-bottom:none">
         <div class="toggle-info">
           <div class="toggle-label">Enable Stealth Mode</div>
-          <div class="toggle-desc">Stay completely invisible and undetectable while using Zap Pro</div>
+          <div class="toggle-desc">Stay completely invisible and undetectable while using Zap</div>
         </div>
         <div class="toggle" id="toggle-lockdown" data-key="lockdownMode"><div class="thumb"></div></div>
       </div>
@@ -441,15 +289,15 @@
             </div>
             <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:6px">
               <span style="background:rgba(239,68,68,0.15);color:#f87171;padding:1px 8px;border-radius:4px;font-weight:700;font-size:11px;flex-shrink:0">2</span>
-              <span>Open Zap Pro and <strong style="color:var(--text)">activate the overlay</strong> (Alt+1 or your hotkey)</span>
+              <span>Open Zap and <strong style="color:var(--text)">activate the overlay</strong> (Alt+1 or your hotkey)</span>
             </div>
             <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:6px">
               <span style="background:rgba(239,68,68,0.15);color:#f87171;padding:1px 8px;border-radius:4px;font-weight:700;font-size:11px;flex-shrink:0">3</span>
-              <span><strong style="color:var(--text)">Then</strong> open the app you want to use Zap Pro with</span>
+              <span><strong style="color:var(--text)">Then</strong> open the app you want to use Zap with</span>
             </div>
             <div style="display:flex;gap:10px;align-items:flex-start;margin-bottom:6px">
               <span style="background:rgba(239,68,68,0.15);color:#f87171;padding:1px 8px;border-radius:4px;font-weight:700;font-size:11px;flex-shrink:0">4</span>
-              <span>Use <strong style="color:var(--text)">stealth hotkeys</strong> to control Zap Pro (see below)</span>
+              <span>Use <strong style="color:var(--text)">stealth hotkeys</strong> to control Zap (see below)</span>
             </div>
             <div style="display:flex;gap:10px;align-items:flex-start">
               <span style="background:rgba(239,68,68,0.15);color:#f87171;padding:1px 8px;border-radius:4px;font-weight:700;font-size:11px;flex-shrink:0">5</span>
@@ -467,11 +315,8 @@
             <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Drip Type</span><kbd style="background:rgba(74,111,165,0.12);color:var(--accent-glow);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;border:1px solid rgba(74,111,165,0.2)">Ctrl+Shift+D</kbd></div>
             <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Stop Drip</span><kbd style="background:rgba(74,111,165,0.12);color:var(--accent-glow);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;border:1px solid rgba(74,111,165,0.2)">Ctrl+Shift+X</kbd></div>
             <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Solve</span><kbd style="background:rgba(74,111,165,0.12);color:var(--accent-glow);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;border:1px solid rgba(74,111,165,0.2)">Ctrl+Shift+V</kbd></div>
-            <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Essay</span><kbd style="background:rgba(74,111,165,0.12);color:var(--accent-glow);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;border:1px solid rgba(74,111,165,0.2)">Ctrl+Shift+E</kbd></div>
             <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Code</span><kbd style="background:rgba(74,111,165,0.12);color:var(--accent-glow);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;border:1px solid rgba(74,111,165,0.2)">Ctrl+Shift+C</kbd></div>
             <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Research</span><kbd style="background:rgba(74,111,165,0.12);color:var(--accent-glow);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;border:1px solid rgba(74,111,165,0.2)">Ctrl+Shift+F</kbd></div>
-            <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Email</span><kbd style="background:rgba(74,111,165,0.12);color:var(--accent-glow);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;border:1px solid rgba(74,111,165,0.2)">Ctrl+Shift+W</kbd></div>
-            <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Flashcards</span><kbd style="background:rgba(74,111,165,0.12);color:var(--accent-glow);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;border:1px solid rgba(74,111,165,0.2)">Ctrl+Shift+Q</kbd></div>
             <div style="display:flex;justify-content:space-between;padding:3px 0"><span>Autopilot</span><kbd style="background:rgba(74,111,165,0.12);color:var(--accent-glow);padding:2px 8px;border-radius:5px;font-size:11px;font-weight:600;border:1px solid rgba(74,111,165,0.2)">Ctrl+Shift+P</kbd></div>
           </div>
         </div>
@@ -565,14 +410,11 @@
       </div>
       <div class="toggle-row">
         <div class="toggle-info">
-          <div class="toggle-label">Continuous Mode</div>
-          <div class="toggle-desc">Replaces the full-screen overlay with a small floating widget. Click through to your exam while Zap Pro stays on top. Press your hotkey or the Scan button to capture — no drag needed.</div>
+          <div class="toggle-label">Clear Screen</div>
+          <div class="toggle-desc">Hide all overlay UI (mode indicator, instructions, buttons). Only the response panel shows after you drag-select.</div>
         </div>
-        <div class="toggle" id="toggle-continuousMode" data-key="continuousMode"><div class="thumb"></div></div>
+        <div class="toggle" id="toggle-clearScreen" data-key="clearScreen"><div class="thumb"></div></div>
       </div>
-    </div>
-
-    <div class="card">
       <div class="field">
         <label>Font Family</label>
         <select id="setting-fontFamily">
@@ -588,7 +430,7 @@
   </div>
 
   <div class="tab-panel" id="tab-hotkeys">
-    <div class="info-callout">Click any hotkey field, then press your desired key combination to record it. These shortcuts work system-wide — even when Zap Pro is in the background.</div>
+    <div class="info-callout">Click any hotkey field, then press your desired key combination to record it. These shortcuts work system-wide — even when Zap is in the background.</div>
 
     <div class="card">
       <div class="card-title">Overlay</div>
@@ -628,10 +470,7 @@
         <div class="hotkey-label"><span class="mode-dot" style="background:#fb923c"></span>Solve</div>
         <div class="hotkey-input-wrap"><input type="text" id="hk-hotkeySolve" readonly value="Alt+7" data-setting="hotkeySolve" /></div>
       </div>
-      <div class="hotkey-field">
-        <div class="hotkey-label"><span class="mode-dot" style="background:#a78bfa"></span>Essay</div>
-        <div class="hotkey-input-wrap"><input type="text" id="hk-hotkeyEssay" readonly value="Alt+8" data-setting="hotkeyEssay" /></div>
-      </div>
+      <!-- Essay mode removed -->
       <div class="hotkey-field">
         <div class="hotkey-label"><span class="mode-dot" style="background:#22d3ee"></span>Code</div>
         <div class="hotkey-input-wrap"><input type="text" id="hk-hotkeyCode" readonly value="Alt+9" data-setting="hotkeyCode" /></div>
@@ -640,20 +479,13 @@
         <div class="hotkey-label"><span class="mode-dot" style="background:#4ade80"></span>Research</div>
         <div class="hotkey-input-wrap"><input type="text" id="hk-hotkeyResearch" readonly value="CmdOrCtrl+Alt+1" data-setting="hotkeyResearch" /></div>
       </div>
-      <div class="hotkey-field">
-        <div class="hotkey-label"><span class="mode-dot" style="background:#f472b6"></span>Email</div>
-        <div class="hotkey-input-wrap"><input type="text" id="hk-hotkeyEmail" readonly value="CmdOrCtrl+Alt+2" data-setting="hotkeyEmail" /></div>
-      </div>
-      <div class="hotkey-field">
-        <div class="hotkey-label"><span class="mode-dot" style="background:#facc15"></span>Flashcards</div>
-        <div class="hotkey-input-wrap"><input type="text" id="hk-hotkeyFlashcards" readonly value="CmdOrCtrl+Alt+3" data-setting="hotkeyFlashcards" /></div>
-      </div>
+      <!-- Email and Flashcards modes removed -->
     </div>
 
     <div class="card">
       <div class="card-title">App</div>
       <div class="hotkey-field">
-        <div class="hotkey-label"><span class="mode-dot" style="background:var(--accent-glow)"></span>Open Zap Pro App</div>
+        <div class="hotkey-label"><span class="mode-dot" style="background:var(--accent-glow)"></span>Open Zap App</div>
         <div class="hotkey-input-wrap"><input type="text" id="hk-hotkeyApp" readonly value="Alt+M" data-setting="hotkeyApp" /></div>
       </div>
       <div class="hotkey-field">
@@ -738,30 +570,9 @@
       <div class="card" id="sub-inactive-card" style="display:none">
         <div class="card-title">No Active Subscription</div>
         <div style="font-size:13px;color:var(--text-muted);line-height:1.6;margin-bottom:14px" id="sub-inactive-text">
-          You don't have an active subscription. Subscribe to unlock full access to Zap Pro.
+          You don't have an active subscription. Subscribe to unlock full access to Zap.
         </div>
         <button class="btn btn-primary" id="sub-subscribe-btn" style="width:100%">Subscribe Now</button>
-      </div>
-
-      <div class="card" id="sub-referral-card" style="display:none;border:1px solid rgba(74,111,165,0.2)">
-        <div class="card-title">Refer &amp; Earn</div>
-        <div style="font-size:13px;color:var(--text-muted);line-height:1.6;margin-bottom:14px">
-          Share your link — <b style="color:var(--text)">you get 30% off</b> your next month, <b style="color:var(--text)">they get 20% off</b> their first month.
-        </div>
-        <div style="display:flex;gap:8px;margin-bottom:14px">
-          <input type="text" id="referral-link" readonly style="flex:1;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:8px;color:var(--accent-glow);font-family:'SF Mono','Fira Code',monospace;font-size:11px;outline:none;cursor:text" />
-          <button class="btn btn-primary" id="copy-referral-btn" style="padding:10px 18px;font-size:12px;white-space:nowrap">Copy Link</button>
-        </div>
-        <div style="display:flex;gap:12px">
-          <div style="flex:1;background:rgba(74,111,165,0.06);border:1px solid rgba(74,111,165,0.1);border-radius:10px;padding:12px;text-align:center">
-            <div style="font-size:20px;font-weight:700;color:var(--text)" id="referral-count">0</div>
-            <div style="font-size:11px;color:var(--text-dim);margin-top:2px">Referrals</div>
-          </div>
-          <div style="flex:1;background:rgba(52,211,153,0.06);border:1px solid rgba(52,211,153,0.1);border-radius:10px;padding:12px;text-align:center">
-            <div style="font-size:20px;font-weight:700;color:#34d399" id="referral-savings">0</div>
-            <div style="font-size:11px;color:var(--text-dim);margin-top:2px">Months Saved</div>
-          </div>
-        </div>
       </div>
 
       <div class="card" id="sub-admin-card" style="display:none">
@@ -774,73 +585,27 @@
   </div>
 
   <div class="tab-panel" id="tab-support">
-    <!-- LIST VIEW: all the user's tickets -->
-    <div id="support-v2-list-view">
-      <div class="v2-header">
-        <div>
-          <div class="v2-title">Your tickets</div>
-          <div class="v2-subtitle" id="v2-subtitle">Usually replied to in under an hour</div>
-        </div>
-        <button class="v2-new-btn" id="v2-new-ticket-btn">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-          New ticket
-        </button>
+    <div class="card">
+      <div class="card-title">Submit a Ticket</div>
+      <div class="field">
+        <label>Subject</label>
+        <input type="text" id="ticket-subject" placeholder="Brief description of your issue" />
       </div>
-      <div id="v2-tickets-list" class="v2-tickets-list">
-        <div class="v2-empty-state" id="v2-empty">
-          <div class="v2-empty-icon">&#128172;</div>
-          <div class="v2-empty-title">No tickets yet</div>
-          <div class="v2-empty-sub">When you have an issue, tap "New ticket" and we'll jump on it.</div>
-        </div>
+      <div class="field">
+        <label>Description</label>
+        <textarea id="ticket-description" placeholder="Describe the issue in detail..." style="width:100%;min-height:120px;padding:11px 14px;background:var(--bg-input);border:1px solid var(--border);border-radius:10px;color:var(--text);font-family:inherit;font-size:14px;outline:none;resize:vertical;transition:border-color .2s"></textarea>
       </div>
+      <div class="field">
+        <label>Email (optional)</label>
+        <input type="text" id="ticket-email" placeholder="Your email for follow-up" />
+      </div>
+      <button class="btn btn-primary" id="submit-ticket-btn" style="width:100%;margin-top:4px">Submit Ticket</button>
+      <div id="ticket-status" style="font-size:12px;margin-top:10px;text-align:center;min-height:18px"></div>
     </div>
 
-    <!-- DETAIL VIEW: single ticket with conversation -->
-    <div id="support-v2-detail-view" style="display:none">
-      <div class="v2-detail-header">
-        <button class="v2-back-btn" id="v2-back-btn">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-          All tickets
-        </button>
-        <div class="v2-detail-header-meta">
-          <span class="v2-ticket-id" id="v2-detail-id">T-0000</span>
-          <span class="v2-status-pill" id="v2-detail-status">open</span>
-        </div>
-      </div>
-      <div class="v2-detail-subject" id="v2-detail-subject">Loading…</div>
-
-      <div class="v2-messages" id="v2-messages"></div>
-
-      <div class="v2-composer" id="v2-composer">
-        <textarea id="v2-composer-input" placeholder="Type your reply…" rows="2"></textarea>
-        <div class="v2-composer-actions">
-          <button class="v2-composer-close" id="v2-close-ticket-btn" title="Close ticket">Close ticket</button>
-          <button class="v2-composer-send" id="v2-composer-send">Send</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- NEW TICKET VIEW -->
-    <div id="support-v2-new-view" style="display:none">
-      <div class="v2-detail-header">
-        <button class="v2-back-btn" id="v2-new-back-btn">
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
-          Back
-        </button>
-      </div>
-      <div class="v2-detail-subject">Open a new ticket</div>
-      <div class="v2-new-form">
-        <div class="v2-field">
-          <label>What's going on?</label>
-          <input type="text" id="v2-new-subject" placeholder="e.g. Zap won't open in Respondus" maxlength="120" />
-        </div>
-        <div class="v2-field">
-          <label>Tell us more</label>
-          <textarea id="v2-new-message" placeholder="Describe what you're seeing. Include your OS and Zap version if you can — speeds up the fix." rows="5"></textarea>
-        </div>
-        <div class="v2-new-hint" id="v2-new-hint"></div>
-        <button class="v2-new-submit" id="v2-new-submit">Open ticket</button>
-      </div>
+    <div class="card">
+      <div class="card-title">Your Tickets</div>
+      <div id="user-tickets-list" style="font-size:13px;color:var(--text-dim)">Loading...</div>
     </div>
   </div>
 
@@ -849,42 +614,6 @@
       <div style="font-size:13px;color:var(--text-dim)">Loading changelog...</div>
     </div>
     <div id="changelog-list"></div>
-  </div>
-
-  <div class="tab-panel" id="tab-permissions">
-    <div class="card" style="padding:24px 22px 20px">
-      <div class="card-title">System Permissions</div>
-      <div style="font-size:12px;color:var(--text-dim);margin-bottom:18px;line-height:1.5">Zap Pro needs these permissions to capture your screen and control input. If a permission is missing, click the button to open System Settings.</div>
-      <div id="perm-list" style="display:flex;flex-direction:column;gap:10px">
-        <div class="perm-item" id="perm-screen">
-          <div class="perm-icon" id="perm-screen-icon">&#8987;</div>
-          <div class="perm-info">
-            <div class="perm-name">Screen Recording</div>
-            <div class="perm-desc">Required for screenshots, drag-to-select, and AI answers</div>
-          </div>
-          <div class="perm-status" id="perm-screen-status">Checking...</div>
-        </div>
-        <div class="perm-item" id="perm-access">
-          <div class="perm-icon" id="perm-access-icon">&#8987;</div>
-          <div class="perm-info">
-            <div class="perm-name">Accessibility</div>
-            <div class="perm-desc">Required for hotkeys, Autopilot, and Drip Type</div>
-          </div>
-          <div class="perm-status" id="perm-access-status">Checking...</div>
-        </div>
-      </div>
-      <button id="perm-refresh-btn" class="btn" style="margin-top:16px;width:100%;padding:10px;font-size:13px;background:rgba(74,111,165,0.12);border:1px solid rgba(74,111,165,0.25);color:var(--accent-glow);border-radius:8px;cursor:pointer;font-weight:600;font-family:inherit;transition:all .15s" onmouseover="this.style.background='rgba(74,111,165,0.22)'" onmouseout="this.style.background='rgba(74,111,165,0.12)'">Refresh Permissions</button>
-      <div id="perm-not-mac" style="display:none;text-align:center;padding:20px 0;font-size:13px;color:var(--text-dim)">Permission checks are only required on macOS. You're all set!</div>
-    </div>
-    <div class="card" style="border:1px solid rgba(74,111,165,0.15)">
-      <div class="card-title">How to Grant Permissions</div>
-      <div style="font-size:12px;color:var(--text-muted);line-height:1.7">
-        <div style="margin-bottom:10px"><b style="color:var(--text)">1.</b> Open <b style="color:var(--accent-glow)">System Settings</b> on your Mac</div>
-        <div style="margin-bottom:10px"><b style="color:var(--text)">2.</b> Go to <b style="color:var(--accent-glow)">Privacy &amp; Security</b></div>
-        <div style="margin-bottom:10px"><b style="color:var(--text)">3.</b> Click <b style="color:var(--accent-glow)">Screen Recording</b> or <b style="color:var(--accent-glow)">Accessibility</b></div>
-        <div><b style="color:var(--text)">4.</b> Find <b style="color:var(--accent-glow)">Zap Pro</b> in the list and toggle it <b style="color:#34d399">ON</b></div>
-      </div>
-    </div>
   </div>
 
   <div class="tab-panel" id="tab-updates">
@@ -919,8 +648,8 @@
     </div>
     <div class="card" style="border:1px solid rgba(239,68,68,0.2);background:rgba(239,68,68,0.04)">
       <div class="card-title" style="color:#ef4444">Force Close</div>
-      <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.5">Immediately kills Zap Pro and all related processes (overlay, watchdog, pinned windows). Useful before installing an update or if something gets stuck.</div>
-      <button class="btn" id="force-close-btn" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#ef4444;font-weight:600;width:100%;padding:10px;font-size:13px;cursor:pointer;border-radius:8px;transition:all .15s" onmouseover="this.style.background='rgba(239,68,68,0.22)'" onmouseout="this.style.background='rgba(239,68,68,0.12)'">Force Close Zap Pro</button>
+      <div style="font-size:12px;color:var(--text-dim);margin-bottom:12px;line-height:1.5">Immediately kills Zap and all related processes (overlay, watchdog, pinned windows). Useful before installing an update or if something gets stuck.</div>
+      <button class="btn" id="force-close-btn" style="background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.3);color:#ef4444;font-weight:600;width:100%;padding:10px;font-size:13px;cursor:pointer;border-radius:8px;transition:all .15s" onmouseover="this.style.background='rgba(239,68,68,0.22)'" onmouseout="this.style.background='rgba(239,68,68,0.12)'">Force Close Zap</button>
     </div>
   </div>
 </div>
@@ -947,7 +676,7 @@
       var k=tog.dataset.key;
       if(k){if(s[k])tog.classList.add('active');else tog.classList.remove('active')}
     });
-    ['language','accentColor','fontSize','borderRadius','fontFamily','dripWPM','dripDelay','typoRate','dripPauseChance','dripBurstChance','overlayOpacity','aiContext','customAiProvider','customAiEndpoint','customAiModel','customAiKey'].forEach(function(f){
+    ['language','accentColor','fontSize','borderRadius','fontFamily','dripWPM','dripDelay','typoRate','dripPauseChance','dripBurstChance','overlayOpacity','aiContext'].forEach(function(f){
       var el=document.getElementById('setting-'+f);
       if(el&&s[f]!==undefined)el.value=s[f];
     });
@@ -956,7 +685,7 @@
       var el=document.getElementById(f);
       if(el&&s[f]!==undefined)el.value=s[f];
     });
-    ['hotkey','hotkeyAnswer','hotkeySimple','hotkeyTranslate','hotkeyAutopilot','hotkeyDripType','hotkeyStopDrip','hotkeySolve','hotkeyEssay','hotkeyCode','hotkeyResearch','hotkeyEmail','hotkeyFlashcards','hotkeyApp','hotkeySelfDestruct'].forEach(function(f){
+    ['hotkey','hotkeyAnswer','hotkeySimple','hotkeyTranslate','hotkeyAutopilot','hotkeyDripType','hotkeyStopDrip','hotkeySolve','hotkeyCode','hotkeyResearch','hotkeyApp','hotkeySelfDestruct'].forEach(function(f){
       var el=document.getElementById('hk-'+f);
       if(el&&s[f])el.value=s[f];
     });
@@ -965,149 +694,6 @@
     var ldToggle=document.getElementById('toggle-lockdown');
     var ldDetails=document.getElementById('lockdown-details');
     if(ldToggle&&ldDetails)ldDetails.style.display=ldToggle.classList.contains('active')?'block':'none';
-
-    // Apply tier-based visibility — hide features user's tier doesn't have
-    applyTierVisibility(s);
-    // Load device list if user is subscribed
-    loadDevicesIfLicensed(s);
-    // Apply lock states based on actual tier features from main process
-    applyTierLocks();
-  }
-
-  // Lock UI elements the current tier doesn't have access to — show 🔒 overlay
-  async function applyTierLocks() {
-    try {
-      const tf = await window.zap.getTierFeatures();
-      if (!tf || !tf.features) return;
-      const f = tf.features;
-      const tier = tf.tier;
-
-      // Map CSS selectors → required feature key
-      const lockMap = [
-        { sel: '#toggle-lockdown', feature: 'stealthMode', label: 'Stealth Mode' },
-        { sel: '#toggle-phantom',  feature: 'phantomMode', label: 'Phantom Mode' },
-        { sel: '#setting-accentColor', feature: 'customAppearance', label: 'Custom appearance' },
-        { sel: '#setting-fontFamily',  feature: 'customAppearance', label: 'Custom appearance' },
-        { sel: '#setting-fontSize',    feature: 'customAppearance', label: 'Custom appearance' },
-        { sel: '#setting-borderRadius', feature: 'customAppearance', label: 'Custom appearance' },
-        { sel: '.hotkey-field input',  feature: 'customHotkeys', label: 'Custom hotkeys' }
-      ];
-
-      for (const { sel, feature, label } of lockMap) {
-        const locked = !f[feature];
-        document.querySelectorAll(sel).forEach(el => {
-          el.classList.toggle('tier-locked', locked);
-          if (locked) {
-            el.setAttribute('disabled', 'disabled');
-            el.title = label + ' — requires Pro or Ultimate';
-            // Wrap in tier-lock-wrapper (once) for overlay
-            if (!el.parentElement?.classList.contains('tier-lock-wrapper')) {
-              const wrap = document.createElement('div');
-              wrap.className = 'tier-lock-wrapper';
-              wrap.title = label + ' — upgrade to unlock';
-              el.parentElement.insertBefore(wrap, el);
-              wrap.appendChild(el);
-            }
-          } else {
-            el.removeAttribute('disabled');
-            if (el.parentElement?.classList.contains('tier-lock-wrapper')) {
-              el.parentElement.replaceWith(el);
-            }
-          }
-        });
-      }
-
-      // Show a banner at the top when user is on Lite
-      var banner = document.getElementById('tier-banner');
-      if (tier === 'lite') {
-        if (!banner) {
-          banner = document.createElement('div');
-          banner.id = 'tier-banner';
-          banner.className = 'tier-banner';
-          banner.innerHTML = '🔒 You\'re on <strong>Zap Lite</strong>. Some features below are locked. <a href="#" id="tier-banner-upgrade">Upgrade</a>';
-          document.body.insertBefore(banner, document.body.firstChild);
-          document.getElementById('tier-banner-upgrade').addEventListener('click', e => {
-            e.preventDefault();
-            window.zap.openExternal('https://tryzap.net/#pricing');
-          });
-        }
-      } else if (banner) {
-        banner.remove();
-      }
-    } catch (err) {
-      console.warn('[tier-locks] failed:', err);
-    }
-  }
-
-  // ── Tier visibility ───────────────────────────────────────────
-  // Lite: hide Pro-only features (Autopilot settings, advanced modes reference,
-  //        Drip Type is shared, Custom AI is Ultimate-only so also hidden)
-  // Pro:  hide Ultimate-only features (Custom AI provider)
-  // Ultimate: see everything
-  function applyTierVisibility(s){
-    var tier = (s && s.subscriptionTier) || 'pro';
-    // Custom AI: Ultimate only
-    var customAiCard=document.getElementById('custom-ai-card');
-    if(customAiCard) customAiCard.style.display = (tier === 'ultimate') ? '' : 'none';
-
-    // Devices card: visible for all licensed users (always show current device at minimum)
-    var devicesCard=document.getElementById('devices-card');
-    if(devicesCard) devicesCard.style.display = (s && s.licenseValid) ? '' : 'none';
-
-    // Mark Pro-only features with a lock for Lite users (don't hide — so they see what to upgrade for)
-    document.querySelectorAll('[data-requires-tier]').forEach(function(el){
-      var required = el.getAttribute('data-requires-tier');
-      var hasIt = tier === 'ultimate' || (required === 'pro' && tier === 'pro');
-      el.classList.toggle('tier-locked', !hasIt);
-    });
-
-    // Show/hide custom AI details when toggle flips
-    var customAiToggle = document.getElementById('toggle-customAiEnabled');
-    var customAiDetails = document.getElementById('custom-ai-details');
-    function refreshCustomAiPanel(){
-      if(customAiDetails) customAiDetails.style.display = (customAiToggle && customAiToggle.classList.contains('active')) ? '' : 'none';
-    }
-    if(customAiToggle) customAiToggle.addEventListener('click', refreshCustomAiPanel);
-    refreshCustomAiPanel();
-  }
-
-  // ── Devices list ──────────────────────────────────────────────
-  async function loadDevicesIfLicensed(s){
-    var card = document.getElementById('devices-card');
-    var list = document.getElementById('devices-list');
-    var summary = document.getElementById('devices-summary');
-    if(!card || !list || !summary) return;
-    if(!s || !s.licenseValid){ card.style.display='none'; return; }
-    try{
-      var res = await window.zap.devicesList();
-      var devices = (res && res.devices) || [];
-      var tier = s.subscriptionTier || 'pro';
-      var limit = tier === 'ultimate' ? 3 : 1;
-      summary.textContent = devices.length + ' of ' + limit + ' device' + (limit > 1 ? 's' : '') + ' in use on your ' + (tier[0].toUpperCase()+tier.slice(1)) + ' plan.';
-      list.innerHTML = '';
-      devices.forEach(function(d){
-        var days = Math.floor((Date.now() - d.lastSeen) / 86400000);
-        var label = days === 0 ? 'today' : days + ' day' + (days>1?'s':'') + ' ago';
-        var row = document.createElement('div');
-        row.style.cssText='display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid var(--border)';
-        row.innerHTML = '<div><div style="font-size:13px;color:var(--text);font-weight:500">'+ (d.deviceName || 'Unknown device') +'</div><div style="font-size:11px;color:var(--text-dim);margin-top:2px">Last used '+ label +'</div></div>';
-        var btn = document.createElement('button');
-        btn.textContent = 'Remove';
-        btn.style.cssText = 'background:rgba(239,68,68,0.1);color:#ef4444;border:1px solid rgba(239,68,68,0.2);border-radius:6px;padding:5px 10px;font-size:11px;cursor:pointer;font-family:inherit';
-        btn.addEventListener('click', async function(){
-          if(!confirm('Remove "'+ (d.deviceName||'Unknown device') +'"? This will sign out that device.')) return;
-          await window.zap.devicesRemove(d.installId);
-          loadDevicesIfLicensed(s);
-        });
-        row.appendChild(btn);
-        list.appendChild(row);
-      });
-      if(devices.length === 0){
-        list.innerHTML = '<div style="font-size:12px;color:var(--text-dim);padding:10px 0">No devices registered yet.</div>';
-      }
-    }catch(err){
-      summary.textContent = 'Could not load devices: ' + err.message;
-    }
   }
 
   function updateVals(){
@@ -1163,41 +749,14 @@
     });
   });
 
-  // Map physical key codes (e.code) to Electron-compatible key names
-  // This fixes macOS Alt/Option producing special characters (e.g. Alt+1 → ¡)
-  var codeToKey={
-    'Digit0':'0','Digit1':'1','Digit2':'2','Digit3':'3','Digit4':'4',
-    'Digit5':'5','Digit6':'6','Digit7':'7','Digit8':'8','Digit9':'9',
-    'KeyA':'A','KeyB':'B','KeyC':'C','KeyD':'D','KeyE':'E','KeyF':'F',
-    'KeyG':'G','KeyH':'H','KeyI':'I','KeyJ':'J','KeyK':'K','KeyL':'L',
-    'KeyM':'M','KeyN':'N','KeyO':'O','KeyP':'P','KeyQ':'Q','KeyR':'R',
-    'KeyS':'S','KeyT':'T','KeyU':'U','KeyV':'V','KeyW':'W','KeyX':'X',
-    'KeyY':'Y','KeyZ':'Z',
-    'Minus':'-','Equal':'=','BracketLeft':'[','BracketRight':']',
-    'Backslash':'\\','Semicolon':';','Quote':"'",
-    'Comma':',','Period':'.','Slash':'/',
-    'Backquote':'`','Space':'Space',
-    'ArrowUp':'Up','ArrowDown':'Down','ArrowLeft':'Left','ArrowRight':'Right',
-    'Enter':'Enter','Escape':'Escape','Backspace':'Backspace','Tab':'Tab',
-    'Delete':'Delete','Home':'Home','End':'End','PageUp':'PageUp','PageDown':'PageDown',
-    'F1':'F1','F2':'F2','F3':'F3','F4':'F4','F5':'F5','F6':'F6',
-    'F7':'F7','F8':'F8','F9':'F9','F10':'F10','F11':'F11','F12':'F12'
-  };
-
   document.addEventListener('keydown',function(e){
     if(!activeHK)return;
     e.preventDefault();e.stopPropagation();
     var p=[];
     if(e.metaKey)p.push('Command');if(e.ctrlKey)p.push('Control');if(e.shiftKey)p.push('Shift');if(e.altKey)p.push('Alt');
-    // Use e.code (physical key) when Alt is held to avoid macOS Option key character mapping
-    // e.g. Alt+1 produces e.key='¡' on Mac, but e.code='Digit1' which is correct
-    var k=(e.altKey||e.metaKey)?codeToKey[e.code]:null;
-    if(!k){
-      k=e.key;
-      if(k.length===1)k=k.toUpperCase();
-    }
+    var k=e.key;
     if(!['Control','Shift','Alt','Meta'].includes(k)){
-      p.push(k);
+      p.push(k.length===1?k.toUpperCase():k);
       activeHK.value=p.join('+');activeHK.classList.remove('recording');activeHK=null;
     }
   });
@@ -1217,17 +776,12 @@
       autopilotScrollTo:document.getElementById('toggle-apScrollTo').classList.contains('active'),
       language:document.getElementById('setting-language').value,
       aiContext:(document.getElementById('setting-aiContext').value||'').trim(),
-      customAiEnabled:document.getElementById('toggle-customAiEnabled')?document.getElementById('toggle-customAiEnabled').classList.contains('active'):false,
-      customAiProvider:(document.getElementById('setting-customAiProvider')||{}).value||'openai',
-      customAiEndpoint:((document.getElementById('setting-customAiEndpoint')||{}).value||'').trim(),
-      customAiModel:((document.getElementById('setting-customAiModel')||{}).value||'').trim(),
-      customAiKey:((document.getElementById('setting-customAiKey')||{}).value||'').trim(),
       accentColor:document.getElementById('setting-accentColor').value,
       fontSize:parseInt(document.getElementById('setting-fontSize').value),
       borderRadius:parseInt(document.getElementById('setting-borderRadius').value),
       overlayOpacity:parseInt(document.getElementById('setting-overlayOpacity').value)||0,
       ghostAnswer:document.getElementById('toggle-ghostAnswer').classList.contains('active'),
-      continuousMode:document.getElementById('toggle-continuousMode').classList.contains('active'),
+      clearScreen:document.getElementById('toggle-clearScreen').classList.contains('active'),
       fontFamily:document.getElementById('setting-fontFamily').value,
       dripSpeed:40,
       dripWPM:parseInt(document.getElementById('setting-dripWPM').value)||45,
@@ -1243,11 +797,8 @@
       hotkeyDripType:document.getElementById('hk-hotkeyDripType').value||'Alt+5',
       hotkeyStopDrip:document.getElementById('hk-hotkeyStopDrip').value||'Alt+0',
       hotkeySolve:document.getElementById('hk-hotkeySolve').value||'Alt+7',
-      hotkeyEssay:document.getElementById('hk-hotkeyEssay').value||'Alt+8',
       hotkeyCode:document.getElementById('hk-hotkeyCode').value||'Alt+9',
       hotkeyResearch:document.getElementById('hk-hotkeyResearch').value||'CmdOrCtrl+Alt+1',
-      hotkeyEmail:document.getElementById('hk-hotkeyEmail').value||'CmdOrCtrl+Alt+2',
-      hotkeyFlashcards:document.getElementById('hk-hotkeyFlashcards').value||'CmdOrCtrl+Alt+3',
       hotkeyApp:document.getElementById('hk-hotkeyApp').value||'Alt+M',
       hotkeySelfDestruct:document.getElementById('hk-hotkeySelfDestruct').value||'CmdOrCtrl+Shift+Backspace'
     };
@@ -1405,236 +956,107 @@
     });
   });
 
-  // ━━━━━ Support ticket v2 — Linear/Intercom-style list + thread UI ━━━━━
-  function escT(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
+  // Support ticket submission
+  var submitBtn=document.getElementById('submit-ticket-btn');
+  var isAdminUser=false;
+  window.zap.isAdmin().then(function(v){isAdminUser=v});
 
-  var v2 = {
-    currentTicketId: null,
-    tickets: [],
-    pollTimer: null
-  };
-
-  function v2ShowView(name) {
-    ['list','detail','new'].forEach(function(v){
-      var el = document.getElementById('support-v2-'+v+'-view');
-      if (el) el.style.display = (v === name) ? '' : 'none';
+  if(submitBtn){
+    submitBtn.addEventListener('click',async function(){
+      var subj=document.getElementById('ticket-subject').value.trim();
+      var desc=document.getElementById('ticket-description').value.trim();
+      var email=document.getElementById('ticket-email').value.trim();
+      var status=document.getElementById('ticket-status');
+      if(!subj||!desc){status.style.color='#ef4444';status.textContent='Please fill in subject and description.';return}
+      submitBtn.disabled=true;submitBtn.textContent='Submitting...';
+      try{
+        var r=await window.zap.submitTicket({subject:subj,description:desc,email:email});
+        if(r.success){
+          var msg='Ticket submitted! ID: '+r.ticketId;
+          if(r.offline) msg+=' (saved locally — will sync when online)';
+          status.style.color='#6ec87a';status.textContent=msg;
+          document.getElementById('ticket-subject').value='';
+          document.getElementById('ticket-description').value='';
+          loadUserTickets();
+        }else{status.style.color='#ef4444';status.textContent=r.error||'Failed to submit ticket.'}
+      }catch(e){status.style.color='#ef4444';status.textContent='Error submitting ticket.'}
+      submitBtn.disabled=false;submitBtn.textContent='Submit Ticket';
     });
   }
 
-  function v2RelTime(ts) {
-    if (!ts) return '';
-    var diff = Date.now() - ts;
-    var m = Math.floor(diff / 60000);
-    if (m < 1) return 'just now';
-    if (m < 60) return m + 'm ago';
-    var h = Math.floor(m / 60);
-    if (h < 24) return h + 'h ago';
-    var d = Math.floor(h / 24);
-    if (d < 7) return d + 'd ago';
-    return new Date(ts).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-  }
+  function esc(s){var d=document.createElement('div');d.textContent=s;return d.innerHTML}
 
-  async function v2LoadTickets() {
-    var listEl = document.getElementById('v2-tickets-list');
-    var emptyEl = document.getElementById('v2-empty');
-    try {
-      var res = await window.zap.ticketsMy();
-      var tickets = (res && res.tickets) || [];
-      v2.tickets = tickets;
-      if (tickets.length === 0) {
-        listEl.innerHTML = '';
-        listEl.appendChild(emptyEl);
-        emptyEl.style.display = '';
-        return;
-      }
-      if (emptyEl) emptyEl.style.display = 'none';
-      listEl.innerHTML = tickets.map(function(t){
-        var status = t.status || 'open';
-        var statusLabel = ({ open: 'Open', awaiting_user: 'Your turn', awaiting_staff: 'Replying', resolved: 'Resolved', closed: 'Closed' })[status] || status;
-        var lastMsg = (t.lastMessage || '').slice(0, 90);
-        var unread = t.unread ? '<div class="v2-unread-dot"></div>' : '';
-        return '<div class="v2-ticket-card" data-id="'+escT(t.id)+'">'
-          + unread
-          + '<div class="v2-ticket-body">'
-          +   '<div class="v2-ticket-row1">'
-          +     '<span class="v2-ticket-id">'+escT(t.id)+'</span>'
-          +     '<span class="v2-status-pill '+escT(status)+'">'+escT(statusLabel)+'</span>'
-          +   '</div>'
-          +   '<div class="v2-ticket-subject">'+escT(t.subject || t.reason || 'Support ticket')+'</div>'
-          +   (lastMsg ? '<div class="v2-ticket-preview">'+escT(lastMsg)+'</div>' : '')
-          + '</div>'
-          + '<div class="v2-ticket-meta">'
-          +   '<span class="v2-ticket-time">'+v2RelTime(t.updatedAt || t.createdAt)+'</span>'
-          + '</div>'
-          + '<svg class="v2-ticket-arrow" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>'
-          + '</div>';
-      }).join('');
-      listEl.querySelectorAll('.v2-ticket-card').forEach(function(card){
-        card.addEventListener('click', function(){ v2OpenTicket(card.dataset.id); });
+  function loadUserTickets(){
+    var el=document.getElementById('user-tickets-list');
+    el.innerHTML='<div style="text-align:center;color:var(--text-dim);padding:8px">Loading tickets...</div>';
+    window.zap.getTickets().then(function(tickets){
+      if(!tickets||tickets.length===0){el.textContent='No tickets submitted yet.';return}
+      var html='';
+      tickets.forEach(function(t){
+        var statusColors={'open':'#f59e0b','in-progress':'#3b82f6','resolved':'#6ec87a','closed':'#ef4444','wont-fix':'#6b7280'};
+        var statusColor=statusColors[t.status]||'#f59e0b';
+        html+='<div style="padding:12px 0;border-bottom:1px solid rgba(74,111,165,0.06)" data-ticket-id="'+(t.ghNumber||t.id)+'">';
+        html+='<div style="display:flex;align-items:center;justify-content:space-between">';
+        html+='<div style="font-size:14px;font-weight:500;color:var(--text)">'+esc(t.subject)+'</div>';
+        html+='<div style="font-size:10px;font-weight:600;text-transform:uppercase;color:'+statusColor+';background:'+statusColor+'15;padding:3px 8px;border-radius:4px">'+esc(t.status)+'</div>';
+        html+='</div>';
+        // Meta line: date + ticket number
+        var meta='';
+        if(t.createdAt) meta+=new Date(t.createdAt).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
+        if(t.ghNumber) meta+=' &middot; #'+t.ghNumber;
+        html+='<div style="font-size:11px;color:var(--text-dim);margin-top:4px">'+meta+'</div>';
+        // Show email + description for admin
+        if(isAdminUser&&t.email){
+          html+='<div style="font-size:11px;color:var(--text-dim);margin-top:2px">'+esc(t.email)+'</div>';
+        }
+        if(isAdminUser&&t.description){
+          html+='<div style="font-size:12px;color:var(--text-muted);margin-top:6px;line-height:1.5;white-space:pre-wrap">'+esc(t.description)+'</div>';
+        }
+        // Admin reply (visible to everyone)
+        if(t.adminReply){
+          html+='<div style="margin-top:8px;padding:8px 12px;background:rgba(107,142,35,0.08);border-left:3px solid #6ec87a;border-radius:0 6px 6px 0;font-size:12px;color:var(--text-muted);line-height:1.5">';
+          html+='<div style="font-size:10px;font-weight:600;color:#6ec87a;margin-bottom:4px">ADMIN REPLY</div>';
+          html+=esc(t.adminReply);
+          html+='</div>';
+        }
+        // Admin controls
+        if(isAdminUser&&t.ghNumber){
+          html+='<div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap">';
+          html+='<select class="admin-status-select" data-id="'+t.ghNumber+'" style="padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;font-family:inherit">';
+          var opts=['open','in-progress','resolved','wont-fix'];
+          opts.forEach(function(o){html+='<option value="'+o+'"'+(t.status===o?' selected':'')+'>'+o+'</option>'});
+          html+='</select>';
+          html+='<input type="text" class="admin-reply-input" data-id="'+t.ghNumber+'" placeholder="Reply to user..." style="flex:1;min-width:120px;padding:4px 8px;background:var(--bg-input);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:11px;font-family:inherit" />';
+          html+='<button class="admin-update-btn btn btn-primary" data-id="'+t.ghNumber+'" style="padding:4px 12px;font-size:11px;border-radius:6px">Update</button>';
+          html+='</div>';
+        }
+        html+='</div>';
       });
-    } catch (err) {
-      listEl.innerHTML = '<div class="v2-empty-state"><div class="v2-empty-title">Couldn\'t load tickets</div><div class="v2-empty-sub">'+escT(err.message || 'Try again in a moment')+'</div></div>';
-    }
-  }
+      el.innerHTML=html;
 
-  async function v2OpenTicket(id) {
-    v2.currentTicketId = id;
-    v2ShowView('detail');
-    document.getElementById('v2-detail-id').textContent = id;
-    document.getElementById('v2-detail-subject').textContent = 'Loading…';
-    document.getElementById('v2-messages').innerHTML = '<div class="v2-typing"><span></span><span></span><span></span></div>';
-    await v2RefreshDetail();
-    v2StartPolling();
-  }
-
-  async function v2RefreshDetail() {
-    if (!v2.currentTicketId) return;
-    try {
-      var res = await window.zap.ticketsGet(v2.currentTicketId);
-      var t = res && res.ticket;
-      if (!t) return;
-      document.getElementById('v2-detail-subject').textContent = t.subject || t.reason || 'Support ticket';
-      var status = t.status || 'open';
-      var statusLabel = ({ open: 'Open', awaiting_user: 'Your turn', awaiting_staff: 'Team replying', resolved: 'Resolved', closed: 'Closed' })[status] || status;
-      var pill = document.getElementById('v2-detail-status');
-      pill.textContent = statusLabel;
-      pill.className = 'v2-status-pill ' + status;
-
-      var msgs = (t.messages || []);
-      var html = msgs.map(function(m){
-        var roleClass = m.role === 'user' ? 'user' : (m.role === 'staff' ? 'staff' : 'ai');
-        var authorLabel = m.role === 'user' ? '' : (m.role === 'staff' ? 'Zap Team' : 'Zap AI');
-        var time = m.at ? new Date(m.at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
-        return '<div class="v2-msg '+roleClass+'">'
-          + (authorLabel ? '<div class="v2-msg-author">'+escT(authorLabel)+'</div>' : '')
-          + escT(m.content)
-          + (time ? '<span class="v2-msg-time">'+time+'</span>' : '')
-          + '</div>';
-      }).join('');
-      document.getElementById('v2-messages').innerHTML = html || '<div class="v2-empty-state"><div class="v2-empty-sub">No messages yet.</div></div>';
-      // Scroll to bottom
-      var panel = document.getElementById('tab-support');
-      if (panel) panel.scrollTop = panel.scrollHeight;
-
-      // Disable composer if closed
-      var composer = document.getElementById('v2-composer');
-      var input = document.getElementById('v2-composer-input');
-      var closeBtn = document.getElementById('v2-close-ticket-btn');
-      if (status === 'closed' || status === 'resolved') {
-        input.setAttribute('disabled', 'disabled');
-        input.placeholder = 'Ticket ' + status + '. Open a new one if you need more help.';
-        if (closeBtn) closeBtn.style.display = 'none';
-      } else {
-        input.removeAttribute('disabled');
-        input.placeholder = 'Type your reply…';
-        if (closeBtn) closeBtn.style.display = '';
+      // Bind admin update buttons
+      if(isAdminUser){
+        el.querySelectorAll('.admin-update-btn').forEach(function(btn){
+          btn.addEventListener('click',async function(){
+            var id=btn.dataset.id;
+            var row=btn.closest('[data-ticket-id]');
+            var sel=row.querySelector('.admin-status-select');
+            var inp=row.querySelector('.admin-reply-input');
+            btn.disabled=true;btn.textContent='Saving...';
+            try{
+              var r=await window.zap.updateTicketStatus({ticketId:id,status:sel.value,reply:inp.value.trim()});
+              if(r.success){btn.textContent='Saved!';inp.value='';setTimeout(function(){loadUserTickets()},800)}
+              else{btn.textContent='Error';setTimeout(function(){btn.textContent='Update';btn.disabled=false},1500)}
+            }catch(_){btn.textContent='Error';setTimeout(function(){btn.textContent='Update';btn.disabled=false},1500)}
+          });
+        });
       }
-    } catch (err) {
-      // ignore transient errors during polling
-    }
+    }).catch(function(){el.textContent='Failed to load tickets.'});
   }
 
-  function v2StartPolling() {
-    v2StopPolling();
-    v2.pollTimer = setInterval(v2RefreshDetail, 5000);
-  }
-  function v2StopPolling() {
-    if (v2.pollTimer) { clearInterval(v2.pollTimer); v2.pollTimer = null; }
-  }
-
-  // Wire buttons
-  document.getElementById('v2-new-ticket-btn').addEventListener('click', function(){
-    document.getElementById('v2-new-subject').value = '';
-    document.getElementById('v2-new-message').value = '';
-    document.getElementById('v2-new-hint').textContent = '';
-    v2ShowView('new');
-    setTimeout(function(){ document.getElementById('v2-new-subject').focus(); }, 60);
-  });
-  document.getElementById('v2-back-btn').addEventListener('click', function(){
-    v2StopPolling();
-    v2.currentTicketId = null;
-    v2ShowView('list');
-    v2LoadTickets();
-  });
-  document.getElementById('v2-new-back-btn').addEventListener('click', function(){
-    v2ShowView('list');
-  });
-
-  document.getElementById('v2-new-submit').addEventListener('click', async function(){
-    var btn = this;
-    var subj = document.getElementById('v2-new-subject').value.trim();
-    var msg = document.getElementById('v2-new-message').value.trim();
-    var hint = document.getElementById('v2-new-hint');
-    if (!subj || !msg) { hint.textContent = 'Give your ticket a subject and a message.'; hint.style.color = '#ef4444'; return; }
-    btn.disabled = true; btn.textContent = 'Opening…';
-    hint.textContent = '';
-    try {
-      var res = await window.zap.ticketsCreate({ subject: subj, message: msg });
-      if (res && res.ticket && res.ticket.id) {
-        await v2LoadTickets();
-        v2OpenTicket(res.ticket.id);
-      } else {
-        hint.textContent = (res && res.error) || 'Could not open ticket. Try again in a moment.';
-        hint.style.color = '#ef4444';
-      }
-    } catch (err) {
-      hint.textContent = err.message || 'Could not reach support.';
-      hint.style.color = '#ef4444';
-    } finally {
-      btn.disabled = false; btn.textContent = 'Open ticket';
-    }
-  });
-
-  // Send message
-  var composerInput = document.getElementById('v2-composer-input');
-  var composerSend = document.getElementById('v2-composer-send');
-  async function v2SendMessage() {
-    var text = composerInput.value.trim();
-    if (!text || !v2.currentTicketId) return;
-    composerInput.value = '';
-    composerSend.disabled = true;
-    try {
-      await window.zap.ticketsReply({ ticketId: v2.currentTicketId, message: text });
-      await v2RefreshDetail();
-    } catch (err) {
-      composerInput.value = text;
-    } finally {
-      composerSend.disabled = false;
-      composerInput.focus();
-    }
-  }
-  composerSend.addEventListener('click', v2SendMessage);
-  composerInput.addEventListener('keydown', function(e){
-    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); v2SendMessage(); }
-  });
-
-  // Close ticket
-  document.getElementById('v2-close-ticket-btn').addEventListener('click', async function(){
-    if (!v2.currentTicketId) return;
-    if (!confirm('Close this ticket? You can always open a new one.')) return;
-    try {
-      await window.zap.ticketsClose(v2.currentTicketId);
-      await v2RefreshDetail();
-      setTimeout(function(){
-        v2StopPolling();
-        v2.currentTicketId = null;
-        v2ShowView('list');
-        v2LoadTickets();
-      }, 800);
-    } catch (_) {}
-  });
-
-  // Load tickets when Support tab opens
   tabs.forEach(function(t){
-    t.addEventListener('click', function(){
-      if (t.dataset.tab === 'support') {
-        v2StopPolling();
-        v2.currentTicketId = null;
-        v2ShowView('list');
-        v2LoadTickets();
-      } else {
-        v2StopPolling();
-      }
+    t.addEventListener('click',function(){
+      if(t.dataset.tab==='support')loadUserTickets();
     });
   });
 
@@ -1646,7 +1068,7 @@
     document.getElementById('sub-content').style.display='none';
 
     // Reset all conditional cards
-    var resetCards=['sub-actions-card','sub-cancelled-card','sub-admin-card','sub-pastdue-card','sub-inactive-card','sub-referral-card'];
+    var resetCards=['sub-actions-card','sub-cancelled-card','sub-admin-card','sub-pastdue-card','sub-inactive-card'];
     resetCards.forEach(function(id){document.getElementById(id).style.display='none'});
 
     window.zap.getSubscriptionInfo().then(function(info){
@@ -1694,44 +1116,17 @@
         // inactive / never subscribed / unknown
         badge.style.background='rgba(110,106,96,0.1)';badge.style.color='var(--text-dim)';badge.textContent='\u25CF Inactive';
         document.getElementById('sub-inactive-card').style.display='block';
-        document.getElementById('sub-inactive-text').textContent="You don't have an active subscription. Subscribe to unlock full access to Zap Pro.";
+        document.getElementById('sub-inactive-text').textContent="You don't have an active subscription. Subscribe to unlock full access to Zap.";
         renewsRow.style.display='none';
       }
 
       if(info.currentPeriodEnd)renewsEl.textContent=info.currentPeriodEnd;
-
-      // Load referral info for active subscribers
-      if(info.status==='active'||info.status==='trialing'||info.isAdmin){
-        loadReferralCard();
-      }
     }).catch(function(){
       document.getElementById('sub-loading').style.display='none';
       document.getElementById('sub-error').style.display='block';
       document.getElementById('sub-content').style.display='none';
     });
   }
-
-  function loadReferralCard(){
-    if(!window.zap.getReferralCode) return;
-    window.zap.getReferralCode().then(function(ref){
-      if(!ref||!ref.code) return;
-      document.getElementById('sub-referral-card').style.display='block';
-      document.getElementById('referral-link').value=ref.link;
-      document.getElementById('referral-count').textContent=ref.referralsCount||0;
-      document.getElementById('referral-savings').textContent=ref.referralsCount||0;
-    }).catch(function(){});
-  }
-
-  var copyRefBtn=document.getElementById('copy-referral-btn');
-  if(copyRefBtn)copyRefBtn.addEventListener('click',function(){
-    var linkEl=document.getElementById('referral-link');
-    if(linkEl&&linkEl.value){
-      window.zap.copyToClipboard(linkEl.value);
-      copyRefBtn.textContent='Copied!';
-      copyRefBtn.style.background='linear-gradient(135deg,#34d399,#059669)';
-      setTimeout(function(){copyRefBtn.textContent='Copy Link';copyRefBtn.style.background=''},1500);
-    }
-  });
 
   // Refresh button
   var refreshBtn=document.getElementById('sub-refresh-btn');
@@ -1821,44 +1216,7 @@
   });
 
   loadSettings();
-
-  // ── Permissions Checklist ──
-  async function checkPerms(){
-    if(!window.zap.checkPermissions){
-      var nl=document.getElementById('perm-not-mac');
-      if(nl){nl.style.display='block';document.getElementById('perm-list').style.display='none'}
-      return;
-    }
-    var p=await window.zap.checkPermissions();
-    if(p.platform!=='darwin'){
-      var nl=document.getElementById('perm-not-mac');
-      if(nl){nl.style.display='block';document.getElementById('perm-list').style.display='none'}
-      return;
-    }
-    // Screen Recording
-    var si=document.getElementById('perm-screen-icon');
-    var ss=document.getElementById('perm-screen-status');
-    var se=document.getElementById('perm-screen');
-    if(p.screenRecording){
-      si.textContent='\u2705';ss.textContent='Granted';ss.className='perm-status granted';se.className='perm-item granted';
-    }else{
-      si.textContent='\u274C';ss.textContent='Not Granted';ss.className='perm-status denied';se.className='perm-item denied';
-    }
-    // Accessibility
-    var ai=document.getElementById('perm-access-icon');
-    var as=document.getElementById('perm-access-status');
-    var ae=document.getElementById('perm-access');
-    if(p.accessibility){
-      ai.textContent='\u2705';as.textContent='Granted';as.className='perm-status granted';ae.className='perm-item granted';
-    }else{
-      ai.textContent='\u274C';as.textContent='Not Granted';as.className='perm-status denied';ae.className='perm-item denied';
-    }
-  }
-  var rb=document.getElementById('perm-refresh-btn');
-  if(rb)rb.addEventListener('click',checkPerms);
-  checkPerms();
 })();
-
 </script>
 </body>
 </html>
