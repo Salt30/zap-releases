@@ -3,9 +3,9 @@
  *
  * How it works:
  * 1. Shows a splash screen
- * 2. Checks GitHub Releases for the latest app.asar.enc
- * 3. Downloads + decrypts if needed
- * 4. Spawns Electron with the decrypted app
+ * 2. Checks for latest version via Supabase proxy
+ * 3. Downloads encrypted app.asar.enc if needed
+ * 4. Decrypts and spawns the real app
  * 5. Cleans up decrypted files when the app exits
  */
 
@@ -14,15 +14,11 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const https = require('https');
-const http = require('http');
 const { spawn } = require('child_process');
 
 // ── Config ──
-const GITHUB_REPO = 'Salt30/zap-releases';
 const APP_NAME = 'Zap Pro';
-
-// CI-injected read-only token for private repo release access
-const GH_RELEASES_TOKEN = 'YOUR_GH_RELEASES_TOKEN';
+const DOWNLOAD_API = 'https://vydtygcvszscgmjgyszl.supabase.co/functions/v1/download';
 
 // ── Encryption key derivation (must match encrypt_asar.py) ──
 const FRAG_A = Buffer.from([0x7a, 0x61, 0x70, 0x5f, 0x73, 0x65, 0x63, 0x72]);
@@ -50,20 +46,10 @@ function getDecryptedDir()  {
   return path.join(getDataDir(), `_run_${ts}`);
 }
 
-// ── Auth headers for private repo ──
-function getAuthHeaders() {
-  const headers = { 'User-Agent': 'ZapLauncher/1.0' };
-  if (GH_RELEASES_TOKEN && GH_RELEASES_TOKEN !== 'YOUR_GH_RELEASES_TOKEN') {
-    headers['Authorization'] = `token ${GH_RELEASES_TOKEN}`;
-  }
-  return headers;
-}
-
-// ── HTTPS fetch helper ──
+// ── HTTPS helpers (using Supabase proxy — no GitHub auth needed) ──
 function fetchJSON(url) {
   return new Promise((resolve, reject) => {
-    const get = url.startsWith('https') ? https.get : http.get;
-    get(url, { headers: getAuthHeaders() }, (res) => {
+    https.get(url, { headers: { 'User-Agent': 'ZapLauncher/1.0' } }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         return fetchJSON(res.headers.location).then(resolve).catch(reject);
       }
@@ -80,9 +66,9 @@ function fetchJSON(url) {
 
 function downloadFile(url, dest, onProgress) {
   return new Promise((resolve, reject) => {
-    const get = url.startsWith('https') ? https.get : http.get;
-    const dlHeaders = { ...getAuthHeaders(), 'Accept': 'application/octet-stream' };
-    get(url, { headers: dlHeaders }, (res) => {
+    const get = url.startsWith('https') ? https.get : require('http').get;
+    get(url, { headers: { 'User-Agent': 'ZapLauncher/1.0' } }, (res) => {
+      // Follow redirects (Supabase proxy returns 302 to GitHub's signed URL)
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         return downloadFile(res.headers.location, dest, onProgress).then(resolve).catch(reject);
       }
@@ -158,7 +144,6 @@ function secureCleanup(dir) {
   try {
     const asarPath = path.join(dir, 'app.asar');
     if (fs.existsSync(asarPath)) {
-      // Overwrite with zeros before delete
       const size = fs.statSync(asarPath).size;
       const fd = fs.openSync(asarPath, 'w');
       const zeros = Buffer.alloc(Math.min(size, 1024 * 1024));
@@ -174,7 +159,6 @@ function secureCleanup(dir) {
   } catch (_) {}
 }
 
-// Clean up any leftover temp dirs from previous crashed runs
 function cleanupOldRuns() {
   try {
     const dataDir = getDataDir();
@@ -192,18 +176,16 @@ async function launch() {
   createSplash();
   updateSplash('Starting...', 0);
 
-  // Clean up old temp dirs
   cleanupOldRuns();
 
   try {
-    // 1. Check for latest release
+    // 1. Check for latest release via Supabase proxy
     updateSplash('Checking for updates...', 0.1);
     let release;
     try {
-      release = await fetchJSON(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`);
+      release = await fetchJSON(`${DOWNLOAD_API}?platform=latest`);
     } catch (e) {
       console.error('Failed to check updates:', e.message);
-      // Try cached version
       if (fs.existsSync(getEncryptedPath())) {
         updateSplash('Using cached version...', 0.5);
         return await launchFromCache();
@@ -222,10 +204,8 @@ async function launch() {
     if (needsUpdate) {
       updateSplash(`Downloading ${release.tag_name}...`, 0.15);
 
-      const asset = release.assets.find(a => a.name === 'app.asar.enc');
-      if (!asset) throw new Error('No encrypted payload found in release.');
-
-      await downloadFile(asset.browser_download_url, getEncryptedPath(), (pct) => {
+      // Download encrypted payload via Supabase proxy
+      await downloadFile(`${DOWNLOAD_API}?platform=payload`, getEncryptedPath(), (pct) => {
         updateSplash(`Downloading... ${Math.round(pct * 100)}%`, 0.15 + pct * 0.6);
       });
 
@@ -256,27 +236,22 @@ async function launchFromCache() {
   try {
     decrypted = decryptPayload(encrypted);
   } catch (e) {
-    // Corrupted — delete cache and retry
     fs.unlinkSync(getEncryptedPath());
     try { fs.unlinkSync(getVersionPath()); } catch (_) {}
     throw new Error('Decryption failed. Please restart to re-download.');
   }
 
-  // Write decrypted asar to temp dir
   const tempDir = getDecryptedDir();
   fs.mkdirSync(tempDir, { recursive: true });
   const asarPath = path.join(tempDir, 'app.asar');
   fs.writeFileSync(asarPath, decrypted);
 
-  // Set read-only permissions
   try { fs.chmodSync(asarPath, 0o400); } catch (_) {}
 
-  // Zero decrypted buffer from memory
   decrypted.fill(0);
 
   updateSplash('Launching...', 0.95);
 
-  // 4. Spawn the real app using the same Electron binary
   const electronPath = process.execPath;
   const child = spawn(electronPath, [asarPath], {
     detached: true,
@@ -286,21 +261,17 @@ async function launchFromCache() {
 
   child.unref();
 
-  // Give the app a moment to start, then clean up
   setTimeout(() => {
     closeSplash();
 
-    // Monitor the child process — when it exits, clean up
     child.on('exit', () => {
       secureCleanup(tempDir);
     });
 
-    // Also set a backup cleanup on our own exit
     process.on('exit', () => {
       secureCleanup(tempDir);
     });
 
-    // Quit the launcher after a delay to let the real app take over
     setTimeout(() => {
       app.quit();
     }, 2000);
