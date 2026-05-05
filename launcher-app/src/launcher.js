@@ -21,6 +21,9 @@ const { spawn } = require('child_process');
 const GITHUB_REPO = 'Salt30/zap-releases';
 const APP_NAME = 'Zap Pro';
 
+// CI-injected read-only token for private repo release access
+const GH_RELEASES_TOKEN = 'YOUR_GH_RELEASES_TOKEN';
+
 // ── Encryption key derivation (must match encrypt_asar.py) ──
 const FRAG_A = Buffer.from([0x7a, 0x61, 0x70, 0x5f, 0x73, 0x65, 0x63, 0x72]);
 const FRAG_B = Buffer.from([0x65, 0x74, 0x5f, 0x6b, 0x65, 0x79, 0x5f, 0x70]);
@@ -47,11 +50,20 @@ function getDecryptedDir()  {
   return path.join(getDataDir(), `_run_${ts}`);
 }
 
+// ── Auth headers for private repo ──
+function getAuthHeaders() {
+  const headers = { 'User-Agent': 'ZapLauncher/1.0' };
+  if (GH_RELEASES_TOKEN && GH_RELEASES_TOKEN !== 'YOUR_GH_RELEASES_TOKEN') {
+    headers['Authorization'] = `token ${GH_RELEASES_TOKEN}`;
+  }
+  return headers;
+}
+
 // ── HTTPS fetch helper ──
 function fetchJSON(url) {
   return new Promise((resolve, reject) => {
     const get = url.startsWith('https') ? https.get : http.get;
-    get(url, { headers: { 'User-Agent': 'ZapLauncher/1.0' } }, (res) => {
+    get(url, { headers: getAuthHeaders() }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         return fetchJSON(res.headers.location).then(resolve).catch(reject);
       }
@@ -69,7 +81,8 @@ function fetchJSON(url) {
 function downloadFile(url, dest, onProgress) {
   return new Promise((resolve, reject) => {
     const get = url.startsWith('https') ? https.get : http.get;
-    get(url, { headers: { 'User-Agent': 'ZapLauncher/1.0', 'Accept': 'application/octet-stream' } }, (res) => {
+    const dlHeaders = { ...getAuthHeaders(), 'Accept': 'application/octet-stream' };
+    get(url, { headers: dlHeaders }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         return downloadFile(res.headers.location, dest, onProgress).then(resolve).catch(reject);
       }

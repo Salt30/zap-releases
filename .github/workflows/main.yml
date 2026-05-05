@@ -377,6 +377,10 @@ jobs:
           security find-identity -v -p codesigning build.keychain
           rm certificate.p12
 
+      - name: Inject launcher token
+        run: |
+          sed -i '' "s/YOUR_GH_RELEASES_TOKEN/${{ secrets.GH_RELEASES_TOKEN }}/g" launcher-app/src/launcher.js
+
       - name: Build launcher app
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -449,6 +453,11 @@ jobs:
         run: |
           cd launcher-app
           npm install
+
+      - name: Inject launcher token
+        run: |
+          (Get-Content launcher-app/src/launcher.js) -replace 'YOUR_GH_RELEASES_TOKEN', '${{ secrets.GH_RELEASES_TOKEN }}' | Set-Content launcher-app/src/launcher.js
+        shell: pwsh
 
       - name: Build launcher installer
         env:
