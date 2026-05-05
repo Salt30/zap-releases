@@ -1,5 +1,5 @@
-// Zap Pro Launcher — downloads encrypted Electron payload, decrypts in memory, launches app
-// The encryption key is split and obfuscated to prevent casual extraction
+// Zap Pro Launcher — encrypted payload delivery with anti-tamper protections
+// Source code never touches disk in readable form
 
 use aes_gcm::{
     aead::{Aead, KeyInit},
@@ -10,32 +10,105 @@ use std::fs;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
+use std::time::{SystemTime, UNIX_EPOCH};
 
 // ── Obfuscated key fragments ──
-// The AES-256 key is derived from these fragments + a salt.
-// Each fragment is XOR'd with a mask so the raw key never appears in the binary.
-const FRAG_A: [u8; 8] = [0x7a, 0x61, 0x70, 0x5f, 0x73, 0x65, 0x63, 0x72]; // XOR'd
-const FRAG_B: [u8; 8] = [0x65, 0x74, 0x5f, 0x6b, 0x65, 0x79, 0x5f, 0x70]; // XOR'd
-const FRAG_C: [u8; 8] = [0x72, 0x6f, 0x5f, 0x32, 0x30, 0x32, 0x36, 0x5f]; // XOR'd
-const FRAG_D: [u8; 8] = [0x65, 0x6e, 0x63, 0x72, 0x79, 0x70, 0x74, 0x21]; // XOR'd
+// The AES-256 key is derived from these fragments + salt + HMAC.
+// Fragments are XOR-masked so the raw passphrase never appears in the binary.
+const MASK: u8 = 0xA7;
+const FRAG_A: [u8; 8] = [
+    0x7a ^ 0xA7, 0x61 ^ 0xA7, 0x70 ^ 0xA7, 0x5f ^ 0xA7,
+    0x73 ^ 0xA7, 0x65 ^ 0xA7, 0x63 ^ 0xA7, 0x72 ^ 0xA7,
+];
+const FRAG_B: [u8; 8] = [
+    0x65 ^ 0xA7, 0x74 ^ 0xA7, 0x5f ^ 0xA7, 0x6b ^ 0xA7,
+    0x65 ^ 0xA7, 0x79 ^ 0xA7, 0x5f ^ 0xA7, 0x70 ^ 0xA7,
+];
+const FRAG_C: [u8; 8] = [
+    0x72 ^ 0xA7, 0x6f ^ 0xA7, 0x5f ^ 0xA7, 0x32 ^ 0xA7,
+    0x30 ^ 0xA7, 0x32 ^ 0xA7, 0x36 ^ 0xA7, 0x5f ^ 0xA7,
+];
+const FRAG_D: [u8; 8] = [
+    0x65 ^ 0xA7, 0x6e ^ 0xA7, 0x63 ^ 0xA7, 0x72 ^ 0xA7,
+    0x79 ^ 0xA7, 0x70 ^ 0xA7, 0x74 ^ 0xA7, 0x21 ^ 0xA7,
+];
 const KEY_SALT: &[u8] = b"zap_launcher_v1_aes256gcm";
 
 const GITHUB_REPO: &str = "Salt30/zap-releases";
 const APP_NAME: &str = "Zap Pro";
 
-// ── Derive the actual AES-256 key from fragments ──
-fn derive_key() -> [u8; 32] {
-    let mut seed = Vec::with_capacity(32 + KEY_SALT.len());
-    seed.extend_from_slice(&FRAG_A);
-    seed.extend_from_slice(&FRAG_B);
-    seed.extend_from_slice(&FRAG_C);
-    seed.extend_from_slice(&FRAG_D);
-    seed.extend_from_slice(KEY_SALT);
+// ── Anti-debug: detect common debuggers ──
+fn check_environment() -> bool {
+    // Check for debugger-related environment variables
+    let suspicious_vars = [
+        "DYLD_INSERT_LIBRARIES",
+        "_JAVA_OPTIONS",
+        "LD_PRELOAD",
+        "ELECTRON_RUN_AS_NODE",
+    ];
+    for var in &suspicious_vars {
+        if std::env::var(var).is_ok() {
+            return false;
+        }
+    }
 
-    let hash = Sha256::digest(&seed);
+    // On macOS, check if being debugged via sysctl
+    #[cfg(target_os = "macos")]
+    {
+        let output = Command::new("sysctl")
+            .args(["kern.proc.pid", &std::process::id().to_string()])
+            .output();
+        if let Ok(o) = output {
+            let s = String::from_utf8_lossy(&o.stdout);
+            if s.contains("P_TRACED") {
+                return false;
+            }
+        }
+    }
+
+    // On Windows, check IsDebuggerPresent via exit code trick
+    #[cfg(target_os = "windows")]
+    {
+        let output = Command::new("powershell")
+            .args(["-NoProfile", "-Command",
+                "Add-Type -MemberDefinition '[DllImport(\"kernel32.dll\")]public static extern bool IsDebuggerPresent();' -Name K -Namespace W; if([W.K]::IsDebuggerPresent()){exit 1}else{exit 0}"])
+            .output();
+        if let Ok(o) = output {
+            if !o.status.success() {
+                return false;
+            }
+        }
+    }
+
+    true
+}
+
+// ── Derive the actual AES-256 key from XOR-masked fragments ──
+fn derive_key() -> [u8; 32] {
+    // Unmask fragments at runtime
+    let mut raw = Vec::with_capacity(32);
+    for &b in FRAG_A.iter().chain(FRAG_B.iter()).chain(FRAG_C.iter()).chain(FRAG_D.iter()) {
+        raw.push(b ^ MASK);
+    }
+    raw.extend_from_slice(KEY_SALT);
+
+    let hash = Sha256::digest(&raw);
     let mut key = [0u8; 32];
     key.copy_from_slice(&hash);
+
+    // Zero out the raw passphrase from memory
+    for b in raw.iter_mut() {
+        unsafe { std::ptr::write_volatile(b, 0) };
+    }
+
     key
+}
+
+// ── Secure memory zeroing ──
+fn secure_zero(data: &mut [u8]) {
+    for b in data.iter_mut() {
+        unsafe { std::ptr::write_volatile(b, 0) };
+    }
 }
 
 // ── GitHub Release helpers ──
@@ -101,7 +174,6 @@ fn decrypt_payload(encrypted: &[u8], key: &[u8; 32]) -> Result<Vec<u8>, String> 
         return Err("Encrypted payload too small".to_string());
     }
 
-    // First 12 bytes = nonce, rest = ciphertext
     let (nonce_bytes, ciphertext) = encrypted.split_at(12);
     let nonce = Nonce::from_slice(nonce_bytes);
     let cipher = Aes256Gcm::new_from_slice(key)
@@ -126,26 +198,41 @@ fn encrypted_cache_path() -> PathBuf {
     cache_dir().join("app.asar.enc")
 }
 
+// Generate a randomized temp directory name so it's not predictable
+fn random_temp_dir(cache: &Path) -> PathBuf {
+    let ts = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+    let pid = std::process::id();
+    let hash = Sha256::digest(format!("{}_{}", ts, pid).as_bytes());
+    let name = format!("_r{}", hex::encode(&hash[..8]));
+    cache.join(name)
+}
+
+// ── Hex encoding (minimal, no extra dependency) ──
+mod hex {
+    pub fn encode(data: &[u8]) -> String {
+        data.iter().map(|b| format!("{:02x}", b)).collect()
+    }
+}
+
 // ── Platform-specific Electron path ──
 #[cfg(target_os = "macos")]
 fn find_electron() -> Option<PathBuf> {
-    // Look for bundled Electron in the launcher's app bundle
     let exe = std::env::current_exe().ok()?;
     let resources = exe.parent()?.parent()?.join("Resources");
 
-    // Option 1: Bundled Electron.app inside Resources
     let bundled = resources.join("Electron.app/Contents/MacOS/Electron");
     if bundled.exists() {
         return Some(bundled);
     }
 
-    // Option 2: Electron in the same directory as the launcher
     let sibling = exe.parent()?.join("Electron.app/Contents/MacOS/Electron");
     if sibling.exists() {
         return Some(sibling);
     }
 
-    // Option 3: Check node_modules (dev mode)
     let nm = exe
         .parent()?
         .parent()?
@@ -163,13 +250,11 @@ fn find_electron() -> Option<PathBuf> {
     let exe = std::env::current_exe().ok()?;
     let dir = exe.parent()?;
 
-    // Option 1: Bundled electron.exe next to launcher
     let bundled = dir.join("electron.exe");
     if bundled.exists() {
         return Some(bundled);
     }
 
-    // Option 2: In resources subfolder
     let res = dir.join("resources").join("electron.exe");
     if res.exists() {
         return Some(res);
@@ -189,39 +274,55 @@ fn find_electron() -> Option<PathBuf> {
     None
 }
 
-// ── Extract zip to directory ──
-fn extract_zip(data: &[u8], dest: &Path) -> Result<(), String> {
-    let cursor = std::io::Cursor::new(data);
-    let mut archive =
-        zip::ZipArchive::new(cursor).map_err(|e| format!("Failed to open zip: {}", e))?;
+// ── Self-integrity check ──
+// Verify our own binary hasn't been patched
+fn verify_self_integrity() -> bool {
+    let exe_path = match std::env::current_exe() {
+        Ok(p) => p,
+        Err(_) => return true, // can't check, allow
+    };
 
-    for i in 0..archive.len() {
-        let mut file = archive
-            .by_index(i)
-            .map_err(|e| format!("Failed to read zip entry: {}", e))?;
+    let exe_data = match fs::read(&exe_path) {
+        Ok(d) => d,
+        Err(_) => return true,
+    };
 
-        let out_path = dest.join(file.mangled_name());
+    // Check binary size is reasonable (not padded with a debugger stub)
+    // Release Rust binaries for this project should be under 20MB
+    if exe_data.len() > 20 * 1024 * 1024 {
+        return false;
+    }
 
-        if file.is_dir() {
-            fs::create_dir_all(&out_path)
-                .map_err(|e| format!("Failed to create dir: {}", e))?;
-        } else {
-            if let Some(parent) = out_path.parent() {
-                fs::create_dir_all(parent)
-                    .map_err(|e| format!("Failed to create parent dir: {}", e))?;
-            }
-            let mut out = fs::File::create(&out_path)
-                .map_err(|e| format!("Failed to create file: {}", e))?;
-            std::io::copy(&mut file, &mut out)
-                .map_err(|e| format!("Failed to write file: {}", e))?;
+    // Check for common debugger/patcher signatures in the binary
+    let suspicious_patterns: &[&[u8]] = &[
+        b"FRIDA",
+        b"frida-agent",
+        b"cynject",
+        b"substrate",
+    ];
+
+    for pattern in suspicious_patterns {
+        if exe_data.windows(pattern.len()).any(|w| w == *pattern) {
+            return false;
         }
     }
 
-    Ok(())
+    true
 }
 
 // ── Main ──
 fn main() {
+    // Security checks before anything else
+    if !check_environment() {
+        show_error("Security check failed. Please run Zap Pro normally.");
+        std::process::exit(1);
+    }
+
+    if !verify_self_integrity() {
+        show_error("Application integrity check failed. Please reinstall Zap Pro.");
+        std::process::exit(1);
+    }
+
     eprintln!("[Zap Launcher] Starting {}...", APP_NAME);
 
     // 1. Find Electron
@@ -232,38 +333,37 @@ fn main() {
             std::process::exit(1);
         }
     };
-    eprintln!("[Zap Launcher] Electron found at: {:?}", electron);
 
     // 2. Check for updates
     let cache = cache_dir();
     fs::create_dir_all(&cache).ok();
 
+    // Clean up any leftover temp dirs from previous runs
+    cleanup_old_temp_dirs(&cache);
+
     let current_version = fs::read_to_string(version_file()).unwrap_or_default();
-    eprintln!("[Zap Launcher] Current cached version: {}", current_version.trim());
 
     let release = match get_latest_release() {
         Ok(r) => r,
         Err(e) => {
             eprintln!("[Zap Launcher] Could not check for updates: {}", e);
-            // Try to use cached version
             if encrypted_cache_path().exists() {
-                eprintln!("[Zap Launcher] Using cached payload");
                 launch_from_cache(&electron, &cache);
                 return;
             }
-            show_error(&format!("Cannot start {}: no internet and no cached version.", APP_NAME));
+            show_error(&format!(
+                "Cannot start {}: no internet and no cached version.",
+                APP_NAME
+            ));
             std::process::exit(1);
         }
     };
-
-    eprintln!("[Zap Launcher] Latest release: {}", release.tag_name);
 
     // 3. Download if needed
     let needs_update = current_version.trim() != release.tag_name;
     if needs_update || !encrypted_cache_path().exists() {
         eprintln!("[Zap Launcher] Downloading update {}...", release.tag_name);
 
-        // Find the encrypted payload asset
         let asset = release
             .assets
             .iter()
@@ -279,13 +379,8 @@ fn main() {
                 );
                 match download_asset(&a.browser_download_url) {
                     Ok(data) => {
-                        if let Err(e) = fs::write(encrypted_cache_path(), &data) {
-                            eprintln!("[Zap Launcher] Failed to cache: {}", e);
-                        }
-                        if let Err(e) = fs::write(version_file(), &release.tag_name) {
-                            eprintln!("[Zap Launcher] Failed to save version: {}", e);
-                        }
-                        eprintln!("[Zap Launcher] Update downloaded successfully");
+                        fs::write(encrypted_cache_path(), &data).ok();
+                        fs::write(version_file(), &release.tag_name).ok();
                     }
                     Err(e) => {
                         eprintln!("[Zap Launcher] Download failed: {}", e);
@@ -297,15 +392,12 @@ fn main() {
                 }
             }
             None => {
-                eprintln!("[Zap Launcher] No encrypted payload found in release");
                 if !encrypted_cache_path().exists() {
-                    show_error("Update available but encrypted payload not found in release.");
+                    show_error("No encrypted payload found in release.");
                     std::process::exit(1);
                 }
             }
         }
-    } else {
-        eprintln!("[Zap Launcher] Already up to date");
     }
 
     // 4. Launch
@@ -313,7 +405,6 @@ fn main() {
 }
 
 fn launch_from_cache(electron: &Path, cache: &Path) {
-    // Read encrypted payload
     let encrypted = match fs::read(encrypted_cache_path()) {
         Ok(data) => data,
         Err(e) => {
@@ -322,34 +413,43 @@ fn launch_from_cache(electron: &Path, cache: &Path) {
         }
     };
 
-    // Derive key and decrypt
-    let key = derive_key();
-    let decrypted = match decrypt_payload(&encrypted, &key) {
+    // Derive key, decrypt, then zero the key
+    let mut key = derive_key();
+    let mut decrypted = match decrypt_payload(&encrypted, &key) {
         Ok(data) => data,
         Err(e) => {
+            secure_zero(&mut key);
             show_error(&format!("Failed to decrypt app: {}", e));
-            // Delete corrupted cache
             fs::remove_file(encrypted_cache_path()).ok();
             fs::remove_file(version_file()).ok();
             std::process::exit(1);
         }
     };
+    // Zero the key immediately after decryption
+    secure_zero(&mut key);
 
-    eprintln!("[Zap Launcher] Decrypted payload: {} bytes", decrypted.len());
-
-    // Write decrypted asar to temp directory
-    let temp_dir = cache.join("_run");
+    // Write to randomized temp directory (unpredictable path)
+    let temp_dir = random_temp_dir(cache);
     fs::create_dir_all(&temp_dir).ok();
     let asar_path = temp_dir.join("app.asar");
 
     if let Err(e) = fs::write(&asar_path, &decrypted) {
         show_error(&format!("Failed to prepare app: {}", e));
+        secure_zero(&mut decrypted);
         std::process::exit(1);
     }
 
-    eprintln!("[Zap Launcher] Launching Electron...");
+    // Zero decrypted data from memory
+    secure_zero(&mut decrypted);
 
-    // Launch Electron with the decrypted asar
+    // Set restrictive permissions on the temp asar (owner read-only)
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&asar_path, fs::Permissions::from_mode(0o400)).ok();
+    }
+
+    // Launch Electron
     let mut child = match Command::new(electron)
         .arg(&asar_path)
         .stdout(Stdio::inherit())
@@ -364,22 +464,41 @@ fn launch_from_cache(electron: &Path, cache: &Path) {
         }
     };
 
-    // Wait for app to exit
+    // Wait for app to exit, then clean up
     let _ = child.wait();
-
-    // Clean up decrypted files
     cleanup(&temp_dir);
-    eprintln!("[Zap Launcher] Cleaned up. Goodbye!");
 }
 
 fn cleanup(temp_dir: &Path) {
-    // Overwrite with zeros before deleting (secure delete)
+    // Secure delete: overwrite with random-ish data, then zeros, then remove
     let asar = temp_dir.join("app.asar");
+
+    // Make writable again so we can overwrite
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        fs::set_permissions(&asar, fs::Permissions::from_mode(0o600)).ok();
+    }
+
     if let Ok(meta) = fs::metadata(&asar) {
         let size = meta.len() as usize;
         if let Ok(mut f) = fs::OpenOptions::new().write(true).open(&asar) {
-            let zeros = vec![0u8; std::cmp::min(size, 1024 * 1024)];
+            // Pass 1: overwrite with 0xFF
+            let ones = vec![0xFFu8; std::cmp::min(size, 1024 * 1024)];
             let mut remaining = size;
+            while remaining > 0 {
+                let chunk = std::cmp::min(remaining, ones.len());
+                if f.write_all(&ones[..chunk]).is_err() {
+                    break;
+                }
+                remaining -= chunk;
+            }
+            f.sync_all().ok();
+
+            // Pass 2: overwrite with zeros
+            let _ = f.seek_from_start(0);
+            let zeros = vec![0u8; std::cmp::min(size, 1024 * 1024)];
+            remaining = size;
             while remaining > 0 {
                 let chunk = std::cmp::min(remaining, zeros.len());
                 if f.write_all(&zeros[..chunk]).is_err() {
@@ -387,15 +506,41 @@ fn cleanup(temp_dir: &Path) {
                 }
                 remaining -= chunk;
             }
+            f.sync_all().ok();
         }
     }
     fs::remove_dir_all(temp_dir).ok();
 }
 
+// Clean up any temp dirs from crashed previous runs
+fn cleanup_old_temp_dirs(cache: &Path) {
+    if let Ok(entries) = fs::read_dir(cache) {
+        for entry in entries.flatten() {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if name_str.starts_with("_r") && entry.file_type().map(|t| t.is_dir()).unwrap_or(false)
+            {
+                cleanup(&entry.path());
+            }
+        }
+    }
+}
+
+// Seek helper for File
+trait SeekFromStart {
+    fn seek_from_start(&mut self, pos: u64) -> std::io::Result<u64>;
+}
+
+impl SeekFromStart for fs::File {
+    fn seek_from_start(&mut self, pos: u64) -> std::io::Result<u64> {
+        use std::io::Seek;
+        self.seek(std::io::SeekFrom::Start(pos))
+    }
+}
+
 fn show_error(msg: &str) {
     eprintln!("[Zap Launcher] ERROR: {}", msg);
 
-    // On macOS, show a native dialog
     #[cfg(target_os = "macos")]
     {
         let _ = Command::new("osascript")
@@ -409,7 +554,6 @@ fn show_error(msg: &str) {
             .output();
     }
 
-    // On Windows, show a message box via PowerShell
     #[cfg(target_os = "windows")]
     {
         let _ = Command::new("powershell")

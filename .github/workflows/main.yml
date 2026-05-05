@@ -162,7 +162,7 @@ jobs:
 
       - name: Encrypt asar payload
         run: |
-          pip3 install cryptography
+          pip3 install cryptography --break-system-packages 2>/dev/null || pip3 install cryptography
           # Find the built asar
           ASAR=$(find dist -name "app.asar" -type f | head -1)
           if [ -z "$ASAR" ]; then
