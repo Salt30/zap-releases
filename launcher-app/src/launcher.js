@@ -14,7 +14,7 @@ const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const https = require('https');
-const { spawn } = require('child_process');
+// child_process not needed — we require() the real app directly
 
 // ── Config ──
 const APP_NAME = 'Zap Pro';
@@ -255,30 +255,28 @@ async function launchFromCache() {
 
   updateSplash('Launching...', 0.95);
 
-  const electronPath = process.execPath;
-  const child = spawn(electronPath, [asarPath], {
-    detached: true,
-    stdio: 'ignore',
-    env: { ...process.env, ZAP_TEMP_DIR: tempDir }
-  });
+  // Store temp dir for cleanup on exit
+  process.env.ZAP_TEMP_DIR = tempDir;
+  process.on('exit', () => { secureCleanup(tempDir); });
 
-  child.unref();
+  // Read the real app's package.json from inside the asar
+  const appPkg = JSON.parse(fs.readFileSync(path.join(asarPath, 'package.json'), 'utf8'));
+  const mainFile = path.join(asarPath, appPkg.main);
 
-  setTimeout(() => {
-    closeSplash();
+  // Update app identity to the real app before loading it
+  app.setName(appPkg.name || 'Zap');
+  try {
+    const realUserData = path.join(app.getPath('appData'), appPkg.name || 'Zap');
+    if (!fs.existsSync(realUserData)) fs.mkdirSync(realUserData, { recursive: true });
+    app.setPath('userData', realUserData);
+  } catch (_) {}
 
-    child.on('exit', () => {
-      secureCleanup(tempDir);
-    });
+  // Close splash before handing off to the real app
+  closeSplash();
 
-    process.on('exit', () => {
-      secureCleanup(tempDir);
-    });
-
-    setTimeout(() => {
-      app.quit();
-    }, 2000);
-  }, 1000);
+  // Load the real app — Electron's fs layer reads from inside .asar transparently
+  // The app is already in 'ready' state, so app.whenReady() resolves immediately
+  require(mainFile);
 }
 
 // ── App lifecycle ──
