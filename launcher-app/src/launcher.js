@@ -2,19 +2,53 @@
  * Zap Pro Launcher — Discord-style auto-updating launcher
  *
  * How it works:
- * 1. Shows a splash screen
- * 2. Checks for latest version via Supabase proxy
- * 3. Downloads encrypted app.asar.enc if needed
- * 4. Decrypts and spawns the real app
- * 5. Cleans up decrypted files when the app exits
+ * 1. On launch, checks if ZAP_APP_PATH is set (relaunch mode)
+ *    → If yes: immediately loads the real app and exits launcher code
+ * 2. Otherwise: shows splash, checks for updates, downloads/decrypts
+ * 3. Extracts the asar to a temp directory
+ * 4. Relaunches itself with ZAP_APP_PATH pointing to the extracted app
+ * 5. The relaunched instance loads the real app with a clean Electron lifecycle
  */
 
+// ── Relaunch mode: load the real app immediately ──
+// This MUST be at the very top, before any app.whenReady() or window creation,
+// so the real app gets a completely clean Electron lifecycle.
+if (process.env.ZAP_APP_PATH) {
+  const _appDir = process.env.ZAP_APP_PATH;
+  delete process.env.ZAP_APP_PATH; // Clean up so the real app doesn't see it
+
+  const _fs = require('fs');
+  const _path = require('path');
+
+  try {
+    const _pkg = JSON.parse(_fs.readFileSync(_path.join(_appDir, 'package.json'), 'utf8'));
+
+    // Set up cleanup on exit
+    const _tempDir = _path.dirname(_appDir);
+    process.on('exit', () => {
+      try { _fs.rmSync(_tempDir, { recursive: true, force: true }); } catch (_) {}
+    });
+
+    // Load the real app — it gets full control of app lifecycle
+    require(_path.join(_appDir, _pkg.main));
+  } catch (e) {
+    const { app, dialog } = require('electron');
+    app.whenReady().then(() => {
+      dialog.showErrorBox('Zap Pro', `Failed to load app: ${e.message}`);
+      app.quit();
+    });
+  }
+
+  // Stop executing launcher code
+  return;
+}
+
+// ── Launcher mode (normal first launch) ──
 const { app, BrowserWindow, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const https = require('https');
-// child_process not needed — we require() the real app directly
 
 // ── Config ──
 const APP_NAME = 'Zap Pro';
@@ -46,7 +80,7 @@ function getDecryptedDir()  {
   return path.join(getDataDir(), `_run_${ts}`);
 }
 
-// ── HTTPS helpers (using Supabase proxy — no GitHub auth needed) ──
+// ── HTTPS helpers ──
 function fetchJSON(url) {
   return new Promise((resolve, reject) => {
     https.get(url, { headers: { 'User-Agent': 'ZapLauncher/1.0' } }, (res) => {
@@ -68,7 +102,6 @@ function downloadFile(url, dest, onProgress) {
   return new Promise((resolve, reject) => {
     const get = url.startsWith('https') ? https.get : require('http').get;
     get(url, { headers: { 'User-Agent': 'ZapLauncher/1.0' } }, (res) => {
-      // Follow redirects
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         return downloadFile(res.headers.location, dest, onProgress).then(resolve).catch(reject);
       }
@@ -102,8 +135,7 @@ function decryptPayload(encryptedBuf) {
   const decipher = crypto.createDecipheriv('aes-256-gcm', key, nonce);
   decipher.setAuthTag(authTag);
 
-  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
-  return decrypted;
+  return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
 }
 
 // ── Splash window ──
@@ -145,19 +177,6 @@ function closeSplash() {
 // ── Cleanup ──
 function secureCleanup(dir) {
   try {
-    const asarPath = path.join(dir, 'app.asar');
-    if (fs.existsSync(asarPath)) {
-      const size = fs.statSync(asarPath).size;
-      const fd = fs.openSync(asarPath, 'w');
-      const zeros = Buffer.alloc(Math.min(size, 1024 * 1024));
-      let remaining = size;
-      while (remaining > 0) {
-        const chunk = Math.min(remaining, zeros.length);
-        fs.writeSync(fd, zeros, 0, chunk);
-        remaining -= chunk;
-      }
-      fs.closeSync(fd);
-    }
     fs.rmSync(dir, { recursive: true, force: true });
   } catch (_) {}
 }
@@ -207,7 +226,6 @@ async function launch() {
     if (needsUpdate) {
       updateSplash(`Downloading ${release.tag_name}...`, 0.15);
 
-      // Download encrypted payload via Supabase proxy
       await downloadFile(`${DOWNLOAD_API}?platform=payload`, getEncryptedPath(), (pct) => {
         updateSplash(`Downloading... ${Math.round(pct * 100)}%`, 0.15 + pct * 0.6);
       });
@@ -259,36 +277,30 @@ async function launchFromCache() {
   const asar = require('@electron/asar');
   asar.extractAll(datPath, extractedDir);
 
-  // Remove the temp .dat file
+  // Remove the temp .dat file immediately
   try { fs.unlinkSync(datPath); } catch (_) {}
 
   updateSplash('Launching...', 0.95);
 
-  // Store temp dir for cleanup on exit
-  process.env.ZAP_TEMP_DIR = tempDir;
-  process.on('exit', () => { secureCleanup(tempDir); });
+  // Set the env var BEFORE relaunch so the new process inherits it
+  process.env.ZAP_APP_PATH = extractedDir;
 
-  // Read the real app's package.json
-  const appPkg = JSON.parse(fs.readFileSync(path.join(extractedDir, 'package.json'), 'utf8'));
+  // Relaunch the Electron binary with ZAP_APP_PATH set.
+  // On relaunch, the code at the top of this file detects the env var
+  // and loads the real app with a completely clean Electron lifecycle —
+  // no splash windows, no stale handlers, no conflicts.
+  app.relaunch({
+    args: process.argv.slice(1),
+    execPath: process.execPath,
+  });
 
-  // Update app identity to the real app
-  app.setName(appPkg.name || 'Zap');
-  try {
-    const realUserData = path.join(app.getPath('appData'), appPkg.name || 'Zap');
-    if (!fs.existsSync(realUserData)) fs.mkdirSync(realUserData, { recursive: true });
-    app.setPath('userData', realUserData);
-  } catch (_) {}
-
-  // Close splash before handing off
-  closeSplash();
-
-  // Load the real app from extracted directory (plain files, no asar layer)
-  require(path.join(extractedDir, appPkg.main));
+  // Quit this launcher instance — the relaunched one takes over
+  app.exit(0);
 }
 
 // ── App lifecycle ──
 app.whenReady().then(launch);
 
 app.on('window-all-closed', () => {
-  // Don't quit when splash closes — we quit manually after spawn
+  // Don't quit when splash closes — we quit after relaunch
 });
