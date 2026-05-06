@@ -235,8 +235,9 @@ let lockdownKeepAlive = null;
 
 function startLockdownKeepAlive() {
   if (lockdownKeepAlive) return;
-  // 100ms on BOTH platforms — SEB and Respondus aggressively fight for z-order
-  const interval = 100;
+  // 1500ms keeps z-order without hammering the compositor
+  // Only active when overlay is visible AND lockdown mode is on
+  const interval = 1500;
   lockdownKeepAlive = setInterval(() => {
     if (!overlayWin || overlayWin.isDestroyed()) return;
     if (!overlayUp) return;
@@ -411,14 +412,14 @@ function startScreenCapturePoll() {
     if (process.platform === 'win32') {
       exec(
         `powershell -Command "Get-Process -Name obs64,obs32,ScreenClip,CamtasiaStudio -ErrorAction SilentlyContinue | Select-Object -First 1 | ForEach-Object { $_.Name }"`,
-        { timeout: 3000 },
+        { timeout: 5000 },
         (err, stdout) => {
           const capturing = !!(stdout && stdout.trim());
           if (capturing !== screenBeingCaptured) onScreenCaptureChanged(capturing);
         }
       );
     }
-  }, 3000);
+  }, 15000);
 }
 
 function cleanupScreenCaptureDetection() {
@@ -3031,8 +3032,11 @@ app.whenReady().then(async () => {
   applyProcessDisguise(); // Disguise process name if lockdown mode is active
   initKernelShield();    // Load Windows kernel driver (if available)
   if (isLockdown()) activateKernelStealth(); // Kernel-level hide + anti-kill
-  startWatchdog(); // Launch background respawner so Zap survives being killed
-  installPersistence(); // Install system-level auto-restart (launchd/scheduled task)
+  // Only launch watchdog/persistence in lockdown mode — saves significant battery otherwise
+  if (isLockdown()) {
+    startWatchdog();
+    installPersistence();
+  }
   await checkSubscriptionStatus(); // Verify Stripe subscription — blocks until resolved
 
   // Tray is always available (for Quit, Settings, etc.)
@@ -3078,7 +3082,7 @@ app.whenReady().then(async () => {
         showActivate();
       }
     } catch (_) {}
-  }, 10 * 60 * 1000);
+  }, 30 * 60 * 1000);
 
   app.on('activate', () => { if (isLicensed() && !overlayWin) makeOverlay(); });
 });
