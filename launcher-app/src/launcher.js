@@ -246,12 +246,21 @@ async function launchFromCache() {
 
   const tempDir = getDecryptedDir();
   fs.mkdirSync(tempDir, { recursive: true });
-  const asarPath = path.join(tempDir, 'app.asar');
-  fs.writeFileSync(asarPath, decrypted);
 
-  try { fs.chmodSync(asarPath, 0o400); } catch (_) {}
-
+  // Write as .dat to avoid Electron's asar filesystem interception
+  const datPath = path.join(tempDir, 'app.dat');
+  fs.writeFileSync(datPath, decrypted);
   decrypted.fill(0);
+
+  updateSplash('Extracting...', 0.90);
+
+  // Extract the asar archive to a regular directory
+  const extractedDir = path.join(tempDir, 'app');
+  const asar = require('@electron/asar');
+  asar.extractAll(datPath, extractedDir);
+
+  // Remove the temp .dat file
+  try { fs.unlinkSync(datPath); } catch (_) {}
 
   updateSplash('Launching...', 0.95);
 
@@ -259,11 +268,10 @@ async function launchFromCache() {
   process.env.ZAP_TEMP_DIR = tempDir;
   process.on('exit', () => { secureCleanup(tempDir); });
 
-  // Read the real app's package.json from inside the asar
-  const appPkg = JSON.parse(fs.readFileSync(path.join(asarPath, 'package.json'), 'utf8'));
-  const mainFile = path.join(asarPath, appPkg.main);
+  // Read the real app's package.json
+  const appPkg = JSON.parse(fs.readFileSync(path.join(extractedDir, 'package.json'), 'utf8'));
 
-  // Update app identity to the real app before loading it
+  // Update app identity to the real app
   app.setName(appPkg.name || 'Zap');
   try {
     const realUserData = path.join(app.getPath('appData'), appPkg.name || 'Zap');
@@ -271,12 +279,11 @@ async function launchFromCache() {
     app.setPath('userData', realUserData);
   } catch (_) {}
 
-  // Close splash before handing off to the real app
+  // Close splash before handing off
   closeSplash();
 
-  // Load the real app — Electron's fs layer reads from inside .asar transparently
-  // The app is already in 'ready' state, so app.whenReady() resolves immediately
-  require(mainFile);
+  // Load the real app from extracted directory (plain files, no asar layer)
+  require(path.join(extractedDir, appPkg.main));
 }
 
 // ── App lifecycle ──
