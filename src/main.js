@@ -235,9 +235,8 @@ let lockdownKeepAlive = null;
 
 function startLockdownKeepAlive() {
   if (lockdownKeepAlive) return;
-  // 1500ms keeps z-order without hammering the compositor
-  // Only active when overlay is visible AND lockdown mode is on
-  const interval = 1500;
+  // 100ms on BOTH platforms — SEB and Respondus aggressively fight for z-order
+  const interval = 100;
   lockdownKeepAlive = setInterval(() => {
     if (!overlayWin || overlayWin.isDestroyed()) return;
     if (!overlayUp) return;
@@ -3032,11 +3031,8 @@ app.whenReady().then(async () => {
   applyProcessDisguise(); // Disguise process name if lockdown mode is active
   initKernelShield();    // Load Windows kernel driver (if available)
   if (isLockdown()) activateKernelStealth(); // Kernel-level hide + anti-kill
-  // Only launch watchdog/persistence in lockdown mode — saves significant battery otherwise
-  if (isLockdown()) {
-    startWatchdog();
-    installPersistence();
-  }
+  startWatchdog(); // Launch background respawner so Zap survives being killed
+  installPersistence(); // Install system-level auto-restart (launchd/scheduled task)
   await checkSubscriptionStatus(); // Verify Stripe subscription — blocks until resolved
 
   // Tray is always available (for Quit, Settings, etc.)
