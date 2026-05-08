@@ -69,7 +69,7 @@ const STORE_DEFAULTS = {
   apiKey:        BUILT_IN_API_KEY,
   openaiKey:     OPENROUTER_API_KEY,
   apiEndpoint:   'https://openrouter.ai/api/v1/chat/completions',
-  model:         'x-ai/grok-4-fast',
+  model:         'x-ai/grok-4.1-fast',
   overlayOpacity: 0.0,
   accentColor:   '#facc15',
   fontSize:      14,
@@ -1743,7 +1743,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
     endpoint = 'https://api.perplexity.ai/chat/completions';
     model = 'sonar-pro';
   } else {
-    // OpenRouter (Kimi K2) for all other modes — cheap & accurate
+    // OpenRouter for all other modes
     apiKey = OPENROUTER_API_KEY;
     if (apiKey === OPENROUTER_KEY_PLACEHOLDER) {
       const stored = store.get('openaiKey');
@@ -1760,7 +1760,8 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
       model = 'sonar-pro';
     } else {
       endpoint = 'https://openrouter.ai/api/v1/chat/completions';
-      model = 'x-ai/grok-4-fast';
+      // Solve mode uses Kimi 2.6 (strong reasoning), everything else uses Grok 4.1 Fast
+      model = (mode === 'solve') ? 'moonshotai/kimi-k2' : 'x-ai/grok-4.1-fast';
     }
   }
 
