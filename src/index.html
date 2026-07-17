@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Drip Type</title>
+  <style>
+    :root{color-scheme:dark;--bg:#080d24;--panel:#111936;--line:#29345c;--text:#f6f7ff;--muted:#9da8cc;--accent:#ffd447;--danger:#ff647c}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#182149 0,var(--bg) 55%);color:var(--text);font:14px Inter,system-ui,sans-serif;min-height:100vh}.app{width:min(680px,calc(100% - 32px));margin:28px auto}.brand{display:flex;gap:14px;align-items:center;margin-bottom:24px}.bolt{display:grid;place-items:center;width:48px;height:48px;border-radius:14px;background:#111a43;color:var(--accent);font-size:28px;box-shadow:0 12px 30px #0007}.brand h1{margin:0;font-size:25px}.brand p{margin:4px 0 0;color:var(--muted)}.card{background:#111936dd;border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:0 22px 60px #0005;margin-bottom:16px}textarea{width:100%;height:190px;resize:vertical;background:#080d24;border:1px solid var(--line);border-radius:12px;color:var(--text);padding:14px;font:14px/1.55 ui-monospace,SFMono-Regular,monospace;outline:none}textarea:focus,input:focus{border-color:var(--accent)}.actions{display:flex;gap:10px;margin-top:14px}button{border:0;border-radius:10px;padding:11px 18px;font-weight:700;cursor:pointer;background:var(--accent);color:#171200}button.secondary{background:#29345c;color:var(--text)}button.danger{background:#4a2334;color:#ffb5c1}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.field{margin-bottom:16px}.field:last-child{margin-bottom:0}label{display:flex;justify-content:space-between;margin-bottom:8px;color:var(--muted)}label output{color:var(--accent);font-weight:700}input[type=range]{width:100%;accent-color:var(--accent)}input[type=text]{width:100%;background:#080d24;border:1px solid var(--line);border-radius:9px;padding:10px;color:var(--text)}.status{min-height:22px;margin-top:12px;color:var(--muted)}.status.error{color:var(--danger)}.note{font-size:12px;color:var(--muted);line-height:1.5}@media(max-width:600px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+  <main class="app">
+    <header class="brand"><div class="bolt">ϟ</div><div><h1>Drip Type</h1><p>Natural, configurable typing for macOS.</p></div></header>
+    <section class="card">
+      <textarea id="text" placeholder="Paste or write the text to type..."></textarea>
+      <div class="actions"><button id="start">Start typing</button><button id="cancel" class="danger">Stop</button></div>
+      <div id="status" class="status">Ready.</div>
+      <p class="note">After pressing Start, click the destination text field during the configured delay. Use this automation only where you have permission.</p>
+    </section>
+    <section class="card">
+      <div class="grid">
+        <div class="field"><label for="wpm">Words per minute <output id="wpmOut"></output></label><input id="wpm" type="range" min="15" max="120" step="5"></div>
+        <div class="field"><label for="delay">Start delay <output id="delayOut"></output></label><input id="delay" type="range" min="1" max="30" step="1"></div>
+        <div class="field"><label for="typos">Corrected typos <output id="typosOut"></output></label><input id="typos" type="range" min="0" max="0.2" step="0.01"></div>
+        <div class="field"><label for="pauses">Thinking pauses <output id="pausesOut"></output></label><input id="pauses" type="range" min="0" max="0.15" step="0.01"></div>
+        <div class="field"><label for="bursts">Typing bursts <output id="burstsOut"></output></label><input id="bursts" type="range" min="0" max="0.25" step="0.01"></div>
+      </div>
+      <div class="grid"><div class="field"><label for="startKey">Show window hotkey</label><input id="startKey" type="text"></div><div class="field"><label for="stopKey">Stop hotkey</label><input id="stopKey" type="text"></div></div>
+      <button id="save" class="secondary">Save settings</button>
+    </section>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const controls = { wpm: $('wpm'), delay: $('delay'), typos: $('typos'), pauses: $('pauses'), bursts: $('bursts') };
+    function refreshOutputs() {
+      $('wpmOut').textContent = `${controls.wpm.value} WPM`;
+      $('delayOut').textContent = `${controls.delay.value}s`;
+      $('typosOut').textContent = `${Math.round(controls.typos.value * 100)}%`;
+      $('pausesOut').textContent = `${Math.round(controls.pauses.value * 100)}%`;
+      $('burstsOut').textContent = `${Math.round(controls.bursts.value * 100)}%`;
+    }
+    Object.values(controls).forEach((control) => control.addEventListener('input', refreshOutputs));
+    async function load() {
+      const settings = await window.dripType.getSettings();
+      controls.wpm.value = settings.dripWPM;
+      controls.delay.value = settings.dripDelay;
+      controls.typos.value = settings.typoRate;
+      controls.pauses.value = settings.dripPauseChance;
+      controls.bursts.value = settings.dripBurstChance;
+      $('startKey').value = settings.hotkeyStart;
+      $('stopKey').value = settings.hotkeyStop;
+      refreshOutputs();
+    }
+    $('save').addEventListener('click', async () => {
+      await window.dripType.saveSettings({
+        dripWPM: Number(controls.wpm.value), dripDelay: Number(controls.delay.value),
+        typoRate: Number(controls.typos.value), dripPauseChance: Number(controls.pauses.value),
+        dripBurstChance: Number(controls.bursts.value), hotkeyStart: $('startKey').value.trim(),
+        hotkeyStop: $('stopKey').value.trim()
+      });
+      $('status').className = 'status'; $('status').textContent = 'Settings saved.';
+    });
+    $('start').addEventListener('click', async () => {
+      $('status').className = 'status'; $('status').textContent = `Starting in ${controls.delay.value} seconds… click the destination field.`;
+      const result = await window.dripType.start($('text').value);
+      if (result.error) { $('status').className = 'status error'; $('status').textContent = result.error; }
+      else if (result.cancelled) $('status').textContent = 'Cancelled.';
+      else if (result.fallback) $('status').textContent = result.message;
+      else $('status').textContent = 'Finished typing.';
+    });
+    $('cancel').addEventListener('click', () => { window.dripType.cancel(); $('status').textContent = 'Stopping…'; });
+    load();
+  </script>
+</body>
+</html>
