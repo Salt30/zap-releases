@@ -14,7 +14,7 @@
     "verify": "npm run check && npm run test:source && npm run build:app",
     "verify:package": "node scripts/verify-package.js",
     "pack:mac": "npm run build:app && electron-builder --mac --dir --universal -c.mac.forceCodeSigning=false",
-    "dist:mac": "npm run build:app && electron-builder --mac dmg zip --universal",
+    "dist:mac": "npm run build:app && electron-builder --mac dmg zip --universal --publish never",
     "release:mac": "bash scripts/release-mac.sh"
   },
   "keywords": [
