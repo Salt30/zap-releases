@@ -76,6 +76,13 @@ jobs:
           : "${APPLE_ID:?Missing APPLE_ID}"
           : "${APPLE_APP_SPECIFIC_PASSWORD:?Missing APPLE_APP_SPECIFIC_PASSWORD}"
           : "${APPLE_TEAM_ID:?Missing APPLE_TEAM_ID}"
+          export APPLE_ID="$(printf '%s' "$APPLE_ID" | tr -d '[:space:]')"
+          export APPLE_APP_SPECIFIC_PASSWORD="$(printf '%s' "$APPLE_APP_SPECIFIC_PASSWORD" | tr -d '[:space:]')"
+          export APPLE_TEAM_ID="$(printf '%s' "$APPLE_TEAM_ID" | tr -d '[:space:]')"
+          xcrun notarytool history \
+            --apple-id "$APPLE_ID" \
+            --password "$APPLE_APP_SPECIFIC_PASSWORD" \
+            --team-id "$APPLE_TEAM_ID" >/dev/null
           npm run build:app
           npx electron-builder --mac dmg zip --universal --publish never
 
