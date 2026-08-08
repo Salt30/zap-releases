@@ -28,12 +28,12 @@ jobs:
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           ref: ${{ env.RELEASE_TAG }}
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -72,12 +72,12 @@ jobs:
           APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
-          CSC_NAME: "Developer ID Application: VegaNext LLC (U46KNQN78Q)"
         run: |
           : "${APPLE_ID:?Missing APPLE_ID}"
           : "${APPLE_APP_SPECIFIC_PASSWORD:?Missing APPLE_APP_SPECIFIC_PASSWORD}"
           : "${APPLE_TEAM_ID:?Missing APPLE_TEAM_ID}"
-          npm run dist:mac
+          npm run build:app
+          npx electron-builder --mac dmg zip --universal --publish never
 
       - name: Verify signature, Gatekeeper, notarization, and checksums
         run: |
