@@ -119,4 +119,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           mapfile -t FILES < <(find release-artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.yml' -o -name '*.blockmap' -o -name 'SHA256SUMS.txt' \) | sort)
-          gh release create "${RELEASE_TAG}" "${FILES[@]}" --repo "${GITHUB_REPOSITORY}" --generate-notes --verify-tag
+          if gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            gh release upload "${RELEASE_TAG}" "${FILES[@]}" --repo "${GITHUB_REPOSITORY}" --clobber
+          else
+            gh release create "${RELEASE_TAG}" "${FILES[@]}" --repo "${GITHUB_REPOSITORY}" --generate-notes --verify-tag
+          fi
