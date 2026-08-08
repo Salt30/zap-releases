@@ -5,6 +5,7 @@ contextBridge.exposeInMainWorld('dripType', Object.freeze({
   cancel: () => ipcRenderer.send('drip-type:cancel'),
   showQuick: () => ipcRenderer.send('quick:show'),
   closeQuick: () => ipcRenderer.send('quick:close'),
+  readClipboardText: () => ipcRenderer.invoke('clipboard:read-text'),
   showMain: () => ipcRenderer.send('main:show'),
   replayOnboarding: () => ipcRenderer.send('onboarding:replay'),
   completeOnboarding: (settings) => ipcRenderer.invoke('onboarding:complete', settings),

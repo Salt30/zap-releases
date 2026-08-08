@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="dark light">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
-  <title>Quick Type</title>
+  <title>Drip Composer</title>
   <style>
     :root { color-scheme: dark; --text:#f6f6f7; --muted:#a3a5ac; --subtle:#777a83; --accent:#f4c84a; --accent-ink:#211b08; --border:rgba(255,255,255,.13); }
     :root[data-theme="light"] { color-scheme:light; --text:#1b1d22; --muted:#61656d; --subtle:#858991; --accent:#dfb021; --accent-ink:#211b08; --border:rgba(28,31,37,.14); }
@@ -29,19 +29,21 @@
     .mark { display:grid; place-items:center; width:25px; height:25px; margin-right:9px; border-radius:7px; background:var(--accent); color:var(--accent-ink); }
     .mark svg { width:14px; height:14px; }
     .title { font-size:13px; font-weight:650; }
-    .target { min-width:0; margin-left:10px; color:var(--subtle); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .target strong { color:var(--muted); font-weight:540; }
+    .target { min-width:0; margin-left:10px; padding:4px 8px; border:1px solid var(--border); border-radius:999px; color:var(--subtle); font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .target strong { color:var(--muted); font-weight:600; }
     .top-hint { margin-left:auto; color:var(--subtle); font-size:11px; }
     kbd { display:inline-flex; height:20px; padding:0 6px; align-items:center; border:1px solid rgba(255,255,255,.13); border-radius:5px; background:rgba(255,255,255,.05); color:var(--muted); font:10px -apple-system,sans-serif; }
-    textarea { display:block; width:100%; height:166px; padding:17px 18px; resize:none; border:0; outline:0; background:transparent; color:var(--text); font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif; user-select:text; -webkit-app-region:no-drag; }
+    textarea { display:block; width:100%; height:198px; padding:18px 20px; resize:none; border:0; outline:0; background:transparent; color:var(--text); caret-color:var(--accent); font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif; user-select:text; -webkit-app-region:no-drag; }
     textarea::placeholder { color:#6c6f77; }
-    .footer { display:flex; align-items:center; height:62px; padding:0 12px 0 18px; border-top:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.018); -webkit-app-region:no-drag; }
-    .meta { color:var(--subtle); font-size:11px; }
-    .state { margin-left:12px; color:var(--muted); font-size:11px; }
+    .footer { display:flex; align-items:center; height:70px; padding:0 12px 0 18px; border-top:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.018); -webkit-app-region:no-drag; }
+    .details { min-width:0; display:grid; gap:4px; }
+    .meta { color:var(--muted); font-size:11px; }
+    .state { color:var(--subtle); font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .actions { display:flex; gap:8px; margin-left:auto; }
     button { height:34px; padding:0 13px; border-radius:8px; border:1px solid transparent; font:600 12px -apple-system,sans-serif; cursor:pointer; }
     button:disabled { opacity:.4; cursor:default; }
-    .cancel { border-color:rgba(255,255,255,.1); background:rgba(255,255,255,.05); color:var(--muted); }
+    .secondary { border-color:rgba(255,255,255,.1); background:rgba(255,255,255,.05); color:var(--muted); }
+    .secondary:hover { background:rgba(255,255,255,.09); color:var(--text); }
     .submit { background:var(--accent); color:var(--accent-ink); }
   </style>
 </head>
@@ -49,15 +51,14 @@
   <div class="shell">
     <div class="top">
       <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 5.7 13h6.1L11 22l7.3-11h-6.1L13 2Z"/></svg></div>
-      <span class="title">Quick Type</span>
-      <span class="target">into <strong id="target">previous app</strong></span>
-      <span class="top-hint"><kbd>⌘↵</kbd> to start · <kbd>esc</kbd> to close</span>
+      <span class="title">Drip Composer</span>
+      <span class="target">Returns to <strong id="target">previous app</strong></span>
+      <span class="top-hint"><kbd>⌘V</kbd> paste · <kbd>⌘↵</kbd> drip · <kbd>esc</kbd> close</span>
     </div>
-    <textarea id="text" spellcheck="true" placeholder="Paste or type anything…"></textarea>
+    <textarea id="text" spellcheck="true" maxlength="100000" aria-label="Composer text" placeholder="Paste or type anything you want Drip Type to enter…"></textarea>
     <div class="footer">
-      <span class="meta" id="meta">0 characters</span>
-      <span class="state" id="state"></span>
-      <div class="actions"><button class="cancel" id="cancel">Cancel</button><button class="submit" id="submit" disabled>Type after 3s</button></div>
+      <div class="details"><span class="meta" id="meta">0 words · 0 characters</span><span class="state" id="state">Private draft · stored in memory only</span></div>
+      <div class="actions"><button class="secondary" id="paste">Paste</button><button class="secondary" id="clear" disabled>Clear</button><button class="submit" id="submit" disabled>Drip after 3s</button></div>
     </div>
   </div>
   <script src="quick.js"></script>

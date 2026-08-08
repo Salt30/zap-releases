@@ -7,6 +7,10 @@ const fail = (message) => { throw new Error(message); };
 
 const packageJson = JSON.parse(read('package.json'));
 const packageLock = JSON.parse(read('package-lock.json'));
+const mainSource = read('src/main.js');
+const preloadSource = read('src/preload.js');
+const quickSource = read('src/quick.js');
+const quickMarkup = read('src/quick.html');
 
 if (!packageJson.private || packageJson.license !== 'UNLICENSED') {
   fail('The package must remain private and proprietary.');
@@ -22,6 +26,19 @@ if (!packageJson.build?.mac?.forceCodeSigning || !packageJson.build?.mac?.harden
 }
 if (packageJson.build.files.some((entry) => entry.includes('src'))) {
   fail('Raw source must not be included in production packages.');
+}
+
+for (const marker of ['launchAtLogin', 'wasOpenedAtLogin', "handleTrusted('clipboard:read-text'"]) {
+  if (!mainSource.includes(marker)) fail(`Background composer requirement is missing: ${marker}`);
+}
+if (!preloadSource.includes("ipcRenderer.invoke('clipboard:read-text')")) {
+  fail('The isolated clipboard bridge is missing.');
+}
+for (const marker of ['Drip Composer', 'Private draft · stored in memory only', 'id="paste"']) {
+  if (!quickMarkup.includes(marker)) fail(`Composer interface requirement is missing: ${marker}`);
+}
+if (!quickSource.includes('readClipboardText') || !quickSource.includes('100000')) {
+  fail('Composer clipboard input must use the bounded preload bridge.');
 }
 
 const pages = [

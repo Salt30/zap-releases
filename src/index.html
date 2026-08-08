@@ -275,6 +275,12 @@
     .theme-option { height: 30px; padding: 0 11px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; }
     .theme-option:hover { color: var(--text); }
     .theme-option.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+    .toggle { display:flex; align-items:center; gap:8px; height:34px; padding:0 10px; border:1px solid var(--border); border-radius:999px; background:var(--surface-raised); color:var(--muted); font:600 12px -apple-system,sans-serif; cursor:pointer; }
+    .toggle-track { position:relative; width:30px; height:17px; border-radius:999px; background:#3a3d45; transition:background 140ms ease; }
+    .toggle-track::after { content:''; position:absolute; top:2px; left:2px; width:13px; height:13px; border-radius:50%; background:#fff; box-shadow:0 1px 3px rgba(0,0,0,.28); transition:transform 140ms ease; }
+    .toggle[aria-checked="true"] { color:var(--text); }
+    .toggle[aria-checked="true"] .toggle-track { background:var(--accent); }
+    .toggle[aria-checked="true"] .toggle-track::after { transform:translateX(13px); }
     :root[data-theme="light"] .nav-button:hover { background: rgba(28,31,37,.045); }
     :root[data-theme="light"] .nav-button.active { background: rgba(28,31,37,.075); }
     :root[data-theme="light"] .shortcut-input { background: #fffefa; }
@@ -316,7 +322,7 @@
           <span class="permission-dot"></span>
           <span><span class="permission-title" id="permission-title">Accessibility needed</span><span class="permission-copy" id="permission-copy">Click to enable typing access.</span></span>
         </button>
-        <div class="quick-hint">Press <kbd>⌥5</kbd> from any app to open Quick Type.</div>
+        <div class="quick-hint">Press <kbd>⌥5</kbd> from any app to open Drip Composer.</div>
       </div>
     </aside>
 
@@ -324,7 +330,7 @@
       <section class="page active" id="page-composer">
         <div class="eyebrow">Composer</div>
         <h1>Write it once. Type it anywhere.</h1>
-        <p class="lead">Paste or draft text here, then switch to the destination during the countdown. For the fastest workflow, use Quick Type from any app.</p>
+        <p class="lead">Paste or draft text here, then switch to the destination during the countdown. For the fastest workflow, use Drip Composer from any app.</p>
 
         <div class="card composer">
           <textarea id="text" spellcheck="true" placeholder="Paste or write something to type…"></textarea>
@@ -365,7 +371,7 @@
         <h1>Stay in the flow.</h1>
         <p class="lead">Use Electron accelerator syntax. On macOS, <strong>Alt</strong> maps to Option and <strong>Command</strong> maps to ⌘.</p>
         <div class="card">
-          <div class="shortcut-card"><div><div class="shortcut-name">Open Quick Type</div><div class="shortcut-description">Show the translucent composer above the current app.</div></div><input class="shortcut-input" id="start-key" value="Alt+5" spellcheck="false"></div>
+          <div class="shortcut-card"><div><div class="shortcut-name">Open Drip Composer</div><div class="shortcut-description">Show the translucent composer above the current app without opening settings.</div></div><input class="shortcut-input" id="start-key" value="Alt+5" spellcheck="false"></div>
           <div class="shortcut-card"><div><div class="shortcut-name">Stop typing</div><div class="shortcut-description">Immediately cancels the current typing session.</div></div><input class="shortcut-input" id="stop-key" value="Alt+0" spellcheck="false"></div>
         </div>
         <div class="save-row"><button class="button primary" id="save-shortcuts">Save shortcuts</button><span class="save-note" id="shortcut-note"></span></div>
@@ -390,8 +396,13 @@
           </div>
           <div class="card setup-card">
             <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v14H4zM8 9h8M8 13h5"/></svg></div>
-            <div class="setup-copy"><div class="setup-title">Quick Type</div><div class="setup-description">Open the compact composer now to preview the global workflow.</div></div>
-            <button class="button secondary" id="preview-quick">Open Quick Type</button>
+            <div class="setup-copy"><div class="setup-title">Drip Composer</div><div class="setup-description">Open the translucent composer now. Paste or write text, then return it to any app.</div></div>
+            <button class="button secondary" id="preview-quick">Open composer</button>
+          </div>
+          <div class="card setup-card">
+            <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 13v6h14v-6"/></svg></div>
+            <div class="setup-copy"><div class="setup-title">Ready at login</div><div class="setup-description" id="launch-login-copy">Starts quietly in the menu bar so the global composer shortcut is always available.</div></div>
+            <button class="toggle" id="launch-login" role="switch" aria-checked="true"><span class="toggle-track" aria-hidden="true"></span><span id="launch-login-label">On</span></button>
           </div>
           <div class="card setup-card">
             <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M21 3v6h-6M21 9a9 9 0 0 0-9-6"/><path d="M9.5 9.5 15 12l-5.5 2.5v-5Z"/></svg></div>

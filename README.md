@@ -5,7 +5,7 @@ Drip Type is a native-feeling macOS utility that turns prepared text into natura
 ## How it works
 
 1. Press `Option+5` from the app you want to type into.
-2. Paste or write anything in the translucent Quick Type composer.
+2. Paste or write anything in the translucent Drip Composer.
 3. Press `Command+Enter`.
 4. Drip Type returns to the previous app and begins after the configured delay.
 
@@ -15,6 +15,7 @@ Drip Type is a native-feeling macOS utility that turns prepared text into natura
 
 - First-run onboarding, interactive typing demo, and enforced native permission checklist
 - Translucent global-hotkey composer
+- Explicit local clipboard paste and in-memory-only drafts
 - Automatic return to the previously active app
 - Adjustable WPM, start delay, typo rate, thinking pauses, and speed bursts
 - Three behavior presets plus full manual control
@@ -24,6 +25,7 @@ Drip Type is a native-feeling macOS utility that turns prepared text into natura
 - Markdown cleanup before typing
 - Live countdown, progress, cancellation, and error states
 - Menu-bar access and keyboard-first operation
+- Optional launch-at-login mode that starts quietly without opening settings
 - Local-only settings with no account, analytics, server, or shared database
 - Live Accessibility and Automation status with direct macOS permission recovery
 - One signed and notarized universal Mac download for Apple Silicon and Intel
@@ -31,6 +33,9 @@ Drip Type is a native-feeling macOS utility that turns prepared text into natura
 - Hardened Runtime, locked Electron fuses, and embedded ASAR integrity checks
 - Minified production bundles with raw source excluded from distributable files
 - Automated macOS quality gates on every push, pull request, and release
+
+The proposed Core and Pro packages, feature roadmap, and secure entitlement
+architecture are documented in [docs/PRODUCT_AND_SUBSCRIPTIONS.md](docs/PRODUCT_AND_SUBSCRIPTIONS.md).
 
 ## Development
 
@@ -88,8 +93,8 @@ base64 -i DeveloperIDApplication.p12 | pbcopy
 Paste the clipboard contents into `MAC_CERTIFICATE_P12_BASE64`. Then publish a release:
 
 ```bash
-git tag v1.2.0
-git push origin v1.2.0
+git tag v1.3.0
+git push origin v1.3.0
 ```
 
 GitHub Actions builds one universal application, signs it with the VegaNext

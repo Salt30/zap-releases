@@ -38,6 +38,7 @@ const DEFAULTS = {
   dripBurstChance: 0.08,
   hotkeyStart: 'Alt+5',
   hotkeyStop: 'Alt+0',
+  launchAtLogin: true,
   theme: 'system',
   automationPermissionChecked: false,
   onboardingDone: false
@@ -234,6 +235,10 @@ function applySettings(settings = {}) {
     const value = typeof settings[key] === 'string' ? settings[key].trim() : '';
     if (value && value.length <= 64) store.set(key, value);
   }
+  if (Object.prototype.hasOwnProperty.call(settings, 'launchAtLogin') &&
+      typeof settings.launchAtLogin === 'boolean') {
+    store.set('launchAtLogin', settings.launchAtLogin);
+  }
   if (Object.prototype.hasOwnProperty.call(settings, 'theme')) {
     const theme = typeof settings.theme === 'string' ? settings.theme : '';
     if (['system', 'dark', 'light'].includes(theme)) {
@@ -241,6 +246,14 @@ function applySettings(settings = {}) {
       publishTheme(theme);
     }
   }
+}
+
+function configureLoginItem() {
+  if (process.platform !== 'darwin' || !app.isPackaged) return;
+  app.setLoginItemSettings({
+    openAtLogin: store.get('launchAtLogin', DEFAULTS.launchAtLogin),
+    openAsHidden: true
+  });
 }
 
 function publishTheme(theme = store.get('theme', DEFAULTS.theme)) {
@@ -538,8 +551,8 @@ function createQuickWindow() {
 
   quickWindow = new BrowserWindow({
     ...windowOptions(),
-    width: 680,
-    height: 300,
+    width: 720,
+    height: 340,
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
@@ -590,11 +603,16 @@ function createOnboardingWindow() {
 
 async function showQuickComposer() {
   if (dripTypeRunning) return;
+  if (quickWindow && !quickWindow.isDestroyed() && quickWindow.isVisible()) {
+    quickWindow.focus();
+    return;
+  }
   quickTarget = await getFrontmostApplication();
   const window = createQuickWindow();
   const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
   const { x, y, width, height } = display.workArea;
-  window.setPosition(Math.round(x + (width - 680) / 2), Math.round(y + height * 0.2));
+  const [composerWidth] = window.getSize();
+  window.setPosition(Math.round(x + (width - composerWidth) / 2), Math.round(y + height * 0.18));
   window.show();
   window.focus();
   sendToWindow(window, 'quick:opened', {
@@ -614,7 +632,7 @@ function registerShortcuts() {
   globalShortcut.unregisterAll();
   const failures = [];
   const shortcuts = [
-    { key: store.get('hotkeyStart'), action: showQuickComposer, label: 'Quick Type' },
+    { key: store.get('hotkeyStart'), action: showQuickComposer, label: 'Drip Composer' },
     { key: store.get('hotkeyStop'), action: cancelDripType, label: 'Stop typing' }
   ];
 
@@ -637,7 +655,7 @@ function createTray() {
   tray = new Tray(icon);
   tray.setToolTip('Drip Type');
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Quick Type', accelerator: store.get('hotkeyStart'), click: showQuickComposer },
+    { label: 'Drip Composer', accelerator: store.get('hotkeyStart'), click: showQuickComposer },
     { label: 'Open Drip Type', click: showMainWindow },
     { type: 'separator' },
     { label: 'Stop Typing', accelerator: store.get('hotkeyStop'), click: cancelDripType },
@@ -703,6 +721,10 @@ handleTrusted('drip-type:start', ['index.html', 'quick.html'], async (event, tex
   return result;
 });
 
+handleTrusted('clipboard:read-text', ['quick.html'], () => (
+  clipboard.readText().slice(0, MAX_TEXT_LENGTH)
+));
+
 onTrusted('drip-type:cancel', ['index.html', 'quick.html'], cancelDripType);
 onTrusted('quick:show', ['index.html'], showQuickComposer);
 onTrusted('quick:close', ['quick.html'], () => quickWindow?.hide());
@@ -720,6 +742,7 @@ handleTrusted('onboarding:complete', ['onboarding.html'], async (_event, setting
   if (missing.length) return { success: false, missing, permissions };
   applySettings(settings);
   store.set('onboardingDone', true);
+  configureLoginItem();
   registerShortcuts();
   onboardingWindow?.close();
   showMainWindow();
@@ -729,6 +752,7 @@ handleTrusted('onboarding:complete', ['onboarding.html'], async (_event, setting
 handleTrusted('settings:get', ['index.html', 'onboarding.html'], () => ({ ...store.store, defaults: DEFAULTS }));
 handleTrusted('settings:save', ['index.html'], (_event, settings) => {
   applySettings(settings);
+  if (Object.prototype.hasOwnProperty.call(settings || {}, 'launchAtLogin')) configureLoginItem();
   const shortcutFailures = registerShortcuts();
   if (tray) createTrayMenuOnly();
   return { settings: store.store, shortcutFailures };
@@ -736,7 +760,7 @@ handleTrusted('settings:save', ['index.html'], (_event, settings) => {
 
 function createTrayMenuOnly() {
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Quick Type', accelerator: store.get('hotkeyStart'), click: showQuickComposer },
+    { label: 'Drip Composer', accelerator: store.get('hotkeyStart'), click: showQuickComposer },
     { label: 'Open Drip Type', click: showMainWindow },
     { type: 'separator' },
     { label: 'Stop Typing', accelerator: store.get('hotkeyStop'), click: cancelDripType },
@@ -813,9 +837,11 @@ app.whenReady().then(() => {
   createQuickWindow();
   createTray();
   registerShortcuts();
+  configureLoginItem();
   configureUpdater();
-  if (store.get('onboardingDone')) createMainWindow();
-  else createOnboardingWindow();
+  const openedAtLogin = process.platform === 'darwin' && app.getLoginItemSettings().wasOpenedAtLogin;
+  if (!store.get('onboardingDone')) createOnboardingWindow();
+  else if (!openedAtLogin) createMainWindow();
 });
 
 app.on('activate', () => {

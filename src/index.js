@@ -11,6 +11,7 @@ let typing = false;
 let saveTimer = null;
 let updateState = { status: 'idle' };
 let themePreference = 'system';
+let launchAtLogin = true;
 
 function applyTheme(preference = 'system') {
   themePreference = ['system', 'light', 'dark'].includes(preference) ? preference : 'system';
@@ -31,6 +32,15 @@ function setPage(name) {
   document.querySelectorAll('.page').forEach((page) => {
     page.classList.toggle('active', page.id === `page-${name}`);
   });
+}
+
+function renderLaunchAtLogin(enabled) {
+  launchAtLogin = Boolean(enabled);
+  $('launch-login').setAttribute('aria-checked', String(launchAtLogin));
+  $('launch-login-label').textContent = launchAtLogin ? 'On' : 'Off';
+  $('launch-login-copy').textContent = launchAtLogin
+    ? 'Starts quietly in the menu bar so the global composer shortcut is always available.'
+    : 'Drip Type must be opened manually before its global shortcuts can work.';
 }
 
 function rangeFill(input) {
@@ -184,6 +194,10 @@ $('request-automation').addEventListener('click', async () => {
   await refreshPermissionChecklist();
 });
 $('preview-quick').addEventListener('click', () => window.dripType.showQuick());
+$('launch-login').addEventListener('click', async () => {
+  renderLaunchAtLogin(!launchAtLogin);
+  await window.dripType.saveSettings({ launchAtLogin });
+});
 $('replay-onboarding').addEventListener('click', () => window.dripType.replayOnboarding());
 $('update-action').addEventListener('click', runUpdateAction);
 document.querySelectorAll('.theme-option').forEach((button) => {
@@ -251,6 +265,7 @@ async function load() {
   controls.bursts.value = settings.dripBurstChance;
   $('start-key').value = settings.hotkeyStart;
   $('stop-key').value = settings.hotkeyStop;
+  renderLaunchAtLogin(settings.launchAtLogin);
   applyTheme(settings.theme);
   $('brand-version').textContent = `Version ${info.version}`;
   $('about-version').textContent = info.version;
