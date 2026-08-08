@@ -1,24 +1,103 @@
 {
   "name": "drip-type",
-  "version": "1.0.1",
-  "description": "Human-like text typing for macOS with configurable speed, pauses, bursts, and corrected typos.",
+  "version": "1.2.0",
+  "description": "Natural, configurable typing for macOS.",
   "main": "src/main.js",
+  "author": "VegaNext LLC",
+  "license": "UNLICENSED",
+  "private": true,
   "scripts": {
     "start": "electron .",
-    "check": "node --check src/main.js && node --check src/preload.js"
+    "build:app": "node scripts/build-app.js",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/index.js && node --check src/quick.js && node --check src/onboarding.js && node --check scripts/build-app.js && node --check scripts/after-pack.js && node --check scripts/verify-source.js && node --check scripts/verify-package.js",
+    "test:source": "node scripts/verify-source.js",
+    "verify": "npm run check && npm run test:source && npm run build:app",
+    "verify:package": "node scripts/verify-package.js",
+    "pack:mac": "npm run build:app && electron-builder --mac --dir --universal -c.mac.forceCodeSigning=false",
+    "dist:mac": "npm run build:app && electron-builder --mac dmg zip --universal",
+    "release:mac": "bash scripts/release-mac.sh"
   },
   "keywords": [
     "electron",
     "typing",
     "macos",
-    "accessibility"
+    "accessibility",
+    "productivity"
   ],
-  "author": "Salt30",
-  "license": "MIT",
   "dependencies": {
-    "electron-store": "^8.1.0"
+    "electron-store": "^8.1.0",
+    "electron-updater": "^6.6.2"
   },
   "devDependencies": {
-    "electron": "^33.3.1"
+    "@electron/fuses": "^2.1.3",
+    "electron": "^43.1.1",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.25.8"
+  },
+  "build": {
+    "appId": "com.salt30.driptype",
+    "productName": "Drip Type",
+    "artifactName": "Drip-Type-${version}-mac.${ext}",
+    "asar": true,
+    "compression": "maximum",
+    "extraMetadata": {
+      "main": "build-app/main.js"
+    },
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "files": [
+      "build-app/**/*",
+      "assets/**/*",
+      "package.json",
+      "!**/*.map"
+    ],
+    "electronLanguages": ["en"],
+    "afterPack": "scripts/after-pack.js",
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "Salt30",
+        "repo": "Drip-type",
+        "releaseType": "release"
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "assets/icon.png",
+      "target": [
+        {
+          "target": "dmg",
+          "arch": ["universal"]
+        },
+        {
+          "target": "zip",
+          "arch": ["universal"]
+        }
+      ],
+      "forceCodeSigning": true,
+      "hardenedRuntime": true,
+      "gatekeeperAssess": false,
+      "notarize": true,
+      "entitlements": "build/entitlements.mac.plist",
+      "entitlementsInherit": "build/entitlements.mac.plist",
+      "extendInfo": {
+        "LSApplicationCategoryType": "public.app-category.productivity",
+        "NSAppleEventsUsageDescription": "Drip Type uses macOS System Events to type text into the application you choose.",
+        "NSAccessibilityUsageDescription": "Drip Type needs Accessibility access to type text into other applications."
+      }
+    },
+    "dmg": {
+      "title": "Drip Type ${version}",
+      "icon": "assets/icon.png",
+      "backgroundColor": "#0d0f13",
+      "iconSize": 128,
+      "window": { "width": 540, "height": 380 },
+      "contents": [
+        { "x": 140, "y": 185 },
+        { "x": 400, "y": 185, "type": "link", "path": "/Applications" }
+      ]
+    }
   }
 }

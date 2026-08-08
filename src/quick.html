@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
+  <title>Quick Type</title>
+  <style>
+    :root { color-scheme: dark; --text:#f6f6f7; --muted:#a3a5ac; --subtle:#777a83; --accent:#f4c84a; --accent-ink:#211b08; --border:rgba(255,255,255,.13); }
+    :root[data-theme="light"] { color-scheme:light; --text:#1b1d22; --muted:#61656d; --subtle:#858991; --accent:#dfb021; --accent-ink:#211b08; --border:rgba(28,31,37,.14); }
+    * { box-sizing: border-box; }
+    html,body { width:100%; height:100%; margin:0; overflow:hidden; background:transparent; }
+    body { padding:12px; font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Helvetica Neue",sans-serif; color:var(--text); -webkit-font-smoothing:antialiased; }
+    .shell {
+      height:100%;
+      overflow:hidden;
+      border:1px solid var(--border);
+      border-radius:18px;
+      background:rgba(22,23,27,.78);
+      box-shadow:0 28px 90px rgba(0,0,0,.46),0 1px 0 rgba(255,255,255,.08) inset;
+      backdrop-filter:blur(34px) saturate(145%);
+      -webkit-backdrop-filter:blur(34px) saturate(145%);
+      -webkit-app-region:drag;
+    }
+    :root[data-theme="light"] .shell { background:rgba(251,250,246,.82); box-shadow:0 28px 90px rgba(47,43,31,.22),0 1px 0 rgba(255,255,255,.65) inset; }
+    :root[data-theme="light"] .top, :root[data-theme="light"] .footer { border-color:rgba(28,31,37,.08); }
+    .top { display:flex; align-items:center; height:48px; padding:0 16px; border-bottom:1px solid rgba(255,255,255,.08); }
+    .mark { display:grid; place-items:center; width:25px; height:25px; margin-right:9px; border-radius:7px; background:var(--accent); color:var(--accent-ink); }
+    .mark svg { width:14px; height:14px; }
+    .title { font-size:13px; font-weight:650; }
+    .target { min-width:0; margin-left:10px; color:var(--subtle); font-size:12px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    .target strong { color:var(--muted); font-weight:540; }
+    .top-hint { margin-left:auto; color:var(--subtle); font-size:11px; }
+    kbd { display:inline-flex; height:20px; padding:0 6px; align-items:center; border:1px solid rgba(255,255,255,.13); border-radius:5px; background:rgba(255,255,255,.05); color:var(--muted); font:10px -apple-system,sans-serif; }
+    textarea { display:block; width:100%; height:166px; padding:17px 18px; resize:none; border:0; outline:0; background:transparent; color:var(--text); font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif; user-select:text; -webkit-app-region:no-drag; }
+    textarea::placeholder { color:#6c6f77; }
+    .footer { display:flex; align-items:center; height:62px; padding:0 12px 0 18px; border-top:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.018); -webkit-app-region:no-drag; }
+    .meta { color:var(--subtle); font-size:11px; }
+    .state { margin-left:12px; color:var(--muted); font-size:11px; }
+    .actions { display:flex; gap:8px; margin-left:auto; }
+    button { height:34px; padding:0 13px; border-radius:8px; border:1px solid transparent; font:600 12px -apple-system,sans-serif; cursor:pointer; }
+    button:disabled { opacity:.4; cursor:default; }
+    .cancel { border-color:rgba(255,255,255,.1); background:rgba(255,255,255,.05); color:var(--muted); }
+    .submit { background:var(--accent); color:var(--accent-ink); }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="top">
+      <div class="mark"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 5.7 13h6.1L11 22l7.3-11h-6.1L13 2Z"/></svg></div>
+      <span class="title">Quick Type</span>
+      <span class="target">into <strong id="target">previous app</strong></span>
+      <span class="top-hint"><kbd>⌘↵</kbd> to start · <kbd>esc</kbd> to close</span>
+    </div>
+    <textarea id="text" spellcheck="true" placeholder="Paste or type anything…"></textarea>
+    <div class="footer">
+      <span class="meta" id="meta">0 characters</span>
+      <span class="state" id="state"></span>
+      <div class="actions"><button class="cancel" id="cancel">Cancel</button><button class="submit" id="submit" disabled>Type after 3s</button></div>
+    </div>
+  </div>
+  <script src="quick.js"></script>
+</body>
+</html>

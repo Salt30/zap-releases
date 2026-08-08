@@ -1,0 +1,122 @@
+name: Signed macOS release
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing v* release tag to rebuild
+        required: true
+        type: string
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+env:
+  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+
+concurrency:
+  group: mac-release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build universal macOS app
+    runs-on: macos-14
+
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Verify source and dependencies
+        run: |
+          npm run verify
+          npm audit --omit=dev --audit-level=moderate
+
+      - name: Import Developer ID certificate
+        env:
+          MAC_CERTIFICATE_P12_BASE64: ${{ secrets.MAC_CERTIFICATE_P12_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+        run: |
+          : "${MAC_CERTIFICATE_P12_BASE64:?Missing MAC_CERTIFICATE_P12_BASE64}"
+          : "${CSC_KEY_PASSWORD:?Missing CSC_KEY_PASSWORD}"
+          CERTIFICATE_PATH="$RUNNER_TEMP/developer-id.p12"
+          KEYCHAIN_PATH="$RUNNER_TEMP/build.keychain-db"
+          KEYCHAIN_PASSWORD="$(openssl rand -hex 24)"
+
+          printf '%s' "$MAC_CERTIFICATE_P12_BASE64" | base64 -D > "$CERTIFICATE_PATH"
+          security create-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN_PATH"
+          security unlock-keychain -p "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security import "$CERTIFICATE_PATH" -P "$CSC_KEY_PASSWORD" -A -t cert -f pkcs12 -k "$KEYCHAIN_PATH"
+          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" "$KEYCHAIN_PATH"
+          security list-keychain -d user -s "$KEYCHAIN_PATH" login.keychain-db
+          security find-identity -v -p codesigning "$KEYCHAIN_PATH" | grep -F "Developer ID Application: VegaNext LLC (U46KNQN78Q)"
+
+      - name: Build, sign, and notarize
+        env:
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+          CSC_NAME: "Developer ID Application: VegaNext LLC (U46KNQN78Q)"
+        run: |
+          : "${APPLE_ID:?Missing APPLE_ID}"
+          : "${APPLE_APP_SPECIFIC_PASSWORD:?Missing APPLE_APP_SPECIFIC_PASSWORD}"
+          : "${APPLE_TEAM_ID:?Missing APPLE_TEAM_ID}"
+          npm run dist:mac
+
+      - name: Verify signature, Gatekeeper, notarization, and checksums
+        run: |
+          APP_PATH="dist/mac-universal/Drip Type.app"
+          npm run verify:package -- "$APP_PATH"
+          ARCHS="$(lipo -archs "$APP_PATH/Contents/MacOS/Drip Type")"
+          grep -qw x86_64 <<< "$ARCHS"
+          grep -qw arm64 <<< "$ARCHS"
+          codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+          spctl --assess --verbose --type exec "$APP_PATH"
+          xcrun stapler validate "$APP_PATH"
+          shasum -a 256 dist/*.dmg dist/*.zip > dist/SHA256SUMS.txt
+
+      - name: Upload release artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: drip-type-macos-universal
+          path: |
+            dist/*.dmg
+            dist/*.zip
+            dist/*.yml
+            dist/*.blockmap
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    name: Publish GitHub release
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download signed artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mapfile -t FILES < <(find release-artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.yml' -o -name '*.blockmap' -o -name 'SHA256SUMS.txt' \) | sort)
+          gh release create "${RELEASE_TAG}" "${FILES[@]}" --repo "${GITHUB_REPOSITORY}" --generate-notes --verify-tag

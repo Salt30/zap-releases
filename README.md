@@ -1,47 +1,131 @@
 # Drip Type
 
-A standalone Electron app that types text into the active macOS application with configurable human-like timing.
+Drip Type is a native-feeling macOS utility that turns prepared text into natural keystrokes in any application.
 
-## Features
+## How it works
 
-- Configurable words per minute and start delay
-- Per-character Gaussian speed variation
-- Optional mid-sentence thinking pauses
-- Brief speed bursts
-- Nearby-key typos followed by automatic correction
-- Extra pauses around punctuation
+1. Press `Option+5` from the app you want to type into.
+2. Paste or write anything in the translucent Quick Type composer.
+3. Press `Command+Enter`.
+4. Drip Type returns to the previous app and begins after the configured delay.
+
+`Option+0` immediately stops a running session. Both shortcuts are customizable.
+
+## Product features
+
+- First-run onboarding, interactive typing demo, and enforced native permission checklist
+- Translucent global-hotkey composer
+- Automatic return to the previously active app
+- Adjustable WPM, start delay, typo rate, thinking pauses, and speed bursts
+- Three behavior presets plus full manual control
+- System, light, and dark appearance modes across every window
+- Nearby-key typos followed by realistic corrections
+- Natural timing variation and punctuation-aware pauses
 - Markdown cleanup before typing
-- Global stop shortcut
-- Safe clipboard fallback outside macOS
+- Live countdown, progress, cancellation, and error states
+- Menu-bar access and keyboard-first operation
+- Local-only settings with no account, analytics, server, or shared database
+- Live Accessibility and Automation status with direct macOS permission recovery
+- One signed and notarized universal Mac download for Apple Silicon and Intel
+- Signed automatic updates with visible download and install progress
+- Hardened Runtime, locked Electron fuses, and embedded ASAR integrity checks
+- Minified production bundles with raw source excluded from distributable files
+- Automated macOS quality gates on every push, pull request, and release
 
-## Requirements
+## Development
 
-- macOS for automatic typing
-- Node.js 18 or newer
-- Accessibility permission for Electron or the packaged app
+Requirements:
 
-## Run locally
+- macOS
+- Node.js 22 or newer
 
 ```bash
-npm install
+npm ci
 npm start
 ```
 
-On first launch, enable access under **System Settings → Privacy & Security → Accessibility**.
+During development, enable **Electron** under **System Settings → Privacy & Security → Accessibility**. Packaged builds appear as **Drip Type** instead.
 
-## Controls
+## Local release build
 
-1. Enter or paste text.
-2. Choose the typing behavior.
-3. Press **Save settings**.
-4. Press **Start typing**.
-5. During the start delay, focus the destination text field.
+Apple requires distributed macOS applications to be signed with a Developer ID certificate and notarized. Install your **Developer ID Application** certificate in Keychain Access, then set:
 
-The default stop shortcut is `Option+0` (`Alt+0` in Electron accelerator syntax).
+```bash
+export APPLE_ID="developer@example.com"
+export APPLE_APP_SPECIFIC_PASSWORD="xxxx-xxxx-xxxx-xxxx"
+export APPLE_TEAM_ID="ABCDEFGHIJ"
+```
 
-## Platform behavior
+Build the universal Apple Silicon and Intel release:
 
-The automatic engine uses macOS System Events through `osascript`. On Windows and Linux, the current version copies the cleaned text to the clipboard instead.
+```bash
+npm run release:mac
+```
+
+Signed and notarized `.dmg` and `.zip` files are written to `dist/`, alongside
+the signed-update metadata and a `SHA256SUMS.txt` verification file.
+
+Never commit credentials, app-specific passwords, `.p12` files, or certificate passwords.
+
+## Automated GitHub releases
+
+The release workflow runs when a `v*` tag is pushed. Add these repository secrets under **Settings → Secrets and variables → Actions**:
+
+| Secret | Value |
+| --- | --- |
+| `MAC_CERTIFICATE_P12_BASE64` | Base64-encoded Developer ID Application `.p12` certificate |
+| `CSC_KEY_PASSWORD` | Password used when exporting the `.p12` |
+| `APPLE_ID` | Apple Developer account email |
+| `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password from account.apple.com |
+| `APPLE_TEAM_ID` | Ten-character Apple Developer Team ID |
+
+Encode the certificate on macOS:
+
+```bash
+base64 -i DeveloperIDApplication.p12 | pbcopy
+```
+
+Paste the clipboard contents into `MAC_CERTIFICATE_P12_BASE64`. Then publish a release:
+
+```bash
+git tag v1.2.0
+git push origin v1.2.0
+```
+
+GitHub Actions builds one universal application, signs it with the VegaNext
+Developer ID identity, submits it to Apple notarization, validates Gatekeeper
+acceptance and the stapled ticket, generates SHA-256 checksums, and publishes
+the final files to GitHub Releases. The same release metadata powers the
+in-app updater.
+
+## Distribution security
+
+- The repository is private and the package is marked `UNLICENSED` to prevent
+  accidental npm publication or permissive source redistribution.
+- Release builds never include the raw `src/` tree. Main, preload, and renderer
+  code is bundled and minified without source maps before it enters `app.asar`.
+- Electron fuses disable `ELECTRON_RUN_AS_NODE`, Node option injection, and
+  production debugger flags. The app only loads the integrity-checked ASAR.
+- macOS code signing detects modifications to the application bundle, and
+  Apple notarization provides Gatekeeper trust for direct downloads.
+- Automatic updates require a valid signed application and SHA-512 release
+  metadata generated by electron-builder.
+- Certificates and passwords live only in GitHub Actions secrets and are
+  ignored by Git.
+
+No client-side desktop software can be made impossible to reverse engineer.
+These controls prevent casual source extraction, make modification detectable,
+and materially raise the effort required to copy implementation details.
+
+## Scaling model
+
+Drip Type has no central runtime service. Every typing session runs locally, so additional users do not add load to an API or database. GitHub Releases supplies the distribution layer. Release jobs use locked dependencies, per-architecture builds, and concurrency protection to prevent duplicate publication for the same tag.
+
+Source should remain in this private repository. Public distribution at scale
+should use a separate public, binary-only release repository or an object-storage
+CDN; never make the source repository public merely to expose downloads.
+
+If a future version adds accounts, sync, analytics, or remote configuration, those services should be introduced behind a versioned API with rate limits, queue-backed event ingestion, health checks, and independent failure handling. None are needed for the current local-first product.
 
 ## Responsible use
 
@@ -49,4 +133,4 @@ Use automation only in applications and workflows where you have permission. Do 
 
 ## License
 
-MIT
+Proprietary. Copyright © 2026 VegaNext LLC. All rights reserved.

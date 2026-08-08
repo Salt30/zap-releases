@@ -1,4 +1,11 @@
 node_modules/
 dist/
+build-app/
 .DS_Store
 npm-debug.log*
+*.p12
+*.cer
+*.pem
+*.provisionprofile
+.env
+.env.*

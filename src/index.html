@@ -3,73 +3,422 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark light">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
   <title>Drip Type</title>
   <style>
-    :root{color-scheme:dark;--bg:#080d24;--panel:#111936;--line:#29345c;--text:#f6f7ff;--muted:#9da8cc;--accent:#ffd447;--danger:#ff647c}*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#182149 0,var(--bg) 55%);color:var(--text);font:14px Inter,system-ui,sans-serif;min-height:100vh}.app{width:min(680px,calc(100% - 32px));margin:28px auto}.brand{display:flex;gap:14px;align-items:center;margin-bottom:24px}.bolt{display:grid;place-items:center;width:48px;height:48px;border-radius:14px;background:#111a43;color:var(--accent);font-size:28px;box-shadow:0 12px 30px #0007}.brand h1{margin:0;font-size:25px}.brand p{margin:4px 0 0;color:var(--muted)}.card{background:#111936dd;border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:0 22px 60px #0005;margin-bottom:16px}textarea{width:100%;height:190px;resize:vertical;background:#080d24;border:1px solid var(--line);border-radius:12px;color:var(--text);padding:14px;font:14px/1.55 ui-monospace,SFMono-Regular,monospace;outline:none}textarea:focus,input:focus{border-color:var(--accent)}.actions{display:flex;gap:10px;margin-top:14px}button{border:0;border-radius:10px;padding:11px 18px;font-weight:700;cursor:pointer;background:var(--accent);color:#171200}button.secondary{background:#29345c;color:var(--text)}button.danger{background:#4a2334;color:#ffb5c1}.grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}.field{margin-bottom:16px}.field:last-child{margin-bottom:0}label{display:flex;justify-content:space-between;margin-bottom:8px;color:var(--muted)}label output{color:var(--accent);font-weight:700}input[type=range]{width:100%;accent-color:var(--accent)}input[type=text]{width:100%;background:#080d24;border:1px solid var(--line);border-radius:9px;padding:10px;color:var(--text)}.status{min-height:22px;margin-top:12px;color:var(--muted)}.status.error{color:var(--danger)}.note{font-size:12px;color:var(--muted);line-height:1.5}@media(max-width:600px){.grid{grid-template-columns:1fr}}
+    :root {
+      color-scheme: dark;
+      --bg: #0d0f13;
+      --sidebar: rgba(16, 18, 23, 0.82);
+      --surface: #17191f;
+      --surface-raised: #1d2027;
+      --surface-hover: #22252d;
+      --border: rgba(255, 255, 255, 0.085);
+      --border-strong: rgba(255, 255, 255, 0.14);
+      --text: #f4f5f7;
+      --muted: #9b9fa9;
+      --subtle: #6e737e;
+      --accent: #f4c84a;
+      --accent-hover: #ffd760;
+      --accent-ink: #211b08;
+      --danger: #f07d86;
+      --success: #73c991;
+      --radius: 12px;
+      --shadow: 0 16px 50px rgba(0, 0, 0, 0.25);
+    }
+    :root[data-theme="light"] {
+      color-scheme: light;
+      --bg: #f5f4ef;
+      --sidebar: rgba(242, 241, 236, 0.9);
+      --surface: #fffefa;
+      --surface-raised: #f0eee8;
+      --surface-hover: #e8e5dd;
+      --border: rgba(28, 31, 37, 0.11);
+      --border-strong: rgba(28, 31, 37, 0.18);
+      --text: #1b1d22;
+      --muted: #666a73;
+      --subtle: #868a92;
+      --accent: #dfb021;
+      --accent-hover: #efc232;
+      --accent-ink: #211b08;
+      --danger: #c5535c;
+      --success: #2f8855;
+      --shadow: 0 16px 42px rgba(47, 43, 31, 0.08);
+    }
+
+    * { box-sizing: border-box; }
+    html, body { width: 100%; height: 100%; margin: 0; overflow: hidden; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+      font-size: 14px;
+      -webkit-font-smoothing: antialiased;
+      user-select: none;
+    }
+
+    button, input, textarea { font: inherit; }
+    button { -webkit-app-region: no-drag; }
+
+    .app { display: grid; grid-template-columns: 226px 1fr; height: 100%; }
+
+    .sidebar {
+      display: flex;
+      flex-direction: column;
+      padding: 58px 14px 16px;
+      background: var(--sidebar);
+      border-right: 1px solid var(--border);
+      -webkit-app-region: drag;
+    }
+
+    .brand { display: flex; align-items: center; gap: 11px; padding: 0 10px 24px; }
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 32px;
+      border-radius: 9px;
+      background: var(--accent);
+      color: var(--accent-ink);
+      box-shadow: 0 5px 18px rgba(244, 200, 74, 0.16);
+    }
+    .brand-mark svg { width: 17px; height: 17px; }
+    .brand-name { font-weight: 680; letter-spacing: -0.02em; }
+    .brand-version { color: var(--subtle); font-size: 11px; margin-top: 2px; }
+
+    .nav { display: grid; gap: 3px; -webkit-app-region: no-drag; }
+    .nav-button {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      min-height: 38px;
+      padding: 0 11px;
+      border: 0;
+      border-radius: 8px;
+      background: transparent;
+      color: var(--muted);
+      cursor: pointer;
+      text-align: left;
+      transition: background 120ms ease, color 120ms ease;
+    }
+    .nav-button:hover { color: var(--text); background: rgba(255, 255, 255, 0.045); }
+    .nav-button.active { color: var(--text); background: rgba(255, 255, 255, 0.075); }
+    .nav-button svg { width: 16px; height: 16px; opacity: .86; }
+
+    .sidebar-bottom { margin-top: auto; -webkit-app-region: no-drag; }
+    .permission {
+      display: flex;
+      gap: 9px;
+      align-items: flex-start;
+      padding: 11px;
+      margin-bottom: 10px;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      background: rgba(255, 255, 255, 0.025);
+      cursor: pointer;
+    }
+    .permission-dot { width: 7px; height: 7px; margin-top: 5px; border-radius: 50%; background: var(--danger); flex: none; }
+    .permission.ready .permission-dot { background: var(--success); }
+    .permission-title { color: var(--text); font-size: 12px; font-weight: 600; }
+    .permission-copy { margin-top: 2px; color: var(--subtle); font-size: 11px; line-height: 1.35; }
+    .quick-hint { padding: 0 11px; color: var(--subtle); font-size: 11px; line-height: 1.45; }
+    kbd {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-width: 22px;
+      height: 20px;
+      padding: 0 6px;
+      border: 1px solid var(--border-strong);
+      border-radius: 5px;
+      background: rgba(255,255,255,.045);
+      color: var(--muted);
+      font: 11px -apple-system, BlinkMacSystemFont, sans-serif;
+      box-shadow: 0 1px 0 rgba(255,255,255,.05) inset;
+    }
+
+    .content { min-width: 0; overflow: auto; background: var(--bg); }
+    .page { display: none; width: min(720px, calc(100% - 64px)); margin: 0 auto; padding: 62px 0 48px; }
+    .page.active { display: block; animation: page-in 170ms ease-out; }
+    @keyframes page-in { from { opacity: 0; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+
+    .eyebrow { margin-bottom: 8px; color: var(--accent); font-size: 11px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; }
+    h1 { margin: 0; font-size: 28px; font-weight: 660; letter-spacing: -0.035em; }
+    .lead { max-width: 560px; margin: 9px 0 28px; color: var(--muted); font-size: 14px; line-height: 1.55; }
+
+    .card { border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+    .composer { overflow: hidden; }
+    .composer textarea {
+      display: block;
+      width: 100%;
+      height: 286px;
+      padding: 20px;
+      resize: none;
+      border: 0;
+      outline: 0;
+      background: transparent;
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+      font-size: 15px;
+      line-height: 1.58;
+      user-select: text;
+    }
+    .composer textarea::placeholder { color: #61656f; }
+    .composer-footer {
+      display: flex;
+      align-items: center;
+      min-height: 58px;
+      padding: 10px 12px 10px 18px;
+      border-top: 1px solid var(--border);
+      background: rgba(255,255,255,.018);
+    }
+    .text-meta { display: flex; gap: 14px; color: var(--subtle); font-size: 12px; }
+    .composer-actions { display: flex; gap: 8px; margin-left: auto; }
+
+    .button {
+      height: 36px;
+      padding: 0 14px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      font-size: 13px;
+      font-weight: 610;
+      cursor: pointer;
+      transition: background 120ms ease, border 120ms ease, transform 80ms ease, opacity 120ms ease;
+    }
+    .button:active { transform: scale(.98); }
+    .button:disabled { cursor: default; opacity: .42; transform: none; }
+    .button.primary { background: var(--accent); color: var(--accent-ink); }
+    .button.primary:hover:not(:disabled) { background: var(--accent-hover); }
+    .button.secondary { border-color: var(--border); background: var(--surface-raised); color: var(--text); }
+    .button.secondary:hover:not(:disabled) { border-color: var(--border-strong); background: var(--surface-hover); }
+    .button.danger { border-color: rgba(240,125,134,.2); background: rgba(240,125,134,.1); color: #f3a4aa; }
+
+    .status-line {
+      display: flex;
+      align-items: center;
+      gap: 9px;
+      min-height: 44px;
+      margin-top: 14px;
+      padding: 0 4px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+    .status-icon { width: 8px; height: 8px; border: 2px solid var(--subtle); border-radius: 50%; }
+    .status-line[data-status="waiting"] .status-icon,
+    .status-line[data-status="typing"] .status-icon { border-color: var(--accent); }
+    .status-line[data-status="complete"] .status-icon { border: 0; background: var(--success); }
+    .status-line[data-status="error"] .status-icon,
+    .status-line[data-status="cancelled"] .status-icon { border: 0; background: var(--danger); }
+    .progress { width: 90px; height: 3px; margin-left: auto; overflow: hidden; border-radius: 99px; background: rgba(255,255,255,.08); opacity: 0; }
+    .status-line[data-status="typing"] .progress { opacity: 1; }
+    .progress > span { display: block; width: 0; height: 100%; border-radius: inherit; background: var(--accent); transition: width 180ms linear; }
+
+    .section-list { display: grid; gap: 12px; }
+    .settings-card { padding: 18px; border: 1px solid var(--border); border-radius: var(--radius); background: var(--surface); }
+    .settings-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 18px; }
+    .settings-title { font-weight: 620; }
+    .settings-description { margin-top: 4px; color: var(--subtle); font-size: 12px; line-height: 1.45; }
+    .value { color: var(--accent); font-size: 12px; font-weight: 650; font-variant-numeric: tabular-nums; }
+    input[type="range"] {
+      width: 100%;
+      height: 16px;
+      margin: 0;
+      appearance: none;
+      background: transparent;
+      cursor: pointer;
+    }
+    input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 99px; background: linear-gradient(90deg, var(--accent) 0 var(--fill, 30%), #373a42 var(--fill, 30%) 100%); }
+    input[type="range"]::-webkit-slider-thumb { width: 16px; height: 16px; margin-top: -6px; appearance: none; border: 2px solid var(--surface); border-radius: 50%; background: var(--accent); box-shadow: 0 1px 5px rgba(0,0,0,.4); }
+    .preset-row { display: flex; gap: 8px; margin-bottom: 18px; }
+    .preset { height: 31px; padding: 0 12px; border: 1px solid var(--border); border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; }
+    .preset:hover { color: var(--text); border-color: var(--border-strong); }
+
+    .shortcut-card { display: grid; grid-template-columns: 1fr 210px; align-items: center; gap: 24px; padding: 18px; border-bottom: 1px solid var(--border); }
+    .shortcut-card:last-child { border-bottom: 0; }
+    .shortcut-name { font-weight: 610; }
+    .shortcut-description { margin-top: 4px; color: var(--subtle); font-size: 12px; }
+    .shortcut-input {
+      width: 100%;
+      height: 38px;
+      padding: 0 11px;
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      outline: 0;
+      background: #111319;
+      color: var(--text);
+      text-align: center;
+      user-select: text;
+    }
+    .shortcut-input:focus { border-color: rgba(244,200,74,.55); box-shadow: 0 0 0 3px rgba(244,200,74,.08); }
+    .save-row { display: flex; align-items: center; margin-top: 16px; }
+    .save-note { margin-left: 12px; color: var(--subtle); font-size: 12px; }
+
+    .setup-card { display: flex; align-items: center; gap: 16px; padding: 18px; }
+    .setup-icon { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-raised); color: var(--accent); }
+    .setup-icon svg { width: 19px; height: 19px; }
+    .setup-copy { min-width: 0; flex: 1; }
+    .setup-title { font-weight: 620; }
+    .setup-description { margin-top: 4px; color: var(--muted); font-size: 12px; line-height: 1.45; }
+    .update-progress { width: 118px; height: 4px; margin-left: 4px; appearance: none; border: 0; border-radius: 99px; overflow: hidden; background: rgba(255,255,255,.08); }
+    .update-progress::-webkit-progress-bar { background: rgba(255,255,255,.08); }
+    .update-progress::-webkit-progress-value { border-radius: 99px; background: var(--accent); }
+    .about-meta { display: grid; grid-template-columns: 120px 1fr; gap: 10px 16px; padding: 18px; color: var(--muted); font-size: 12px; }
+    .about-meta dt { color: var(--subtle); }
+    .about-meta dd { margin: 0; }
+    .check-state { display: inline-flex; align-items: center; gap: 7px; color: var(--subtle); font-size: 12px; }
+    .check-state::before { content: ''; width: 8px; height: 8px; border: 1.5px solid var(--subtle); border-radius: 50%; }
+    .check-state.ready { color: var(--success); }
+    .check-state.ready::before { border-color: var(--success); background: var(--success); box-shadow: 0 0 0 3px color-mix(in srgb, var(--success) 14%, transparent); }
+    .theme-picker { display: flex; gap: 4px; padding: 4px; border: 1px solid var(--border); border-radius: 9px; background: var(--surface-raised); }
+    .theme-option { height: 30px; padding: 0 11px; border: 0; border-radius: 6px; background: transparent; color: var(--muted); font-size: 12px; cursor: pointer; }
+    .theme-option:hover { color: var(--text); }
+    .theme-option.active { background: var(--surface); color: var(--text); box-shadow: 0 1px 4px rgba(0,0,0,.12); }
+    :root[data-theme="light"] .nav-button:hover { background: rgba(28,31,37,.045); }
+    :root[data-theme="light"] .nav-button.active { background: rgba(28,31,37,.075); }
+    :root[data-theme="light"] .shortcut-input { background: #fffefa; }
+    :root[data-theme="light"] input[type="range"]::-webkit-slider-runnable-track { background: linear-gradient(90deg, var(--accent) 0 var(--fill, 30%), #d7d4cc var(--fill, 30%) 100%); }
+
+    @media (max-width: 850px) {
+      .app { grid-template-columns: 200px 1fr; }
+      .page { width: calc(100% - 40px); }
+    }
   </style>
 </head>
 <body>
-  <main class="app">
-    <header class="brand"><div class="bolt">ϟ</div><div><h1>Drip Type</h1><p>Natural, configurable typing for macOS.</p></div></header>
-    <section class="card">
-      <textarea id="text" placeholder="Paste or write the text to type..."></textarea>
-      <div class="actions"><button id="start">Start typing</button><button id="cancel" class="danger">Stop</button></div>
-      <div id="status" class="status">Ready.</div>
-      <p class="note">After pressing Start, click the destination text field during the configured delay. Use this automation only where you have permission.</p>
-    </section>
-    <section class="card">
-      <div class="grid">
-        <div class="field"><label for="wpm">Words per minute <output id="wpmOut"></output></label><input id="wpm" type="range" min="15" max="120" step="5"></div>
-        <div class="field"><label for="delay">Start delay <output id="delayOut"></output></label><input id="delay" type="range" min="1" max="30" step="1"></div>
-        <div class="field"><label for="typos">Corrected typos <output id="typosOut"></output></label><input id="typos" type="range" min="0" max="0.2" step="0.01"></div>
-        <div class="field"><label for="pauses">Thinking pauses <output id="pausesOut"></output></label><input id="pauses" type="range" min="0" max="0.15" step="0.01"></div>
-        <div class="field"><label for="bursts">Typing bursts <output id="burstsOut"></output></label><input id="bursts" type="range" min="0" max="0.25" step="0.01"></div>
+  <div class="app">
+    <aside class="sidebar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 5.7 13h6.1L11 22l7.3-11h-6.1L13 2Z"/></svg>
+        </div>
+        <div><div class="brand-name">Drip Type</div><div class="brand-version" id="brand-version">Version 1.0.0</div></div>
       </div>
-      <div class="grid"><div class="field"><label for="startKey">Show window hotkey</label><input id="startKey" type="text"></div><div class="field"><label for="stopKey">Stop hotkey</label><input id="stopKey" type="text"></div></div>
-      <button id="save" class="secondary">Save settings</button>
-    </section>
-  </main>
-  <script>
-    const $ = (id) => document.getElementById(id);
-    const controls = { wpm: $('wpm'), delay: $('delay'), typos: $('typos'), pauses: $('pauses'), bursts: $('bursts') };
-    function refreshOutputs() {
-      $('wpmOut').textContent = `${controls.wpm.value} WPM`;
-      $('delayOut').textContent = `${controls.delay.value}s`;
-      $('typosOut').textContent = `${Math.round(controls.typos.value * 100)}%`;
-      $('pausesOut').textContent = `${Math.round(controls.pauses.value * 100)}%`;
-      $('burstsOut').textContent = `${Math.round(controls.bursts.value * 100)}%`;
-    }
-    Object.values(controls).forEach((control) => control.addEventListener('input', refreshOutputs));
-    async function load() {
-      const settings = await window.dripType.getSettings();
-      controls.wpm.value = settings.dripWPM;
-      controls.delay.value = settings.dripDelay;
-      controls.typos.value = settings.typoRate;
-      controls.pauses.value = settings.dripPauseChance;
-      controls.bursts.value = settings.dripBurstChance;
-      $('startKey').value = settings.hotkeyStart;
-      $('stopKey').value = settings.hotkeyStop;
-      refreshOutputs();
-    }
-    $('save').addEventListener('click', async () => {
-      await window.dripType.saveSettings({
-        dripWPM: Number(controls.wpm.value), dripDelay: Number(controls.delay.value),
-        typoRate: Number(controls.typos.value), dripPauseChance: Number(controls.pauses.value),
-        dripBurstChance: Number(controls.bursts.value), hotkeyStart: $('startKey').value.trim(),
-        hotkeyStop: $('stopKey').value.trim()
-      });
-      $('status').className = 'status'; $('status').textContent = 'Settings saved.';
-    });
-    $('start').addEventListener('click', async () => {
-      $('status').className = 'status'; $('status').textContent = `Starting in ${controls.delay.value} seconds… click the destination field.`;
-      const result = await window.dripType.start($('text').value);
-      if (result.error) { $('status').className = 'status error'; $('status').textContent = result.error; }
-      else if (result.cancelled) $('status').textContent = 'Cancelled.';
-      else if (result.fallback) $('status').textContent = result.message;
-      else $('status').textContent = 'Finished typing.';
-    });
-    $('cancel').addEventListener('click', () => { window.dripType.cancel(); $('status').textContent = 'Stopping…'; });
-    load();
-  </script>
+
+      <nav class="nav" aria-label="Main navigation">
+        <button class="nav-button active" data-page="composer">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v11H8l-4 4V5Z"/></svg><span>Composer</span>
+        </button>
+        <button class="nav-button" data-page="typing">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M7 12h10M9 17h6"/></svg><span>Typing</span>
+        </button>
+        <button class="nav-button" data-page="shortcuts">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M18 10h.01M8 14h8"/></svg><span>Shortcuts</span>
+        </button>
+        <button class="nav-button" data-page="setup">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1v.1h-4v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1-.4h-.1v-4H3a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1v-.1h4V3a1.7 1.7 0 0 0 1.1 1.6 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.14.37.35.71.6 1 .28.26.63.4 1 .4h.1v4H21a1.7 1.7 0 0 0-1.6.6Z"/></svg><span>Setup</span>
+        </button>
+      </nav>
+
+      <div class="sidebar-bottom">
+        <button class="permission" id="permission-card">
+          <span class="permission-dot"></span>
+          <span><span class="permission-title" id="permission-title">Accessibility needed</span><span class="permission-copy" id="permission-copy">Click to enable typing access.</span></span>
+        </button>
+        <div class="quick-hint">Press <kbd>⌥5</kbd> from any app to open Quick Type.</div>
+      </div>
+    </aside>
+
+    <main class="content">
+      <section class="page active" id="page-composer">
+        <div class="eyebrow">Composer</div>
+        <h1>Write it once. Type it anywhere.</h1>
+        <p class="lead">Paste or draft text here, then switch to the destination during the countdown. For the fastest workflow, use Quick Type from any app.</p>
+
+        <div class="card composer">
+          <textarea id="text" spellcheck="true" placeholder="Paste or write something to type…"></textarea>
+          <div class="composer-footer">
+            <div class="text-meta"><span id="word-count">0 words</span><span id="char-count">0 characters</span><span id="estimate">—</span></div>
+            <div class="composer-actions">
+              <button class="button danger" id="cancel" disabled>Stop</button>
+              <button class="button primary" id="start" disabled>Start typing</button>
+            </div>
+          </div>
+        </div>
+        <div class="status-line" id="status" data-status="idle">
+          <span class="status-icon"></span><span id="status-copy">Ready</span>
+          <span class="progress"><span id="progress-bar"></span></span>
+        </div>
+      </section>
+
+      <section class="page" id="page-typing">
+        <div class="eyebrow">Typing</div>
+        <h1>Make the rhythm yours.</h1>
+        <p class="lead">Start with a preset, then tune individual behaviors. Changes are saved locally on this Mac.</p>
+        <div class="preset-row">
+          <button class="preset" data-preset="steady">Steady</button>
+          <button class="preset" data-preset="natural">Natural</button>
+          <button class="preset" data-preset="expressive">Expressive</button>
+        </div>
+        <div class="section-list">
+          <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Typing speed</div><div class="settings-description">Average pace before natural character variation.</div></div><output class="value" id="wpm-out">45 WPM</output></div><input id="wpm" type="range" min="15" max="120" step="5"></div>
+          <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Start delay</div><div class="settings-description">Time to focus a destination after pressing Start.</div></div><output class="value" id="delay-out">3 seconds</output></div><input id="delay" type="range" min="1" max="15" step="1"></div>
+          <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Corrected typos</div><div class="settings-description">Nearby-key mistakes followed by a short pause and correction.</div></div><output class="value" id="typos-out">3%</output></div><input id="typos" type="range" min="0" max="0.15" step="0.01"></div>
+          <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Thinking pauses</div><div class="settings-description">Occasional longer pauses between thoughts.</div></div><output class="value" id="pauses-out">3%</output></div><input id="pauses" type="range" min="0" max="0.12" step="0.01"></div>
+          <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Speed bursts</div><div class="settings-description">Brief acceleration through familiar phrases.</div></div><output class="value" id="bursts-out">8%</output></div><input id="bursts" type="range" min="0" max="0.25" step="0.01"></div>
+        </div>
+      </section>
+
+      <section class="page" id="page-shortcuts">
+        <div class="eyebrow">Shortcuts</div>
+        <h1>Stay in the flow.</h1>
+        <p class="lead">Use Electron accelerator syntax. On macOS, <strong>Alt</strong> maps to Option and <strong>Command</strong> maps to ⌘.</p>
+        <div class="card">
+          <div class="shortcut-card"><div><div class="shortcut-name">Open Quick Type</div><div class="shortcut-description">Show the translucent composer above the current app.</div></div><input class="shortcut-input" id="start-key" value="Alt+5" spellcheck="false"></div>
+          <div class="shortcut-card"><div><div class="shortcut-name">Stop typing</div><div class="shortcut-description">Immediately cancels the current typing session.</div></div><input class="shortcut-input" id="stop-key" value="Alt+0" spellcheck="false"></div>
+        </div>
+        <div class="save-row"><button class="button primary" id="save-shortcuts">Save shortcuts</button><span class="save-note" id="shortcut-note"></span></div>
+      </section>
+
+      <section class="page" id="page-setup">
+        <div class="eyebrow">Setup</div>
+        <h1>Ready for every app.</h1>
+        <p class="lead">Drip Type needs one macOS permission to send keystrokes. Your text and settings stay on this device.</p>
+        <div class="section-list">
+          <div class="card setup-card">
+            <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v2"/></svg></div>
+            <div class="setup-copy"><div class="setup-title">Accessibility access</div><div class="setup-description" id="setup-permission-copy">Required to type into other applications.</div></div>
+            <span class="check-state" id="accessibility-state">Required</span>
+            <button class="button secondary" id="request-access">Open permission prompt</button>
+          </div>
+          <div class="card setup-card">
+            <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 7h10v10H7z"/><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"/></svg></div>
+            <div class="setup-copy"><div class="setup-title">Automation access</div><div class="setup-description" id="automation-copy">Required so Drip Type can use macOS System Events.</div></div>
+            <span class="check-state" id="automation-state">Required</span>
+            <button class="button secondary" id="request-automation">Allow automation</button>
+          </div>
+          <div class="card setup-card">
+            <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v14H4zM8 9h8M8 13h5"/></svg></div>
+            <div class="setup-copy"><div class="setup-title">Quick Type</div><div class="setup-description">Open the compact composer now to preview the global workflow.</div></div>
+            <button class="button secondary" id="preview-quick">Open Quick Type</button>
+          </div>
+          <div class="card setup-card">
+            <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M21 3v6h-6M21 9a9 9 0 0 0-9-6"/><path d="M9.5 9.5 15 12l-5.5 2.5v-5Z"/></svg></div>
+            <div class="setup-copy"><div class="setup-title">Getting started tour</div><div class="setup-description">Replay the interactive walkthrough and typing demo.</div></div>
+            <button class="button secondary" id="replay-onboarding">Replay onboarding</button>
+          </div>
+          <div class="card setup-card">
+            <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"/></svg></div>
+            <div class="setup-copy"><div class="setup-title">Appearance</div><div class="setup-description">Match macOS automatically or choose a permanent theme.</div></div>
+            <div class="theme-picker" role="group" aria-label="Appearance">
+              <button class="theme-option" data-theme-value="system">System</button>
+              <button class="theme-option" data-theme-value="light">Light</button>
+              <button class="theme-option" data-theme-value="dark">Dark</button>
+            </div>
+          </div>
+          <div class="card setup-card">
+            <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v5c0 4.4 2.7 8.3 7 10 4.3-1.7 7-5.6 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg></div>
+            <div class="setup-copy"><div class="setup-title">Secure updates</div><div class="setup-description" id="update-copy">Updates are signed, verified, and installed without replacing your settings.</div></div>
+            <progress class="update-progress" id="update-progress" value="0" max="100" hidden></progress>
+            <button class="button secondary" id="update-action">Check for updates</button>
+          </div>
+          <dl class="card about-meta"><dt>Version</dt><dd id="about-version">1.0.0</dd><dt>Storage</dt><dd>Local settings only</dd><dt>Typing engine</dt><dd>macOS System Events</dd><dt>Bundle ID</dt><dd id="about-id">com.salt30.driptype</dd></dl>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script src="index.js"></script>
 </body>
 </html>
