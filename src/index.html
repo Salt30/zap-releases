@@ -106,6 +106,8 @@
     .nav-button:hover { color: var(--text); background: rgba(255, 255, 255, 0.045); }
     .nav-button.active { color: var(--text); background: rgba(255, 255, 255, 0.075); }
     .nav-button svg { width: 16px; height: 16px; opacity: .86; }
+    .nav-update-dot { width: 6px; height: 6px; margin-left: auto; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px rgba(244,200,74,.08); }
+    .nav-update-dot[hidden] { display: none; }
 
     .sidebar-bottom { margin-top: auto; -webkit-app-region: no-drag; }
     .permission {
@@ -264,6 +266,12 @@
     .update-progress { width: 118px; height: 4px; margin-left: 4px; appearance: none; border: 0; border-radius: 99px; overflow: hidden; background: rgba(255,255,255,.08); }
     .update-progress::-webkit-progress-bar { background: rgba(255,255,255,.08); }
     .update-progress::-webkit-progress-value { border-radius: 99px; background: var(--accent); }
+    .update-card { transition: border-color 160ms ease, box-shadow 160ms ease; }
+    .update-card[data-update-status="available"], .update-card[data-update-status="downloaded"] { border-color: rgba(244,200,74,.28); box-shadow: 0 0 0 3px rgba(244,200,74,.045); }
+    .update-release { max-width: 520px; margin-top: 9px; color: var(--subtle); font-size: 11px; line-height: 1.5; }
+    .update-release[hidden] { display: none; }
+    .update-release strong { display: block; margin-bottom: 3px; color: var(--muted); font-weight: 650; }
+    .update-release p { margin: 0; }
     .about-meta { display: grid; grid-template-columns: 120px 1fr; gap: 10px 16px; padding: 18px; color: var(--muted); font-size: 12px; }
     .about-meta dt { color: var(--subtle); }
     .about-meta dd { margin: 0; }
@@ -313,7 +321,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M18 10h.01M8 14h8"/></svg><span>Shortcuts</span>
         </button>
         <button class="nav-button" data-page="setup">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1v.1h-4v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1-.4h-.1v-4H3a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1v-.1h4V3a1.7 1.7 0 0 0 1.1 1.6 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.14.37.35.71.6 1 .28.26.63.4 1 .4h.1v4H21a1.7 1.7 0 0 0-1.6.6Z"/></svg><span>Setup</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1v.1h-4v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1-.4h-.1v-4H3a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1v-.1h4V3a1.7 1.7 0 0 0 1.1 1.6 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.14.37.35.71.6 1 .28.26.63.4 1 .4h.1v4H21a1.7 1.7 0 0 0-1.6.6Z"/></svg><span>Setup</span><span class="nav-update-dot" id="update-dot" hidden></span>
         </button>
       </nav>
 
@@ -418,9 +426,9 @@
               <button class="theme-option" data-theme-value="dark">Dark</button>
             </div>
           </div>
-          <div class="card setup-card">
+          <div class="card setup-card update-card" id="update-card" data-update-status="idle">
             <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v5c0 4.4 2.7 8.3 7 10 4.3-1.7 7-5.6 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg></div>
-            <div class="setup-copy"><div class="setup-title">Secure updates</div><div class="setup-description" id="update-copy">Updates are signed, verified, and installed without replacing your settings.</div></div>
+            <div class="setup-copy"><div class="setup-title">Secure updates</div><div class="setup-description" id="update-copy">Updates are signed, verified, and installed without replacing your settings.</div><div class="update-release" id="update-release" hidden><strong id="update-release-name">What’s new</strong><p id="update-release-copy"></p></div></div>
             <progress class="update-progress" id="update-progress" value="0" max="100" hidden></progress>
             <button class="button secondary" id="update-action">Check for updates</button>
           </div>

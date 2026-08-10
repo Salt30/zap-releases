@@ -30,6 +30,7 @@ Drip Type is a native-feeling macOS utility that turns prepared text into natura
 - Live Accessibility and Automation status with direct macOS permission recovery
 - One signed and notarized universal Mac download for Apple Silicon and Intel
 - Signed automatic updates with visible download and install progress
+- Native update notifications, release notes, and a menu-bar update indicator
 - Hardened Runtime, locked Electron fuses, and embedded ASAR integrity checks
 - Minified production bundles with raw source excluded from distributable files
 - Automated macOS quality gates on every push, pull request, and release
@@ -72,7 +73,7 @@ the signed-update metadata and a `SHA256SUMS.txt` verification file.
 
 Never commit credentials, app-specific passwords, `.p12` files, or certificate passwords.
 
-## Automated GitHub releases
+## Automated signed releases
 
 The release workflow runs when a `v*` tag is pushed. Add these repository secrets under **Settings → Secrets and variables → Actions**:
 
@@ -83,6 +84,7 @@ The release workflow runs when a `v*` tag is pushed. Add these repository secret
 | `APPLE_ID` | Apple Developer account email |
 | `APPLE_APP_SPECIFIC_PASSWORD` | App-specific password from account.apple.com |
 | `APPLE_TEAM_ID` | Ten-character Apple Developer Team ID |
+| `VERCEL_TOKEN` | Vercel access token allowed to deploy the `drip-type-updates` project |
 
 Encode the certificate on macOS:
 
@@ -99,9 +101,15 @@ git push origin v1.3.0
 
 GitHub Actions builds one universal application, signs it with the VegaNext
 Developer ID identity, submits it to Apple notarization, validates Gatekeeper
-acceptance and the stapled ticket, generates SHA-256 checksums, and publishes
-the final files to GitHub Releases. The same release metadata powers the
-in-app updater.
+acceptance and the stapled ticket, generates SHA-256 checksums, and atomically
+publishes the final files and update metadata to the dedicated Vercel update
+service. It also creates a GitHub Release as an administrative backup. The
+source repository and signing credentials remain private.
+
+Signed production builds check `https://drip-type-updates.vercel.app/` shortly
+after launch and every six hours. Users can also choose **Check for Updates…**
+from the app or menu bar. Downloads begin only after user approval; Drip Type
+shows release notes and progress, then offers **Restart to update**.
 
 ## Distribution security
 
@@ -124,7 +132,11 @@ and materially raise the effort required to copy implementation details.
 
 ## Scaling model
 
-Drip Type has no central runtime service. Every typing session runs locally, so additional users do not add load to an API or database. GitHub Releases supplies the distribution layer. Release jobs use locked dependencies, per-architecture builds, and concurrency protection to prevent duplicate publication for the same tag.
+Drip Type has no central runtime service. Every typing session runs locally, so
+additional users do not add load to an API or database. Vercel's edge network
+supplies the update distribution layer. Release jobs use locked dependencies,
+a universal build, atomic deployments, and concurrency protection to prevent
+duplicate publication for the same tag.
 
 Source should remain in this private repository. Public distribution at scale
 should use a separate public, binary-only release repository or an object-storage

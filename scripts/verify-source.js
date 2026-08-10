@@ -27,9 +27,20 @@ if (!packageJson.build?.mac?.forceCodeSigning || !packageJson.build?.mac?.harden
 if (packageJson.build.files.some((entry) => entry.includes('src'))) {
   fail('Raw source must not be included in production packages.');
 }
+const updateProvider = packageJson.build?.publish?.[0];
+if (updateProvider?.provider !== 'generic' || updateProvider?.url !== 'https://drip-type-updates.vercel.app/') {
+  fail('The signed updater must use the dedicated public update service.');
+}
+if (!packageJson.build?.releaseInfo?.releaseName?.includes(packageJson.version) ||
+    !packageJson.build?.releaseInfo?.releaseNotes) {
+  fail('Release metadata must include the current version name and user-visible notes.');
+}
 
 for (const marker of ['launchAtLogin', 'wasOpenedAtLogin', "handleTrusted('clipboard:read-text'"]) {
   if (!mainSource.includes(marker)) fail(`Background composer requirement is missing: ${marker}`);
+}
+for (const marker of ['autoDownload = false', '6 * 60 * 60 * 1000', 'notifyUpdateAvailable']) {
+  if (!mainSource.includes(marker)) fail(`In-app update requirement is missing: ${marker}`);
 }
 if (!preloadSource.includes("ipcRenderer.invoke('clipboard:read-text')")) {
   fail('The isolated clipboard bridge is missing.');

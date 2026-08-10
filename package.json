@@ -57,12 +57,14 @@
     "afterPack": "scripts/after-pack.js",
     "publish": [
       {
-        "provider": "github",
-        "owner": "Salt30",
-        "repo": "Drip-type",
-        "releaseType": "release"
+        "provider": "generic",
+        "url": "https://drip-type-updates.vercel.app/"
       }
     ],
+    "releaseInfo": {
+      "releaseName": "Drip Type 1.3.0",
+      "releaseNotes": "Secure in-app updates now use a dedicated edge channel with automatic checks, native notifications, release notes, menu-bar status, download progress, and restart-to-install."
+    },
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "assets/icon.png",

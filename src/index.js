@@ -131,8 +131,14 @@ function renderUpdate(state) {
   const button = $('update-action');
   const copy = $('update-copy');
   const progress = $('update-progress');
+  const release = $('update-release');
   const version = updateState.version ? ` ${updateState.version}` : '';
 
+  $('update-card').dataset.updateStatus = updateState.status || 'idle';
+  $('update-dot').hidden = !['available', 'downloaded'].includes(updateState.status);
+  release.hidden = !updateState.releaseNotes;
+  $('update-release-name').textContent = updateState.releaseName || 'What’s new';
+  $('update-release-copy').textContent = updateState.releaseNotes || '';
   button.disabled = false;
   progress.hidden = true;
   progress.value = Number(updateState.percent || 0);
@@ -251,6 +257,13 @@ $('save-shortcuts').addEventListener('click', async () => {
 window.dripType.onState(setStatus);
 window.dripType.onUpdate(renderUpdate);
 window.dripType.onTheme(({ theme }) => applyTheme(theme));
+window.dripType.onNavigate(({ page, focus } = {}) => {
+  if (page) setPage(page);
+  if (focus === 'updates') {
+    $('update-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
+    $('update-action').focus({ preventScroll: true });
+  }
+});
 
 async function load() {
   const [settings, info, updater] = await Promise.all([

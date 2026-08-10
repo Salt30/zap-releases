@@ -23,5 +23,6 @@ contextBridge.exposeInMainWorld('dripType', Object.freeze({
   onState: (callback) => ipcRenderer.on('drip-type:state', (_event, state) => callback(state)),
   onQuickOpened: (callback) => ipcRenderer.on('quick:opened', (_event, data) => callback(data)),
   onTheme: (callback) => ipcRenderer.on('theme:changed', (_event, data) => callback(data)),
-  onUpdate: (callback) => ipcRenderer.on('updater:state', (_event, state) => callback(state))
+  onUpdate: (callback) => ipcRenderer.on('updater:state', (_event, state) => callback(state)),
+  onNavigate: (callback) => ipcRenderer.on('app:navigate', (_event, target) => callback(target))
 }));

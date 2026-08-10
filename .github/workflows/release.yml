@@ -98,6 +98,30 @@ jobs:
           xcrun stapler validate "$APP_PATH"
           shasum -a 256 dist/*.dmg dist/*.zip > dist/SHA256SUMS.txt
 
+      - name: Verify update artifacts
+        run: |
+          test -s dist/latest-mac.yml
+          find dist -maxdepth 1 -type f -name '*.dmg' -size +0 -print -quit | grep -q .
+          find dist -maxdepth 1 -type f -name '*.zip' -size +0 -print -quit | grep -q .
+          find dist -maxdepth 1 -type f -name '*.blockmap' -size +0 -print -quit | grep -q .
+
+      - name: Stage atomic update feed
+        env:
+          VERCEL_ORG_ID: team_cf0UACFxMu4eJlD47WlfkLUa
+          VERCEL_PROJECT_ID: prj_OnQ7adKj1xQcFfei4Rkj4sBVj7OV
+        run: |
+          mkdir -p update-site/.vercel
+          cp updates-host/index.html updates-host/vercel.json update-site/
+          cp dist/latest-mac.yml dist/*.dmg dist/*.zip dist/*.blockmap update-site/
+          node -e 'const fs=require("fs"); fs.writeFileSync("update-site/.vercel/project.json", JSON.stringify({orgId:process.env.VERCEL_ORG_ID,projectId:process.env.VERCEL_PROJECT_ID}))'
+
+      - name: Publish in-app update feed
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          : "${VERCEL_TOKEN:?Missing VERCEL_TOKEN}"
+          npx --yes vercel@latest deploy update-site --prod --yes --token "$VERCEL_TOKEN"
+
       - name: Upload release artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -112,7 +136,7 @@ jobs:
           retention-days: 14
 
   release:
-    name: Publish GitHub release
+    name: Publish backup GitHub release
     needs: build
     runs-on: ubuntu-latest
     steps:

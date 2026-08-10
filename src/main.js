@@ -2,6 +2,7 @@ const {
   app,
   BrowserWindow,
   Menu,
+  Notification,
   Tray,
   globalShortcut,
   ipcMain,
@@ -67,7 +68,18 @@ let quickTarget = null;
 let dripTypeCancelled = false;
 let dripTypeRunning = false;
 let activeAppleScript = null;
-let updateState = { status: app.isPackaged ? 'idle' : 'development' };
+let updateCheckTimer = null;
+let lastNotifiedUpdateVersion = null;
+let updateState = {
+  status: app.isPackaged && process.platform === 'darwin' ? 'idle' : 'development',
+  currentVersion: app.getVersion(),
+  version: null,
+  releaseName: null,
+  releaseNotes: null,
+  percent: 0,
+  lastCheckedAt: null,
+  message: 'Updates are checked automatically.'
+};
 
 const NEARBY = {
   a: 'sqwz', b: 'vngh', c: 'xvdf', d: 'sfcxer', e: 'wrsd', f: 'dgcvrt',
@@ -184,6 +196,43 @@ function broadcastState(state) {
 function publishUpdateState(next) {
   updateState = { ...updateState, ...next };
   sendToWindow(mainWindow, 'updater:state', updateState);
+  if (tray) createTrayMenuOnly();
+}
+
+function safeUpdateError(error) {
+  const message = String(error?.message || error || '');
+  if (/404|latest-mac\.yml|no published versions/i.test(message)) {
+    return 'The secure update channel is not published yet. Try again later.';
+  }
+  if (/net::|ENOTFOUND|ECONN|network|offline/i.test(message)) {
+    return 'Drip Type could not reach the update service. Check your connection and try again.';
+  }
+  return 'The signed update could not be verified. Try again later.';
+}
+
+function plainReleaseNotes(notes) {
+  const value = Array.isArray(notes)
+    ? notes.map((entry) => entry?.note || '').join('\n')
+    : String(notes || '');
+  return value
+    .replace(/<style[\s\S]*?<\/style>/gi, '')
+    .replace(/<script[\s\S]*?<\/script>/gi, '')
+    .replace(/<[^>]+>/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, 4000) || null;
+}
+
+function notifyUpdateAvailable(info) {
+  if (!Notification.isSupported() || !info?.version || lastNotifiedUpdateVersion === info.version) return;
+  lastNotifiedUpdateVersion = info.version;
+  const notification = new Notification({
+    title: `Drip Type ${info.version} is available`,
+    body: 'Open Drip Type to review what’s new and download the signed update.',
+    silent: true
+  });
+  notification.on('click', showUpdatesPage);
+  notification.show();
 }
 
 function senderPage(event) {
@@ -297,29 +346,61 @@ function configureUpdater() {
   autoUpdater.autoDownload = false;
   autoUpdater.autoInstallOnAppQuit = true;
   autoUpdater.allowPrerelease = false;
+  autoUpdater.allowDowngrade = false;
 
-  autoUpdater.on('checking-for-update', () => publishUpdateState({ status: 'checking' }));
+  autoUpdater.on('checking-for-update', () => publishUpdateState({
+    status: 'checking',
+    percent: 0,
+    message: 'Checking the signed release channel…'
+  }));
   autoUpdater.on('update-available', (info) => {
-    publishUpdateState({ status: 'available', version: info.version, percent: 0 });
+    publishUpdateState({
+      status: 'available',
+      version: info.version,
+      releaseName: info.releaseName || `Drip Type ${info.version}`,
+      releaseNotes: plainReleaseNotes(info.releaseNotes),
+      percent: 0,
+      lastCheckedAt: new Date().toISOString(),
+      message: `Drip Type ${info.version} is ready to download.`
+    });
+    notifyUpdateAvailable(info);
   });
   autoUpdater.on('update-not-available', () => {
-    publishUpdateState({ status: 'current', version: app.getVersion(), percent: 0 });
+    publishUpdateState({
+      status: 'current',
+      version: null,
+      releaseName: null,
+      releaseNotes: null,
+      percent: 0,
+      lastCheckedAt: new Date().toISOString(),
+      message: 'You have the latest signed version.'
+    });
   });
   autoUpdater.on('download-progress', (progress) => {
-    publishUpdateState({ status: 'downloading', percent: Math.max(0, Math.min(100, progress.percent || 0)) });
+    const percent = Math.max(0, Math.min(100, Math.round(progress.percent || 0)));
+    publishUpdateState({ status: 'downloading', percent, message: `Downloading the verified update · ${percent}%` });
   });
   autoUpdater.on('update-downloaded', (info) => {
-    publishUpdateState({ status: 'downloaded', version: info.version, percent: 100 });
+    publishUpdateState({
+      status: 'downloaded',
+      version: info.version,
+      percent: 100,
+      message: `Drip Type ${info.version} is verified and ready to install.`
+    });
   });
-  autoUpdater.on('error', () => {
-    publishUpdateState({ status: 'error', message: 'The signed update could not be verified. Try again later.' });
+  autoUpdater.on('error', (error) => {
+    publishUpdateState({
+      status: 'error',
+      percent: 0,
+      lastCheckedAt: new Date().toISOString(),
+      message: safeUpdateError(error)
+    });
   });
 
-  setTimeout(() => {
-    autoUpdater.checkForUpdates().catch(() => {
-      publishUpdateState({ status: 'error', message: 'The secure update check could not be completed.' });
-    });
-  }, 8000);
+  const check = () => autoUpdater.checkForUpdates().catch(() => {});
+  setTimeout(check, 8000);
+  updateCheckTimer = setInterval(check, 6 * 60 * 60 * 1000);
+  updateCheckTimer.unref?.();
 }
 
 async function getFrontmostApplication() {
@@ -628,6 +709,16 @@ function showMainWindow() {
   window.focus();
 }
 
+function showUpdatesPage() {
+  const window = createMainWindow();
+  if (window.isMinimized()) window.restore();
+  window.show();
+  window.focus();
+  const navigate = () => sendToWindow(window, 'app:navigate', { page: 'setup', focus: 'updates' });
+  if (window.webContents.isLoadingMainFrame()) window.webContents.once('did-finish-load', navigate);
+  else navigate();
+}
+
 function registerShortcuts() {
   globalShortcut.unregisterAll();
   const failures = [];
@@ -654,14 +745,7 @@ function createTray() {
   if (!icon.isEmpty()) icon = icon.resize({ width: 18, height: 18 });
   tray = new Tray(icon);
   tray.setToolTip('Drip Type');
-  tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Drip Composer', accelerator: store.get('hotkeyStart'), click: showQuickComposer },
-    { label: 'Open Drip Type', click: showMainWindow },
-    { type: 'separator' },
-    { label: 'Stop Typing', accelerator: store.get('hotkeyStop'), click: cancelDripType },
-    { type: 'separator' },
-    { label: 'Quit Drip Type', role: 'quit' }
-  ]));
+  createTrayMenuOnly();
   tray.on('click', showQuickComposer);
 }
 
@@ -671,6 +755,7 @@ function createApplicationMenu() {
       label: app.name,
       submenu: [
         { role: 'about' },
+        { label: 'Check for Updates…', click: showUpdatesPage },
         { type: 'separator' },
         { label: 'Settings…', accelerator: 'Command+,', click: showMainWindow },
         { type: 'separator' },
@@ -759,9 +844,17 @@ handleTrusted('settings:save', ['index.html'], (_event, settings) => {
 });
 
 function createTrayMenuOnly() {
+  const updateLabel = updateState.status === 'available'
+    ? `Download Drip Type ${updateState.version}…`
+    : updateState.status === 'downloaded'
+      ? `Restart to Install ${updateState.version}…`
+      : updateState.status === 'downloading'
+        ? `Downloading Update (${Math.round(updateState.percent || 0)}%)…`
+        : 'Check for Updates…';
   tray.setContextMenu(Menu.buildFromTemplate([
     { label: 'Drip Composer', accelerator: store.get('hotkeyStart'), click: showQuickComposer },
     { label: 'Open Drip Type', click: showMainWindow },
+    { label: updateLabel, click: showUpdatesPage },
     { type: 'separator' },
     { label: 'Stop Typing', accelerator: store.get('hotkeyStop'), click: cancelDripType },
     { type: 'separator' },
@@ -798,8 +891,8 @@ handleTrusted('updater:check', ['index.html'], async () => {
   try {
     await autoUpdater.checkForUpdates();
     return { ...updateState };
-  } catch (_) {
-    publishUpdateState({ status: 'error', message: 'The secure update check could not be completed.' });
+  } catch (error) {
+    publishUpdateState({ status: 'error', message: safeUpdateError(error) });
     return { ...updateState };
   }
 });
@@ -814,7 +907,7 @@ handleTrusted('updater:download', ['index.html'], async () => {
   return { ...updateState };
 });
 onTrusted('updater:install', ['index.html'], () => {
-  if (updateState.status === 'downloaded') autoUpdater.quitAndInstall(false, true);
+  if (updateState.status === 'downloaded') setImmediate(() => autoUpdater.quitAndInstall(false, true));
 });
 
 app.setName('Drip Type');
@@ -850,6 +943,7 @@ app.on('activate', () => {
 });
 app.on('will-quit', () => {
   cancelDripType();
+  if (updateCheckTimer) clearInterval(updateCheckTimer);
   globalShortcut.unregisterAll();
 });
 app.on('window-all-closed', () => {
