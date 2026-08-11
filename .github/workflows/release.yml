@@ -7,33 +7,67 @@ on:
         description: Existing v* release tag to rebuild
         required: true
         type: string
-  push:
-    tags:
-      - "v*"
+  create:
 
 permissions:
-  contents: write
-
-env:
-  RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  contents: read
 
 concurrency:
-  group: mac-release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref }}
+  group: mac-release-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.ref }}
   cancel-in-progress: false
 
 jobs:
   build:
     name: Build universal macOS app
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        (github.event_name == 'create' && github.event.ref_type == 'branch' && startsWith(github.event.ref, 'release/v'))
+      }}
     runs-on: macos-14
+    environment: production-signing
+    permissions:
+      contents: read
+    outputs:
+      release_tag: ${{ steps.release.outputs.tag }}
+      release_sha: ${{ steps.release.outputs.sha }}
 
     steps:
       - name: Check out source
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
-          ref: ${{ env.RELEASE_TAG }}
+          ref: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.event.ref }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Resolve and validate release
+        id: release
+        shell: bash
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          DISPATCH_TAG: ${{ inputs.tag }}
+          CREATED_REF: ${{ github.event.ref }}
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            RELEASE_TAG="$DISPATCH_TAG"
+          else
+            RELEASE_TAG="${CREATED_REF#release/}"
+          fi
+
+          [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          [[ "$RELEASE_TAG" == "v${PACKAGE_VERSION}" ]]
+
+          git fetch --no-tags origin main:refs/remotes/origin/main --depth=1
+          RELEASE_SHA="$(git rev-parse HEAD)"
+          MAIN_SHA="$(git rev-parse refs/remotes/origin/main)"
+          [[ "$RELEASE_SHA" == "$MAIN_SHA" ]]
+
+          echo "tag=$RELEASE_TAG" >> "$GITHUB_OUTPUT"
+          echo "sha=$RELEASE_SHA" >> "$GITHUB_OUTPUT"
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 22
           cache: npm
@@ -44,7 +78,8 @@ jobs:
       - name: Verify source and dependencies
         run: |
           npm run verify
-          npm audit --omit=dev --audit-level=moderate
+          npm audit --audit-level=low
+          npm audit signatures
 
       - name: Import Developer ID certificate
         env:
@@ -83,7 +118,6 @@ jobs:
             --apple-id "$APPLE_ID" \
             --password "$APPLE_APP_SPECIFIC_PASSWORD" \
             --team-id "$APPLE_TEAM_ID" >/dev/null
-          npm run build:app
           npx electron-builder --mac dmg zip --universal --publish never
 
       - name: Verify signature, Gatekeeper, notarization, and checksums
@@ -94,9 +128,32 @@ jobs:
           grep -qw x86_64 <<< "$ARCHS"
           grep -qw arm64 <<< "$ARCHS"
           codesign --verify --deep --strict --verbose=2 "$APP_PATH"
+          ENTITLEMENTS="$(codesign -d --entitlements :- "$APP_PATH" 2>&1)"
+          ! grep -q "com.apple.security.cs.disable-library-validation" <<< "$ENTITLEMENTS"
+          ! grep -q "com.apple.security.cs.allow-dyld-environment-variables" <<< "$ENTITLEMENTS"
+          ! grep -q "com.apple.security.cs.allow-unsigned-executable-memory" <<< "$ENTITLEMENTS"
+          ! grep -q "com.apple.security.cs.allow-jit" <<< "$ENTITLEMENTS"
           spctl --assess --verbose --type exec "$APP_PATH"
           xcrun stapler validate "$APP_PATH"
           shasum -a 256 dist/*.dmg dist/*.zip > dist/SHA256SUMS.txt
+          npm sbom --sbom-format spdx > dist/sbom.spdx.json
+
+      - name: Smoke-test signed app launch
+        shell: bash
+        run: |
+          APP_EXEC="dist/mac-universal/Drip Type.app/Contents/MacOS/Drip Type"
+          LOG_PATH="$RUNNER_TEMP/drip-type-signed-smoke.log"
+          "$APP_EXEC" >"$LOG_PATH" 2>&1 &
+          APP_PID=$!
+          for _ in {1..8}; do
+            if ! kill -0 "$APP_PID" 2>/dev/null; then
+              cat "$LOG_PATH"
+              exit 1
+            fi
+            sleep 1
+          done
+          kill "$APP_PID"
+          wait "$APP_PID" || true
 
       - name: Verify update artifacts
         run: |
@@ -120,10 +177,10 @@ jobs:
           VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
         run: |
           : "${VERCEL_TOKEN:?Missing VERCEL_TOKEN}"
-          npx --yes vercel@latest deploy update-site --prod --yes --token "$VERCEL_TOKEN"
+          npx --yes vercel@58.9.1 deploy update-site --prod --yes --token "$VERCEL_TOKEN"
 
       - name: Upload release artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
           name: drip-type-macos-universal
           path: |
@@ -132,16 +189,28 @@ jobs:
             dist/*.yml
             dist/*.blockmap
             dist/SHA256SUMS.txt
+            dist/sbom.spdx.json
           if-no-files-found: error
           retention-days: 14
+
+      - name: Remove signing material
+        if: always()
+        run: |
+          security delete-keychain "$RUNNER_TEMP/build.keychain-db" >/dev/null 2>&1 || true
+          rm -f "$RUNNER_TEMP/developer-id.p12"
 
   release:
     name: Publish backup GitHub release
     needs: build
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      RELEASE_TAG: ${{ needs.build.outputs.release_tag }}
+      RELEASE_SHA: ${{ needs.build.outputs.release_sha }}
     steps:
       - name: Download signed artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
         with:
           path: release-artifacts
 
@@ -149,9 +218,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mapfile -t FILES < <(find release-artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.yml' -o -name '*.blockmap' -o -name 'SHA256SUMS.txt' \) | sort)
+          mapfile -t FILES < <(find release-artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.yml' -o -name '*.blockmap' -o -name 'SHA256SUMS.txt' -o -name 'sbom.spdx.json' \) | sort)
           if gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             gh release upload "${RELEASE_TAG}" "${FILES[@]}" --repo "${GITHUB_REPOSITORY}" --clobber
           else
-            gh release create "${RELEASE_TAG}" "${FILES[@]}" --repo "${GITHUB_REPOSITORY}" --generate-notes --verify-tag
+            gh release create "${RELEASE_TAG}" "${FILES[@]}" --repo "${GITHUB_REPOSITORY}" --target "${RELEASE_SHA}" --generate-notes
           fi

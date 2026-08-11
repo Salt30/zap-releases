@@ -25,14 +25,14 @@
     "productivity"
   ],
   "dependencies": {
-    "electron-store": "^8.1.0",
-    "electron-updater": "^6.6.2"
+    "electron-store": "8.2.0",
+    "electron-updater": "6.8.9"
   },
   "devDependencies": {
-    "@electron/fuses": "^2.1.3",
-    "electron": "^43.1.1",
-    "electron-builder": "^26.15.3",
-    "esbuild": "^0.25.8"
+    "@electron/fuses": "2.1.3",
+    "electron": "43.1.1",
+    "electron-builder": "26.15.3",
+    "esbuild": "0.25.12"
   },
   "build": {
     "appId": "com.salt30.driptype",
@@ -63,7 +63,7 @@
     ],
     "releaseInfo": {
       "releaseName": "Drip Type 1.3.0",
-      "releaseNotes": "Secure in-app updates now use a dedicated edge channel with automatic checks, native notifications, release notes, menu-bar status, download progress, and restart-to-install."
+      "releaseNotes": "Secure in-app updates now use a dedicated edge channel with automatic checks, native notifications, release notes, menu-bar status, download progress, restart-to-install, stronger sandbox enforcement, stricter input handling, and hardened release verification."
     },
     "mac": {
       "category": "public.app-category.productivity",

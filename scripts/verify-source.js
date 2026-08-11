@@ -11,6 +11,8 @@ const mainSource = read('src/main.js');
 const preloadSource = read('src/preload.js');
 const quickSource = read('src/quick.js');
 const quickMarkup = read('src/quick.html');
+const entitlements = read('build/entitlements.mac.plist');
+const releaseWorkflow = read('.github/workflows/release.yml');
 
 if (!packageJson.private || packageJson.license !== 'UNLICENSED') {
   fail('The package must remain private and proprietary.');
@@ -18,11 +20,30 @@ if (!packageJson.private || packageJson.license !== 'UNLICENSED') {
 if (packageJson.version !== packageLock.version || packageJson.version !== packageLock.packages[''].version) {
   fail('package.json and package-lock.json versions do not match.');
 }
+for (const [group, dependencies] of Object.entries({
+  dependencies: packageJson.dependencies,
+  devDependencies: packageJson.devDependencies
+})) {
+  for (const [name, version] of Object.entries(dependencies || {})) {
+    if (!/^\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/.test(version)) {
+      fail(`${group}.${name} must be pinned to an exact version.`);
+    }
+    if (packageLock.packages['']?.[group]?.[name] !== version) {
+      fail(`${group}.${name} does not match the lockfile root.`);
+    }
+  }
+}
 if (!packageJson.build?.asar || packageJson.build?.compression !== 'maximum') {
   fail('Production packaging must use maximum-compression ASAR.');
 }
 if (!packageJson.build?.mac?.forceCodeSigning || !packageJson.build?.mac?.hardenedRuntime) {
   fail('macOS signing and Hardened Runtime must remain mandatory.');
+}
+if (entitlements.includes('com.apple.security.cs.disable-library-validation') ||
+    entitlements.includes('com.apple.security.cs.allow-dyld-environment-variables') ||
+    entitlements.includes('com.apple.security.cs.allow-unsigned-executable-memory') ||
+    entitlements.includes('com.apple.security.cs.allow-jit')) {
+  fail('Unsafe Hardened Runtime entitlement is enabled.');
 }
 if (packageJson.build.files.some((entry) => entry.includes('src'))) {
   fail('Raw source must not be included in production packages.');
@@ -41,6 +62,13 @@ for (const marker of ['launchAtLogin', 'wasOpenedAtLogin', "handleTrusted('clipb
 }
 for (const marker of ['autoDownload = false', '6 * 60 * 60 * 1000', 'notifyUpdateAvailable']) {
   if (!mainSource.includes(marker)) fail(`In-app update requirement is missing: ${marker}`);
+}
+for (const marker of ['app.enableSandbox()', ".replace(/\\r\\n?/g, '\\n')", 'Rejected untrusted IPC sender.']) {
+  if (!mainSource.includes(marker)) fail(`Application hardening requirement is missing: ${marker}`);
+}
+if (/uses:\s+[^\n]+@(v\d+|main|master|latest)\b/.test(releaseWorkflow) ||
+    /vercel@latest\b/.test(releaseWorkflow)) {
+  fail('Release dependencies must be pinned to immutable versions.');
 }
 if (!preloadSource.includes("ipcRenderer.invoke('clipboard:read-text')")) {
   fail('The isolated clipboard bridge is missing.');
@@ -80,15 +108,34 @@ for (const [htmlPath, jsPath] of pages) {
   }
 }
 
-const forbiddenExtensions = new Set(['.p12', '.pfx', '.cer', '.pem', '.key']);
+const forbiddenExtensions = new Set(['.p12', '.pfx', '.cer', '.pem', '.key', '.mobileprovision']);
+const forbiddenNames = new Set(['.env', '.env.local', '.npmrc', 'project.json']);
 const excludedDirectories = new Set(['node_modules', 'dist', 'build-app', '.git']);
+const secretPatterns = [
+  ['Stripe live key', new RegExp(['[rs]k', 'live', '[A-Za-z0-9_]{16,}'].join('[_]'))],
+  ['Stripe webhook secret', new RegExp(['whsec', '[A-Za-z0-9]{16,}'].join('[_]'))],
+  ['GitHub token', /\bgh[pousr]_[A-Za-z0-9]{30,}\b/],
+  ['AWS access key', /AKIA[0-9A-Z]{16}/],
+  ['private key', new RegExp(['-----BEGIN', '(?: RSA| EC| OPENSSH)?', ' PRIVATE KEY-----'].join(''))],
+  ['Apple app-specific password', /\b[a-z]{4}(?:-[a-z]{4}){3}\b/]
+];
+const textExtensions = new Set(['', '.cjs', '.css', '.html', '.js', '.json', '.md', '.mjs', '.plist', '.sh', '.txt', '.yml', '.yaml']);
 function scan(directory) {
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
     if (excludedDirectories.has(entry.name)) continue;
     const absolutePath = path.join(directory, entry.name);
     if (entry.isDirectory()) scan(absolutePath);
-    else if (forbiddenExtensions.has(path.extname(entry.name).toLowerCase())) {
-      fail(`Credential material must not be stored in the repository: ${path.relative(root, absolutePath)}`);
+    else {
+      const relativePath = path.relative(root, absolutePath);
+      const extension = path.extname(entry.name).toLowerCase();
+      if (forbiddenExtensions.has(extension) || forbiddenNames.has(entry.name)) {
+        fail(`Credential material must not be stored in the repository: ${relativePath}`);
+      }
+      if (!textExtensions.has(extension) || fs.statSync(absolutePath).size > 2_000_000) continue;
+      const source = fs.readFileSync(absolutePath, 'utf8').replace(/xxxx-xxxx-xxxx-xxxx/g, '');
+      for (const [label, pattern] of secretPatterns) {
+        if (pattern.test(source)) fail(`${label} detected in ${relativePath}.`);
+      }
     }
   }
 }

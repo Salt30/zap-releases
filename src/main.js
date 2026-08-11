@@ -59,6 +59,7 @@ protocol.registerSchemesAsPrivileged([{
 
 const singleInstance = app.requestSingleInstanceLock();
 if (!singleInstance) app.quit();
+app.enableSandbox();
 
 let mainWindow = null;
 let quickWindow = null;
@@ -130,12 +131,19 @@ function humanMs(base) {
 }
 
 function escapeAppleScript(character) {
-  return character.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
+  return character
+    .replace(/\\/g, '\\\\')
+    .replace(/"/g, '\\"')
+    .replace(/\r/g, '\\r')
+    .replace(/\n/g, '\\n')
+    .replace(/\t/g, '\\t');
 }
 
 function cleanMarkdown(text) {
   if (typeof text !== 'string' || !text) return '';
   return text
+    .replace(/\r\n?/g, '\n')
+    .replace(/[\u2028\u2029]/g, '\n')
     .replace(/```[\s\S]*?```/g, (block) => block.replace(/```\w*\n?/g, '').replace(/```/g, ''))
     .replace(/^#{1,6}\s+/gm, '')
     .replace(/\*{1,3}([^*]+?)\*{1,3}/g, '$1')
@@ -576,7 +584,9 @@ async function dripType(input, options = {}) {
     broadcastState({ status: 'complete', progress: 100, message: 'Finished typing.' });
     return { success: true };
   } catch (error) {
-    const message = error.stderr?.trim() || error.message || 'Typing failed.';
+    const message = /timed out|ETIMEDOUT/i.test(String(error?.message || ''))
+      ? 'Typing stopped because the destination did not respond in time.'
+      : 'Typing could not be completed. Check macOS permissions and try again.';
     broadcastState({ status: 'error', message });
     return { error: message };
   } finally {

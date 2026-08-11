@@ -19,10 +19,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Check out source
-        uses: actions/checkout@v5
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
 
       - name: Set up Node
-        uses: actions/setup-node@v5
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
         with:
           node-version: 22
           cache: npm
@@ -33,11 +35,30 @@ jobs:
       - name: Verify source and production bundle
         run: npm run verify
 
-      - name: Audit production dependencies
-        run: npm audit --omit=dev --audit-level=moderate
+      - name: Audit dependencies and registry signatures
+        run: |
+          npm audit --audit-level=low
+          npm audit signatures
 
       - name: Package unsigned CI app
         run: npx electron-builder --mac --dir --x64 -c.mac.forceCodeSigning=false
 
       - name: Verify packaged app integrity
         run: npm run verify:package -- "dist/mac/Drip Type.app"
+
+      - name: Smoke-test packaged app launch
+        shell: bash
+        run: |
+          APP_EXEC="dist/mac/Drip Type.app/Contents/MacOS/Drip Type"
+          LOG_PATH="$RUNNER_TEMP/drip-type-smoke.log"
+          "$APP_EXEC" >"$LOG_PATH" 2>&1 &
+          APP_PID=$!
+          for _ in {1..8}; do
+            if ! kill -0 "$APP_PID" 2>/dev/null; then
+              cat "$LOG_PATH"
+              exit 1
+            fi
+            sleep 1
+          done
+          kill "$APP_PID"
+          wait "$APP_PID" || true
