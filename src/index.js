@@ -12,6 +12,8 @@ let saveTimer = null;
 let updateState = { status: 'idle' };
 let themePreference = 'system';
 let launchAtLogin = true;
+let templates = [];
+let editingTemplateId = null;
 
 function applyTheme(preference = 'system') {
   themePreference = ['system', 'light', 'dark'].includes(preference) ? preference : 'system';
@@ -41,6 +43,82 @@ function renderLaunchAtLogin(enabled) {
   $('launch-login-copy').textContent = launchAtLogin
     ? 'Starts quietly in the menu bar so the global composer shortcut is always available.'
     : 'Drip Type must be opened manually before its global shortcuts can work.';
+}
+
+function clearTemplateEditor() {
+  editingTemplateId = null;
+  $('template-name').value = '';
+  $('template-body').value = '';
+  $('save-template').textContent = 'Save template';
+  $('cancel-template').hidden = true;
+}
+
+function editTemplate(template) {
+  editingTemplateId = template.id;
+  $('template-name').value = template.name;
+  $('template-body').value = template.body;
+  $('save-template').textContent = 'Update template';
+  $('cancel-template').hidden = false;
+  $('template-name').focus();
+}
+
+function renderTemplates(nextTemplates = []) {
+  templates = Array.isArray(nextTemplates) ? nextTemplates : [];
+  const list = $('template-list');
+  list.replaceChildren();
+  if (!templates.length) {
+    const empty = document.createElement('div');
+    empty.className = 'template-empty';
+    empty.textContent = 'No templates yet. Create one above and it will appear in Drip Composer.';
+    list.appendChild(empty);
+    return;
+  }
+  for (const template of templates) {
+    const item = document.createElement('article');
+    item.className = 'template-item';
+    const copy = document.createElement('div');
+    const title = document.createElement('strong');
+    title.textContent = template.name;
+    const preview = document.createElement('p');
+    preview.textContent = template.body.replace(/\s+/g, ' ').trim();
+    copy.append(title, preview);
+    const actions = document.createElement('div');
+    actions.className = 'template-item-actions';
+    const edit = document.createElement('button');
+    edit.type = 'button';
+    edit.textContent = 'Edit';
+    edit.addEventListener('click', () => editTemplate(template));
+    const remove = document.createElement('button');
+    remove.type = 'button';
+    remove.textContent = 'Delete';
+    remove.addEventListener('click', async () => {
+      if (!window.confirm(`Delete “${template.name}”?`)) return;
+      const result = await window.dripType.deleteTemplate(template.id);
+      renderTemplates(result.templates);
+      if (editingTemplateId === template.id) clearTemplateEditor();
+      $('template-note').textContent = result.error || 'Deleted';
+      setTimeout(() => { $('template-note').textContent = ''; }, 2200);
+    });
+    actions.append(edit, remove);
+    item.append(copy, actions);
+    list.appendChild(item);
+  }
+}
+
+async function saveTemplate() {
+  const name = $('template-name').value.trim();
+  const body = $('template-body').value.replace(/\r\n?/g, '\n');
+  if (!name || !body.trim()) {
+    $('template-note').textContent = 'Add a name and template body.';
+    return;
+  }
+  $('save-template').disabled = true;
+  const result = await window.dripType.saveTemplate({ id: editingTemplateId, name, body });
+  $('save-template').disabled = false;
+  renderTemplates(result.templates);
+  $('template-note').textContent = result.error || (editingTemplateId ? 'Updated' : 'Saved');
+  if (!result.error) clearTemplateEditor();
+  setTimeout(() => { $('template-note').textContent = ''; }, 2200);
 }
 
 function rangeFill(input) {
@@ -206,6 +284,8 @@ $('launch-login').addEventListener('click', async () => {
 });
 $('replay-onboarding').addEventListener('click', () => window.dripType.replayOnboarding());
 $('update-action').addEventListener('click', runUpdateAction);
+$('save-template').addEventListener('click', saveTemplate);
+$('cancel-template').addEventListener('click', clearTemplateEditor);
 document.querySelectorAll('.theme-option').forEach((button) => {
   button.addEventListener('click', async () => {
     applyTheme(button.dataset.themeValue);
@@ -266,10 +346,11 @@ window.dripType.onNavigate(({ page, focus } = {}) => {
 });
 
 async function load() {
-  const [settings, info, updater] = await Promise.all([
+  const [settings, info, updater, savedTemplates] = await Promise.all([
     window.dripType.getSettings(),
     window.dripType.getAppInfo(),
-    window.dripType.getUpdateState()
+    window.dripType.getUpdateState(),
+    window.dripType.listTemplates()
   ]);
   controls.wpm.value = settings.dripWPM;
   controls.delay.value = settings.dripDelay;
@@ -287,6 +368,7 @@ async function load() {
   refreshPermission(false);
   refreshPermissionChecklist();
   renderUpdate(updater);
+  renderTemplates(savedTemplates);
 }
 
 load();

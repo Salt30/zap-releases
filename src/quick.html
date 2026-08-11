@@ -33,7 +33,12 @@
     .target strong { color:var(--muted); font-weight:600; }
     .top-hint { margin-left:auto; color:var(--subtle); font-size:11px; }
     kbd { display:inline-flex; height:20px; padding:0 6px; align-items:center; border:1px solid rgba(255,255,255,.13); border-radius:5px; background:rgba(255,255,255,.05); color:var(--muted); font:10px -apple-system,sans-serif; }
-    textarea { display:block; width:100%; height:198px; padding:18px 20px; resize:none; border:0; outline:0; background:transparent; color:var(--text); caret-color:var(--accent); font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif; user-select:text; -webkit-app-region:no-drag; }
+    .tools { display:flex; align-items:center; gap:7px; height:44px; padding:0 12px; border-bottom:1px solid rgba(255,255,255,.08); -webkit-app-region:no-drag; }
+    .tools select { min-width:210px; max-width:280px; height:29px; padding:0 28px 0 10px; border:1px solid var(--border); border-radius:7px; outline:0; background:rgba(255,255,255,.05); color:var(--muted); font:600 11px -apple-system,sans-serif; }
+    .tool-button { height:29px; padding:0 10px; border-color:var(--border); background:rgba(255,255,255,.04); color:var(--muted); font-size:11px; }
+    .tool-button:hover { background:rgba(255,255,255,.09); color:var(--text); }
+    .tools-note { margin-left:auto; color:var(--subtle); font-size:10px; }
+    textarea { display:block; width:100%; height:244px; padding:18px 20px; resize:none; border:0; outline:0; background:transparent; color:var(--text); caret-color:var(--accent); font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif; user-select:text; -webkit-app-region:no-drag; }
     textarea::placeholder { color:#6c6f77; }
     .footer { display:flex; align-items:center; height:70px; padding:0 12px 0 18px; border-top:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.018); -webkit-app-region:no-drag; }
     .details { min-width:0; display:grid; gap:4px; }
@@ -45,6 +50,17 @@
     .secondary { border-color:rgba(255,255,255,.1); background:rgba(255,255,255,.05); color:var(--muted); }
     .secondary:hover { background:rgba(255,255,255,.09); color:var(--text); }
     .submit { background:var(--accent); color:var(--accent-ink); }
+    dialog { width:430px; padding:0; border:1px solid var(--border); border-radius:14px; outline:0; background:#191b20; color:var(--text); box-shadow:0 28px 90px rgba(0,0,0,.62); -webkit-app-region:no-drag; }
+    dialog::backdrop { background:rgba(5,6,8,.58); backdrop-filter:blur(4px); }
+    :root[data-theme="light"] dialog { background:#fbfaf6; }
+    .dialog-head { padding:16px 17px 13px; border-bottom:1px solid var(--border); }
+    .dialog-head strong { display:block; font-size:13px; }
+    .dialog-head span { display:block; margin-top:4px; color:var(--subtle); font-size:10px; }
+    .variable-fields { display:grid; grid-template-columns:1fr 1fr; gap:10px; max-height:190px; padding:15px 17px; overflow:auto; }
+    .variable-fields label { display:grid; gap:5px; color:var(--muted); font-size:10px; text-transform:capitalize; }
+    .variable-fields input { width:100%; height:34px; padding:0 9px; border:1px solid var(--border); border-radius:7px; outline:0; background:rgba(255,255,255,.05); color:var(--text); font:12px -apple-system,sans-serif; user-select:text; }
+    .variable-fields input:focus { border-color:rgba(244,200,74,.55); }
+    .dialog-actions { display:flex; justify-content:flex-end; gap:8px; padding:12px 17px; border-top:1px solid var(--border); }
   </style>
 </head>
 <body>
@@ -55,12 +71,23 @@
       <span class="target">Returns to <strong id="target">previous app</strong></span>
       <span class="top-hint"><kbd>⌘V</kbd> paste · <kbd>⌘↵</kbd> drip · <kbd>esc</kbd> close</span>
     </div>
+    <div class="tools">
+      <select id="template-picker" aria-label="Insert a template"><option value="">Insert a template…</option></select>
+      <button class="tool-button" id="tool-clean" type="button">Clean spacing</button>
+      <button class="tool-button" id="tool-bullets" type="button">Toggle bullets</button>
+      <span class="tools-note">Local tools</span>
+    </div>
     <textarea id="text" spellcheck="true" maxlength="100000" aria-label="Composer text" placeholder="Paste or type anything you want Drip Type to enter…"></textarea>
     <div class="footer">
       <div class="details"><span class="meta" id="meta">0 words · 0 characters</span><span class="state" id="state">Private draft · stored in memory only</span></div>
       <div class="actions"><button class="secondary" id="paste">Paste</button><button class="secondary" id="clear" disabled>Clear</button><button class="submit" id="submit" disabled>Drip after 3s</button></div>
     </div>
   </div>
+  <dialog id="template-dialog">
+    <div class="dialog-head"><strong id="template-dialog-title">Fill template</strong><span>Values are inserted locally and are not saved.</span></div>
+    <div class="variable-fields" id="variable-fields"></div>
+    <div class="dialog-actions"><button class="secondary" id="template-cancel" type="button">Cancel</button><button class="submit" id="template-insert" type="button">Insert template</button></div>
+  </dialog>
   <script src="quick.js"></script>
 </body>
 </html>

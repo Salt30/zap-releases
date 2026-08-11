@@ -18,6 +18,7 @@ const {
 const { autoUpdater } = require('electron-updater');
 const Store = require('electron-store');
 const { execFile } = require('child_process');
+const { randomUUID } = require('crypto');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
@@ -25,12 +26,32 @@ const { pathToFileURL } = require('url');
 
 const APP_ID = 'com.salt30.driptype';
 const MAX_TEXT_LENGTH = 100000;
+const MAX_TEMPLATE_COUNT = 50;
+const MAX_TEMPLATE_NAME_LENGTH = 60;
+const MAX_TEMPLATE_BODY_LENGTH = 20000;
 const APP_SCHEME = 'drip';
 const APP_HOST = 'app';
 const APP_RESOURCES = new Set([
   'index.html', 'index.js', 'quick.html', 'quick.js',
   'onboarding.html', 'onboarding.js'
 ]);
+const DEFAULT_TEMPLATES = [
+  {
+    id: 'starter-follow-up',
+    name: 'Friendly follow-up',
+    body: 'Hi {{name}},\n\nJust following up on {{topic}}. When you have a moment, could you let me know the best next step?\n\nThanks,\n{{sender}}'
+  },
+  {
+    id: 'starter-status',
+    name: 'Project status',
+    body: 'Status: {{project}}\n\nCompleted\n• {{completed}}\n\nNext\n• {{next}}\n\nBlockers\n• {{blockers}}'
+  },
+  {
+    id: 'starter-meeting',
+    name: 'Meeting recap',
+    body: 'Hi {{name}},\n\nHere is a quick recap of {{meeting}}:\n\nDecisions\n• {{decisions}}\n\nNext steps\n• {{next_steps}}\n\nBest,\n{{sender}}'
+  }
+];
 const DEFAULTS = {
   dripWPM: 45,
   dripDelay: 3,
@@ -41,6 +62,7 @@ const DEFAULTS = {
   hotkeyStop: 'Alt+0',
   launchAtLogin: true,
   theme: 'system',
+  templates: DEFAULT_TEMPLATES,
   automationPermissionChecked: false,
   onboardingDone: false
 };
@@ -303,6 +325,50 @@ function applySettings(settings = {}) {
       publishTheme(theme);
     }
   }
+}
+
+function sanitizeTemplate(template, existingId = null) {
+  if (!template || typeof template !== 'object' || Array.isArray(template)) return null;
+  const name = typeof template.name === 'string' ? template.name.trim().slice(0, MAX_TEMPLATE_NAME_LENGTH) : '';
+  const body = typeof template.body === 'string'
+    ? template.body.replace(/\r\n?/g, '\n').slice(0, MAX_TEMPLATE_BODY_LENGTH)
+    : '';
+  if (!name || !body.trim()) return null;
+  const requestedId = typeof template.id === 'string' ? template.id : '';
+  const id = existingId || (/^[A-Za-z0-9-]{1,80}$/.test(requestedId) ? requestedId : `template-${randomUUID()}`);
+  return { id, name, body };
+}
+
+function listTemplates() {
+  const templates = store.get('templates', DEFAULT_TEMPLATES);
+  if (!Array.isArray(templates)) return DEFAULT_TEMPLATES.map((template) => ({ ...template }));
+  return templates.slice(0, MAX_TEMPLATE_COUNT)
+    .map((template) => sanitizeTemplate(template, template?.id))
+    .filter(Boolean);
+}
+
+function saveTemplate(input) {
+  const templates = listTemplates();
+  const requestedId = typeof input?.id === 'string' ? input.id : '';
+  const index = requestedId ? templates.findIndex((template) => template.id === requestedId) : -1;
+  if (index < 0 && templates.length >= MAX_TEMPLATE_COUNT) {
+    return { error: `Template limit reached (${MAX_TEMPLATE_COUNT}).`, templates };
+  }
+  const template = sanitizeTemplate(input, index >= 0 ? templates[index].id : null);
+  if (!template) return { error: 'Add a template name and body.', templates };
+  if (index >= 0) templates[index] = template;
+  else templates.unshift(template);
+  store.set('templates', templates);
+  return { template, templates };
+}
+
+function deleteTemplate(id) {
+  if (typeof id !== 'string') return { error: 'Invalid template.', templates: listTemplates() };
+  const templates = listTemplates();
+  const filtered = templates.filter((template) => template.id !== id);
+  if (filtered.length === templates.length) return { error: 'Template not found.', templates };
+  store.set('templates', filtered);
+  return { success: true, templates: filtered };
 }
 
 function configureLoginItem() {
@@ -643,7 +709,7 @@ function createQuickWindow() {
   quickWindow = new BrowserWindow({
     ...windowOptions(),
     width: 720,
-    height: 340,
+    height: 430,
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
@@ -708,7 +774,8 @@ async function showQuickComposer() {
   window.focus();
   sendToWindow(window, 'quick:opened', {
     targetName: quickTarget?.name || 'previous app',
-    settings: store.store
+    settings: store.store,
+    templates: listTemplates()
   });
 }
 
@@ -819,6 +886,9 @@ handleTrusted('drip-type:start', ['index.html', 'quick.html'], async (event, tex
 handleTrusted('clipboard:read-text', ['quick.html'], () => (
   clipboard.readText().slice(0, MAX_TEXT_LENGTH)
 ));
+handleTrusted('templates:list', ['index.html', 'quick.html'], () => listTemplates());
+handleTrusted('templates:save', ['index.html'], (_event, template) => saveTemplate(template));
+handleTrusted('templates:delete', ['index.html'], (_event, id) => deleteTemplate(id));
 
 onTrusted('drip-type:cancel', ['index.html', 'quick.html'], cancelDripType);
 onTrusted('quick:show', ['index.html'], showQuickComposer);

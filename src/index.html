@@ -256,6 +256,21 @@
     .shortcut-input:focus { border-color: rgba(244,200,74,.55); box-shadow: 0 0 0 3px rgba(244,200,74,.08); }
     .save-row { display: flex; align-items: center; margin-top: 16px; }
     .save-note { margin-left: 12px; color: var(--subtle); font-size: 12px; }
+    .template-editor { display:grid; gap:12px; padding:18px; }
+    .template-input, .template-body { width:100%; padding:0 12px; border:1px solid var(--border); border-radius:8px; outline:0; background:#111319; color:var(--text); user-select:text; }
+    .template-input { height:40px; }
+    .template-body { min-height:150px; padding-top:11px; padding-bottom:11px; resize:vertical; line-height:1.5; }
+    .template-input:focus, .template-body:focus { border-color:rgba(244,200,74,.55); box-shadow:0 0 0 3px rgba(244,200,74,.08); }
+    .template-help { color:var(--subtle); font-size:11px; line-height:1.5; }
+    .template-actions { display:flex; align-items:center; gap:8px; }
+    .template-list { display:grid; gap:8px; margin-top:14px; }
+    .template-item { display:grid; grid-template-columns:1fr auto; align-items:center; gap:14px; padding:14px 16px; border:1px solid var(--border); border-radius:10px; background:var(--surface); }
+    .template-item strong { display:block; font-size:13px; font-weight:630; }
+    .template-item p { margin:5px 0 0; color:var(--subtle); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+    .template-item-actions { display:flex; gap:6px; }
+    .template-item-actions button { height:30px; padding:0 10px; border:1px solid var(--border); border-radius:7px; background:var(--surface-raised); color:var(--muted); cursor:pointer; font-size:11px; }
+    .template-item-actions button:hover { color:var(--text); border-color:var(--border-strong); }
+    .template-empty { padding:30px; border:1px dashed var(--border); border-radius:10px; color:var(--subtle); text-align:center; font-size:12px; }
 
     .setup-card { display: flex; align-items: center; gap: 16px; padding: 18px; }
     .setup-icon { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-raised); color: var(--accent); }
@@ -292,6 +307,7 @@
     :root[data-theme="light"] .nav-button:hover { background: rgba(28,31,37,.045); }
     :root[data-theme="light"] .nav-button.active { background: rgba(28,31,37,.075); }
     :root[data-theme="light"] .shortcut-input { background: #fffefa; }
+    :root[data-theme="light"] .template-input, :root[data-theme="light"] .template-body { background:#fffefa; }
     :root[data-theme="light"] input[type="range"]::-webkit-slider-runnable-track { background: linear-gradient(90deg, var(--accent) 0 var(--fill, 30%), #d7d4cc var(--fill, 30%) 100%); }
 
     @media (max-width: 850px) {
@@ -313,6 +329,9 @@
       <nav class="nav" aria-label="Main navigation">
         <button class="nav-button active" data-page="composer">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v11H8l-4 4V5Z"/></svg><span>Composer</span>
+        </button>
+        <button class="nav-button" data-page="templates">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg><span>Templates</span>
         </button>
         <button class="nav-button" data-page="typing">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M7 12h10M9 17h6"/></svg><span>Typing</span>
@@ -354,6 +373,19 @@
           <span class="status-icon"></span><span id="status-copy">Ready</span>
           <span class="progress"><span id="progress-bar"></span></span>
         </div>
+      </section>
+
+      <section class="page" id="page-templates">
+        <div class="eyebrow">Templates</div>
+        <h1>Write once. Personalize in seconds.</h1>
+        <p class="lead">Create reusable local templates, then insert them from Drip Composer. Wrap a field in double braces—such as <strong>{{name}}</strong>—and Drip Type will ask for its value before insertion.</p>
+        <div class="card template-editor">
+          <input class="template-input" id="template-name" maxlength="60" placeholder="Template name" aria-label="Template name">
+          <textarea class="template-body" id="template-body" maxlength="20000" placeholder="Hi {{name}},&#10;&#10;Following up about {{topic}}…" aria-label="Template body"></textarea>
+          <div class="template-help">Templates and filled values stay on this Mac. Filled values are never saved to the template.</div>
+          <div class="template-actions"><button class="button primary" id="save-template">Save template</button><button class="button secondary" id="cancel-template" hidden>Cancel edit</button><span class="save-note" id="template-note"></span></div>
+        </div>
+        <div class="template-list" id="template-list"></div>
       </section>
 
       <section class="page" id="page-typing">

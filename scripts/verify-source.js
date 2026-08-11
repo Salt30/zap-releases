@@ -1,5 +1,7 @@
 const fs = require('node:fs');
 const path = require('node:path');
+const assert = require('node:assert/strict');
+const textTools = require('../src/text-tools');
 
 const root = path.resolve(__dirname, '..');
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
@@ -73,12 +75,30 @@ if (/uses:\s+[^\n]+@(v\d+|main|master|latest)\b/.test(releaseWorkflow) ||
 if (!preloadSource.includes("ipcRenderer.invoke('clipboard:read-text')")) {
   fail('The isolated clipboard bridge is missing.');
 }
+for (const marker of ["ipcRenderer.invoke('templates:list')", "ipcRenderer.invoke('templates:save'", "ipcRenderer.invoke('templates:delete'"]) {
+  if (!preloadSource.includes(marker)) fail(`The isolated template bridge is missing: ${marker}`);
+}
 for (const marker of ['Drip Composer', 'Private draft · stored in memory only', 'id="paste"']) {
   if (!quickMarkup.includes(marker)) fail(`Composer interface requirement is missing: ${marker}`);
 }
 if (!quickSource.includes('readClipboardText') || !quickSource.includes('100000')) {
   fail('Composer clipboard input must use the bounded preload bridge.');
 }
+for (const marker of ['MAX_TEMPLATE_COUNT', "handleTrusted('templates:list'", 'sanitizeTemplate']) {
+  if (!mainSource.includes(marker)) fail(`Local template safety requirement is missing: ${marker}`);
+}
+for (const marker of ['template-picker', 'template-dialog', 'tool-clean', 'tool-bullets']) {
+  if (!quickMarkup.includes(`id="${marker}"`)) fail(`Composer local tool is missing: ${marker}`);
+}
+
+assert.equal(textTools.cleanSpacing('  Hello   world  \r\n\r\n\r\n Next  '), 'Hello world\n\nNext');
+const bulleted = textTools.toggleBulletsText('One\nTwo');
+assert.deepEqual(bulleted, { added: true, text: '• One\n• Two' });
+assert.deepEqual(textTools.toggleBulletsText(bulleted.text), { added: false, text: 'One\nTwo' });
+assert.deepEqual(textTools.variableNames('Hi {{ name }}, {{topic}} / {{name}}'), ['name', 'topic']);
+assert.equal(textTools.fillTemplate('Hi {{name}} — {{topic}}', { name: 'Sam', topic: 'launch' }), 'Hi Sam — launch');
+assert.equal(textTools.hasUnresolvedVariables('Hi {{name}}'), true);
+assert.equal(textTools.hasUnresolvedVariables('Hi Sam'), false);
 
 const pages = [
   ['src/index.html', 'src/index.js'],

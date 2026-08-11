@@ -15,6 +15,8 @@ Drip Type is a native-feeling macOS utility that turns prepared text into natura
 
 - First-run onboarding, interactive typing demo, and enforced native permission checklist
 - Translucent global-hotkey composer
+- Private local templates with reusable fill-in fields
+- Deterministic local spacing cleanup and bullet formatting tools
 - Explicit local clipboard paste and in-memory-only drafts
 - Automatic return to the previously active app
 - Adjustable WPM, start delay, typo rate, thinking pauses, and speed bursts
@@ -75,7 +77,7 @@ Never commit credentials, app-specific passwords, `.p12` files, or certificate p
 
 ## Automated signed releases
 
-The release workflow runs when a `v*` tag is pushed. Add these repository secrets under **Settings → Secrets and variables → Actions**:
+The release workflow runs when a protected `release/v*` branch is created from the exact reviewed `main` commit. Add these repository secrets under **Settings → Secrets and variables → Actions**:
 
 | Secret | Value |
 | --- | --- |
@@ -95,8 +97,8 @@ base64 -i DeveloperIDApplication.p12 | pbcopy
 Paste the clipboard contents into `MAC_CERTIFICATE_P12_BASE64`. Then publish a release:
 
 ```bash
-git tag v1.3.0
-git push origin v1.3.0
+git branch release/v1.4.0
+git push origin release/v1.4.0
 ```
 
 GitHub Actions builds one universal application, signs it with the VegaNext
