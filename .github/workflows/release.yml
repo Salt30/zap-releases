@@ -52,13 +52,13 @@ jobs:
             RELEASE_TAG="$DISPATCH_TAG"
           else
             RELEASE_TAG="${CREATED_REF#release/}"
+            RELEASE_TAG="${RELEASE_TAG%%/*}"
           fi
 
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           PACKAGE_VERSION="$(node -p "require('./package.json').version")"
           [[ "$RELEASE_TAG" == "v${PACKAGE_VERSION}" ]]
 
-          git fetch --no-tags origin main:refs/remotes/origin/main --depth=1
           RELEASE_SHA="$(git rev-parse HEAD)"
           MAIN_SHA="$(git rev-parse refs/remotes/origin/main)"
           [[ "$RELEASE_SHA" == "$MAIN_SHA" ]]

@@ -72,6 +72,11 @@ if (/uses:\s+[^\n]+@(v\d+|main|master|latest)\b/.test(releaseWorkflow) ||
     /vercel@latest\b/.test(releaseWorkflow)) {
   fail('Release dependencies must be pinned to immutable versions.');
 }
+if (releaseWorkflow.includes('git fetch') ||
+    !releaseWorkflow.includes('git rev-parse refs/remotes/origin/main') ||
+    !releaseWorkflow.includes('RELEASE_TAG="${RELEASE_TAG%%/*}"')) {
+  fail('Release validation must use the credential-free checkout and support an isolated retry branch.');
+}
 if (!preloadSource.includes("ipcRenderer.invoke('clipboard:read-text')")) {
   fail('The isolated clipboard bridge is missing.');
 }
