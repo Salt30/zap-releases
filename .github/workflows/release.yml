@@ -130,10 +130,10 @@ jobs:
           grep -qw arm64 <<< "$ARCHS"
           codesign --verify --deep --strict --verbose=2 "$APP_PATH"
           ENTITLEMENTS="$(codesign -d --entitlements :- "$APP_PATH" 2>&1)"
+          grep -q "com.apple.security.cs.allow-jit" <<< "$ENTITLEMENTS"
           ! grep -q "com.apple.security.cs.disable-library-validation" <<< "$ENTITLEMENTS"
           ! grep -q "com.apple.security.cs.allow-dyld-environment-variables" <<< "$ENTITLEMENTS"
           ! grep -q "com.apple.security.cs.allow-unsigned-executable-memory" <<< "$ENTITLEMENTS"
-          ! grep -q "com.apple.security.cs.allow-jit" <<< "$ENTITLEMENTS"
           spctl --assess --verbose --type exec "$APP_PATH"
           xcrun stapler validate "$APP_PATH"
           shasum -a 256 dist/*.dmg dist/*.zip > dist/SHA256SUMS.txt

@@ -41,10 +41,12 @@ if (!packageJson.build?.asar || packageJson.build?.compression !== 'maximum') {
 if (!packageJson.build?.mac?.forceCodeSigning || !packageJson.build?.mac?.hardenedRuntime) {
   fail('macOS signing and Hardened Runtime must remain mandatory.');
 }
+if (!entitlements.includes('com.apple.security.cs.allow-jit')) {
+  fail('Electron requires the JIT entitlement when Hardened Runtime is enabled.');
+}
 if (entitlements.includes('com.apple.security.cs.disable-library-validation') ||
     entitlements.includes('com.apple.security.cs.allow-dyld-environment-variables') ||
-    entitlements.includes('com.apple.security.cs.allow-unsigned-executable-memory') ||
-    entitlements.includes('com.apple.security.cs.allow-jit')) {
+    entitlements.includes('com.apple.security.cs.allow-unsigned-executable-memory')) {
   fail('Unsafe Hardened Runtime entitlement is enabled.');
 }
 if (packageJson.build.files.some((entry) => entry.includes('src'))) {
