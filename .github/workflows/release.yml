@@ -53,6 +53,7 @@ jobs:
           else
             RELEASE_TAG="${CREATED_REF#release/}"
             RELEASE_TAG="${RELEASE_TAG%%/*}"
+            RELEASE_TAG="${RELEASE_TAG%%-retry-*}"
           fi
 
           [[ "$RELEASE_TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]

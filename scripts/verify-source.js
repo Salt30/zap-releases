@@ -74,7 +74,8 @@ if (/uses:\s+[^\n]+@(v\d+|main|master|latest)\b/.test(releaseWorkflow) ||
 }
 if (releaseWorkflow.includes('git fetch') ||
     !releaseWorkflow.includes('git rev-parse refs/remotes/origin/main') ||
-    !releaseWorkflow.includes('RELEASE_TAG="${RELEASE_TAG%%/*}"')) {
+    !releaseWorkflow.includes('RELEASE_TAG="${RELEASE_TAG%%/*}"') ||
+    !releaseWorkflow.includes('RELEASE_TAG="${RELEASE_TAG%%-retry-*}"')) {
   fail('Release validation must use the credential-free checkout and support an isolated retry branch.');
 }
 if (!preloadSource.includes("ipcRenderer.invoke('clipboard:read-text')")) {
