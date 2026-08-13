@@ -82,10 +82,15 @@ async function requestProjectOidcToken({ accessToken, projectId, orgId }, reques
 }
 
 async function resolveBlobAuthentication(environment = process.env) {
+  const storeId = resolveBlobStoreId(environment);
+  const pulledOidcToken = environment.VERCEL_OIDC_TOKEN?.trim();
+  if (pulledOidcToken) {
+    return { oidcToken: pulledOidcToken, storeId };
+  }
+
   const accessToken = environment.VERCEL_TOKEN?.trim();
   if (accessToken) {
     const { projectId, orgId } = readLinkedProject();
-    const storeId = resolveBlobStoreId(environment);
     const oidcToken = await requestProjectOidcToken({ accessToken, projectId, orgId });
     return { oidcToken, storeId };
   }

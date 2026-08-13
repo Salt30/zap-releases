@@ -6,6 +6,7 @@ const { execFileSync } = require('node:child_process');
 const textTools = require('../src/text-tools');
 const {
   requestProjectOidcToken,
+  resolveBlobAuthentication,
   resolveBlobStoreId,
   resolveBlobToken,
 } = require('./publish-update-blobs');
@@ -137,6 +138,19 @@ assert.throws(
   () => resolveBlobStoreId({ FIRST_BLOB_STORE_ID: 'first', SECOND_BLOB_STORE_ID: 'second' }),
   /multiple Blob store IDs are configured/,
 );
+
+resolveBlobAuthentication({
+  BLOB_STORE_ID: 'production-store',
+  VERCEL_OIDC_TOKEN: 'production-oidc',
+  VERCEL_TOKEN: 'long-lived-token-must-not-be-used',
+}).then((authentication) => {
+  assert.deepEqual(authentication, {
+    oidcToken: 'production-oidc',
+    storeId: 'production-store',
+  });
+}).catch((error) => {
+  setImmediate(() => { throw error; });
+});
 
 const oidcRequests = [];
 requestProjectOidcToken(
