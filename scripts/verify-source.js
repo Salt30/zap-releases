@@ -4,6 +4,7 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process');
 const textTools = require('../src/text-tools');
+const { resolveBlobToken } = require('./publish-update-blobs');
 
 const root = path.resolve(__dirname, '..');
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
@@ -101,10 +102,19 @@ for (const marker of [
   'multipart: true',
   'cacheControlMaxAge: 31536000',
   "crypto.createHash('sha256')",
-  '`releases/v${packageVersion}/${digest}/${name}`'
+  '`releases/v${packageVersion}/${digest}/${name}`',
+  "module.exports = { resolveBlobToken }"
 ]) {
   if (!blobPublisher.includes(marker)) fail(`Blob publisher requirement is missing: ${marker}`);
 }
+
+assert.equal(resolveBlobToken({ BLOB_READ_WRITE_TOKEN: ' exact-token ' }), 'exact-token');
+assert.equal(resolveBlobToken({ DRIP_TYPE_RELEASES_READ_WRITE_TOKEN: ' prefixed-token ' }), 'prefixed-token');
+assert.throws(
+  () => resolveBlobToken({ FIRST_READ_WRITE_TOKEN: 'one', SECOND_READ_WRITE_TOKEN: 'two' }),
+  /multiple read-write token variables are configured/,
+);
+assert.throws(() => resolveBlobToken({}), /no Blob read-write token is configured/);
 
 const blobTestRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dt-update-publish-test-'));
 try {

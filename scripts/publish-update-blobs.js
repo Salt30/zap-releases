@@ -16,6 +16,27 @@ function fail(message) {
   throw new Error(`Update publish failed: ${message}`);
 }
 
+function resolveBlobToken(environment = process.env) {
+  if (environment.BLOB_READ_WRITE_TOKEN?.trim()) {
+    return environment.BLOB_READ_WRITE_TOKEN.trim();
+  }
+
+  // Vercel lets a project connection add a custom prefix to integration
+  // variables. Accept that generated name only when it resolves unambiguously.
+  const candidates = Object.entries(environment)
+    .filter(([name, value]) =>
+      /^[A-Z0-9_]+_READ_WRITE_TOKEN$/.test(name) &&
+      typeof value === 'string' &&
+      value.trim())
+    .map(([name, value]) => ({ name, value: value.trim() }));
+
+  if (candidates.length === 1) return candidates[0].value;
+  if (candidates.length > 1) {
+    fail(`multiple read-write token variables are configured (${candidates.map(({ name }) => name).join(', ')})`);
+  }
+  fail('no Blob read-write token is configured; reconnect the Blob store with a read-write token enabled');
+}
+
 function listReleaseFiles() {
   if (!fs.existsSync(distDir)) fail(`missing dist directory: ${distDir}`);
 
@@ -55,9 +76,7 @@ function sha256(filePath) {
 
 async function main() {
   const dryRun = process.env.PUBLISH_UPDATE_DRY_RUN === '1';
-  if (!dryRun && !process.env.BLOB_READ_WRITE_TOKEN) {
-    fail('BLOB_READ_WRITE_TOKEN is not configured');
-  }
+  const blobToken = dryRun ? 'dry-run-token' : resolveBlobToken();
 
   const put = dryRun
     ? async (blobPath) => ({ url: `https://dry-run.invalid/${blobPath}` })
@@ -75,7 +94,7 @@ async function main() {
       allowOverwrite: true,
       cacheControlMaxAge: 31536000,
       multipart: true,
-      token: process.env.BLOB_READ_WRITE_TOKEN,
+      token: blobToken,
     });
 
     redirects.push({
@@ -94,7 +113,11 @@ async function main() {
   );
 }
 
-main().catch((error) => {
-  console.error(error.message);
-  process.exitCode = 1;
-});
+if (require.main === module) {
+  main().catch((error) => {
+    console.error(error.message);
+    process.exitCode = 1;
+  });
+}
+
+module.exports = { resolveBlobToken };
