@@ -69,6 +69,12 @@ const DEFAULTS = {
 
 const store = new Store({ defaults: DEFAULTS });
 
+// Existing installs keep electron-store values across upgrades. Migrate only
+// the former default; preserve every other user-customized shortcut.
+if (store.get('hotkeyStart') === 'Alt+4') {
+  store.set('hotkeyStart', DEFAULTS.hotkeyStart);
+}
+
 protocol.registerSchemesAsPrivileged([{
   scheme: APP_SCHEME,
   privileges: {

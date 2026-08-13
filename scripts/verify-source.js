@@ -64,6 +64,9 @@ if (!packageJson.build?.releaseInfo?.releaseName?.includes(packageJson.version) 
 for (const marker of ['launchAtLogin', 'wasOpenedAtLogin', "handleTrusted('clipboard:read-text'"]) {
   if (!mainSource.includes(marker)) fail(`Background composer requirement is missing: ${marker}`);
 }
+for (const marker of ["hotkeyStart: 'Alt+5'", "store.get('hotkeyStart') === 'Alt+4'", "store.set('hotkeyStart', DEFAULTS.hotkeyStart)"]) {
+  if (!mainSource.includes(marker)) fail(`Option+5 composer shortcut migration is missing: ${marker}`);
+}
 for (const marker of ['autoDownload = false', '6 * 60 * 60 * 1000', 'notifyUpdateAvailable']) {
   if (!mainSource.includes(marker)) fail(`In-app update requirement is missing: ${marker}`);
 }
