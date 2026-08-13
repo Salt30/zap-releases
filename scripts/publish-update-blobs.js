@@ -17,7 +17,7 @@ function fail(message) {
 }
 
 function resolveBlobToken(environment = process.env) {
-  if (environment.BLOB_READ_WRITE_TOKEN?.trim()) {
+  if (environment.BLOB_READ_WRITE_TOKEN?.trim().startsWith('vercel_blob_rw_')) {
     return environment.BLOB_READ_WRITE_TOKEN.trim();
   }
 
@@ -25,9 +25,10 @@ function resolveBlobToken(environment = process.env) {
   // variables. Accept that generated name only when it resolves unambiguously.
   const candidates = Object.entries(environment)
     .filter(([name, value]) =>
-      /^[A-Z0-9_]+_READ_WRITE_TOKEN$/.test(name) &&
+      /(?:^|_)BLOB(?:_|$)/.test(name) &&
+      /_READ_WRITE_TOKEN$/.test(name) &&
       typeof value === 'string' &&
-      value.trim())
+      value.trim().startsWith('vercel_blob_rw_'))
     .map(([name, value]) => ({ name, value: value.trim() }));
 
   if (candidates.length === 1) return candidates[0].value;
@@ -35,6 +36,60 @@ function resolveBlobToken(environment = process.env) {
     fail(`multiple read-write token variables are configured (${candidates.map(({ name }) => name).join(', ')})`);
   }
   fail('no Blob read-write token is configured; reconnect the Blob store with a read-write token enabled');
+}
+
+function resolveBlobStoreId(environment = process.env) {
+  if (environment.BLOB_STORE_ID?.trim()) return environment.BLOB_STORE_ID.trim();
+
+  const candidates = Object.entries(environment)
+    .filter(([name, value]) =>
+      /(?:^|_)BLOB(?:_|$)/.test(name) &&
+      /_STORE_ID$/.test(name) &&
+      typeof value === 'string' &&
+      value.trim())
+    .map(([name, value]) => ({ name, value: value.trim() }));
+
+  const distinctValues = [...new Set(candidates.map(({ value }) => value))];
+  if (distinctValues.length === 1) return distinctValues[0];
+  if (distinctValues.length > 1) {
+    fail(`multiple Blob store IDs are configured (${candidates.map(({ name }) => name).join(', ')})`);
+  }
+  fail('no Blob store ID is configured for the Vercel project connection');
+}
+
+function readLinkedProject() {
+  const configPath = path.join(updateSiteDir, '.vercel', 'project.json');
+  if (!fs.existsSync(configPath)) fail('the update site is not linked to a Vercel project');
+  const config = JSON.parse(fs.readFileSync(configPath, 'utf8'));
+  if (!config.projectId || !config.orgId) fail('the Vercel project link is incomplete');
+  return config;
+}
+
+async function requestProjectOidcToken({ accessToken, projectId, orgId }, request = fetch) {
+  const endpoint = new URL(`https://api.vercel.com/v1/projects/${encodeURIComponent(projectId)}/token`);
+  endpoint.searchParams.set('source', 'vercel-oidc-refresh');
+  endpoint.searchParams.set('teamId', orgId);
+  const response = await request(endpoint, {
+    method: 'POST',
+    headers: { authorization: `Bearer ${accessToken}` },
+  });
+  if (!response.ok) fail(`Vercel project authentication was denied (${response.status})`);
+  const payload = await response.json();
+  if (typeof payload.token !== 'string' || !payload.token.trim()) {
+    fail('Vercel project authentication returned no token');
+  }
+  return payload.token.trim();
+}
+
+async function resolveBlobAuthentication(environment = process.env) {
+  const accessToken = environment.VERCEL_TOKEN?.trim();
+  if (accessToken) {
+    const { projectId, orgId } = readLinkedProject();
+    const storeId = resolveBlobStoreId(environment);
+    const oidcToken = await requestProjectOidcToken({ accessToken, projectId, orgId });
+    return { oidcToken, storeId };
+  }
+  return { token: resolveBlobToken(environment) };
 }
 
 function listReleaseFiles() {
@@ -76,7 +131,9 @@ function sha256(filePath) {
 
 async function main() {
   const dryRun = process.env.PUBLISH_UPDATE_DRY_RUN === '1';
-  const blobToken = dryRun ? 'dry-run-token' : resolveBlobToken();
+  const blobAuthentication = dryRun
+    ? { token: 'vercel_blob_rw_dry_run_token' }
+    : await resolveBlobAuthentication();
 
   const put = dryRun
     ? async (blobPath) => ({ url: `https://dry-run.invalid/${blobPath}` })
@@ -94,7 +151,7 @@ async function main() {
       allowOverwrite: true,
       cacheControlMaxAge: 31536000,
       multipart: true,
-      token: blobToken,
+      ...blobAuthentication,
     });
 
     redirects.push({
@@ -120,4 +177,9 @@ if (require.main === module) {
   });
 }
 
-module.exports = { resolveBlobToken };
+module.exports = {
+  requestProjectOidcToken,
+  resolveBlobAuthentication,
+  resolveBlobStoreId,
+  resolveBlobToken,
+};

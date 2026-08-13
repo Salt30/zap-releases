@@ -4,7 +4,11 @@ const path = require('node:path');
 const assert = require('node:assert/strict');
 const { execFileSync } = require('node:child_process');
 const textTools = require('../src/text-tools');
-const { resolveBlobToken } = require('./publish-update-blobs');
+const {
+  requestProjectOidcToken,
+  resolveBlobStoreId,
+  resolveBlobToken,
+} = require('./publish-update-blobs');
 
 const root = path.resolve(__dirname, '..');
 const read = (relativePath) => fs.readFileSync(path.join(root, relativePath), 'utf8');
@@ -103,18 +107,54 @@ for (const marker of [
   'cacheControlMaxAge: 31536000',
   "crypto.createHash('sha256')",
   '`releases/v${packageVersion}/${digest}/${name}`',
-  "module.exports = { resolveBlobToken }"
+  'requestProjectOidcToken',
+  'resolveBlobAuthentication',
+  'resolveBlobStoreId'
 ]) {
   if (!blobPublisher.includes(marker)) fail(`Blob publisher requirement is missing: ${marker}`);
 }
 
-assert.equal(resolveBlobToken({ BLOB_READ_WRITE_TOKEN: ' exact-token ' }), 'exact-token');
-assert.equal(resolveBlobToken({ DRIP_TYPE_RELEASES_READ_WRITE_TOKEN: ' prefixed-token ' }), 'prefixed-token');
+assert.equal(
+  resolveBlobToken({ BLOB_READ_WRITE_TOKEN: ' vercel_blob_rw_store_secret ' }),
+  'vercel_blob_rw_store_secret',
+);
+assert.equal(
+  resolveBlobToken({ DRIP_TYPE_BLOB_READ_WRITE_TOKEN: ' vercel_blob_rw_store_prefixed ' }),
+  'vercel_blob_rw_store_prefixed',
+);
 assert.throws(
-  () => resolveBlobToken({ FIRST_READ_WRITE_TOKEN: 'one', SECOND_READ_WRITE_TOKEN: 'two' }),
+  () => resolveBlobToken({
+    FIRST_BLOB_READ_WRITE_TOKEN: 'vercel_blob_rw_store_one',
+    SECOND_BLOB_READ_WRITE_TOKEN: 'vercel_blob_rw_store_two',
+  }),
   /multiple read-write token variables are configured/,
 );
 assert.throws(() => resolveBlobToken({}), /no Blob read-write token is configured/);
+assert.equal(resolveBlobStoreId({ BLOB_STORE_ID: ' store_main ' }), 'store_main');
+assert.equal(resolveBlobStoreId({ DRIP_TYPE_BLOB_STORE_ID: ' store_prefixed ' }), 'store_prefixed');
+assert.equal(resolveBlobStoreId({ BLOB_STORE_ID: 'same', OTHER_BLOB_STORE_ID: 'same' }), 'same');
+assert.throws(
+  () => resolveBlobStoreId({ FIRST_BLOB_STORE_ID: 'first', SECOND_BLOB_STORE_ID: 'second' }),
+  /multiple Blob store IDs are configured/,
+);
+
+const oidcRequests = [];
+requestProjectOidcToken(
+  { accessToken: 'secret-vercel-token', projectId: 'prj_test', orgId: 'team_test' },
+  async (url, options) => {
+    oidcRequests.push({ url: String(url), options });
+    return { ok: true, status: 200, json: async () => ({ token: 'short-lived-oidc' }) };
+  },
+).then((token) => {
+  assert.equal(token, 'short-lived-oidc');
+  assert.equal(oidcRequests.length, 1);
+  assert(oidcRequests[0].url.includes('/v1/projects/prj_test/token'));
+  assert(oidcRequests[0].url.includes('teamId=team_test'));
+  assert.equal(oidcRequests[0].options.method, 'POST');
+  assert.equal(oidcRequests[0].options.headers.authorization, 'Bearer secret-vercel-token');
+}).catch((error) => {
+  setImmediate(() => { throw error; });
+});
 
 const blobTestRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dt-update-publish-test-'));
 try {
