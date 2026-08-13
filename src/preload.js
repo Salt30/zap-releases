@@ -19,6 +19,10 @@ contextBridge.exposeInMainWorld('dripType', Object.freeze({
   getPermissionChecklist: () => ipcRenderer.invoke('permissions:get'),
   requestAutomation: () => ipcRenderer.invoke('automation:request'),
   getAppInfo: () => ipcRenderer.invoke('app:get-info'),
+  getBillingState: () => ipcRenderer.invoke('billing:get-state'),
+  refreshBilling: () => ipcRenderer.invoke('billing:refresh'),
+  subscribe: () => ipcRenderer.invoke('billing:subscribe'),
+  manageBilling: () => ipcRenderer.invoke('billing:portal'),
   getUpdateState: () => ipcRenderer.invoke('updater:get-state'),
   checkForUpdates: () => ipcRenderer.invoke('updater:check'),
   downloadUpdate: () => ipcRenderer.invoke('updater:download'),
@@ -27,5 +31,6 @@ contextBridge.exposeInMainWorld('dripType', Object.freeze({
   onQuickOpened: (callback) => ipcRenderer.on('quick:opened', (_event, data) => callback(data)),
   onTheme: (callback) => ipcRenderer.on('theme:changed', (_event, data) => callback(data)),
   onUpdate: (callback) => ipcRenderer.on('updater:state', (_event, state) => callback(state)),
+  onBilling: (callback) => ipcRenderer.on('billing:state', (_event, state) => callback(state)),
   onNavigate: (callback) => ipcRenderer.on('app:navigate', (_event, target) => callback(target))
 }));

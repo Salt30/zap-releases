@@ -14,6 +14,7 @@ let themePreference = 'system';
 let launchAtLogin = true;
 let templates = [];
 let editingTemplateId = null;
+let billingState = { allowed: true, status: 'checking', plan: 'core' };
 
 function applyTheme(preference = 'system') {
   themePreference = ['system', 'light', 'dark'].includes(preference) ? preference : 'system';
@@ -135,7 +136,39 @@ function refreshTextMeta() {
   $('word-count').textContent = `${words} ${words === 1 ? 'word' : 'words'}`;
   $('char-count').textContent = `${chars} ${chars === 1 ? 'character' : 'characters'}`;
   $('estimate').textContent = seconds ? `about ${seconds}s` : '—';
-  $('start').disabled = typing || !text.trim();
+  $('start').disabled = typing || !text.trim() || !billingState.allowed;
+}
+
+function readableDate(value) {
+  if (!value) return '';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '';
+  return new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+}
+
+function renderBilling(state = {}) {
+  billingState = { ...billingState, ...state };
+  const status = billingState.status || 'required';
+  const active = status === 'active';
+  const trial = status === 'trial';
+  const planName = billingState.plan === 'pro' ? 'Pro' : 'Core';
+
+  $('billing-status').dataset.state = status;
+  $('billing-status').textContent = active ? 'Subscription active' : trial ? 'Free trial active' : 'Subscription required';
+  $('billing-plan').textContent = active ? `Drip Type ${planName}` : trial ? 'Drip Type Core trial' : 'Continue with Core';
+  $('billing-copy').textContent = billingState.message || (active
+    ? 'This Mac is activated and ready to use.'
+    : trial
+      ? 'All Core features are available during your trial.'
+      : 'Choose Core to keep using Drip Composer and natural typing.');
+
+  const expiry = active ? readableDate(billingState.expiresAt) : readableDate(billingState.trialEndsAt);
+  $('billing-expiry').textContent = expiry
+    ? active ? `Access verified through ${expiry}. It refreshes automatically.` : `Trial ends ${expiry}.`
+    : '';
+  $('billing-manage').disabled = !active;
+  $('billing-subscribe').textContent = active ? 'View plans' : 'Choose Core';
+  refreshTextMeta();
 }
 
 function refreshValues() {
@@ -284,6 +317,26 @@ $('launch-login').addEventListener('click', async () => {
 });
 $('replay-onboarding').addEventListener('click', () => window.dripType.replayOnboarding());
 $('update-action').addEventListener('click', runUpdateAction);
+$('billing-subscribe').addEventListener('click', async () => {
+  $('billing-note').textContent = 'Opening secure checkout…';
+  await window.dripType.subscribe();
+  $('billing-note').textContent = 'Complete checkout in your browser, then return here.';
+});
+$('billing-refresh').addEventListener('click', async () => {
+  $('billing-refresh').disabled = true;
+  $('billing-note').textContent = 'Refreshing access…';
+  const state = await window.dripType.refreshBilling();
+  renderBilling(state);
+  $('billing-refresh').disabled = false;
+  $('billing-note').textContent = state.status === 'active' ? 'Access refreshed.' : state.message || '';
+});
+$('billing-manage').addEventListener('click', async () => {
+  $('billing-manage').disabled = true;
+  $('billing-note').textContent = 'Opening Stripe’s secure portal…';
+  const result = await window.dripType.manageBilling();
+  $('billing-manage').disabled = billingState.status !== 'active';
+  $('billing-note').textContent = result?.error || 'Billing portal opened in your browser.';
+});
 $('save-template').addEventListener('click', saveTemplate);
 $('cancel-template').addEventListener('click', clearTemplateEditor);
 document.querySelectorAll('.theme-option').forEach((button) => {
@@ -304,7 +357,10 @@ $('start').addEventListener('click', async () => {
   }
   setStatus({ status: 'waiting', message: `Switch to the destination. Typing starts in ${controls.delay.value}s.` });
   const result = await window.dripType.start($('text').value);
-  if (result?.error) setStatus({ status: 'error', message: result.error });
+  if (result?.code === 'SUBSCRIPTION_REQUIRED') {
+    setPage('billing');
+    renderBilling({ allowed: false, status: 'required', message: result.error });
+  } else if (result?.error) setStatus({ status: 'error', message: result.error });
   else if (result?.fallback) setStatus({ status: 'complete', message: result.message });
 });
 $('cancel').addEventListener('click', () => window.dripType.cancel());
@@ -336,6 +392,7 @@ $('save-shortcuts').addEventListener('click', async () => {
 
 window.dripType.onState(setStatus);
 window.dripType.onUpdate(renderUpdate);
+window.dripType.onBilling(renderBilling);
 window.dripType.onTheme(({ theme }) => applyTheme(theme));
 window.dripType.onNavigate(({ page, focus } = {}) => {
   if (page) setPage(page);
@@ -346,11 +403,12 @@ window.dripType.onNavigate(({ page, focus } = {}) => {
 });
 
 async function load() {
-  const [settings, info, updater, savedTemplates] = await Promise.all([
+  const [settings, info, updater, savedTemplates, subscription] = await Promise.all([
     window.dripType.getSettings(),
     window.dripType.getAppInfo(),
     window.dripType.getUpdateState(),
-    window.dripType.listTemplates()
+    window.dripType.listTemplates(),
+    window.dripType.getBillingState()
   ]);
   controls.wpm.value = settings.dripWPM;
   controls.delay.value = settings.dripDelay;
@@ -369,6 +427,7 @@ async function load() {
   refreshPermissionChecklist();
   renderUpdate(updater);
   renderTemplates(savedTemplates);
+  renderBilling(subscription);
 }
 
 load();

@@ -28,7 +28,9 @@ Drip Type is a native-feeling macOS utility that turns prepared text into natura
 - Live countdown, progress, cancellation, and error states
 - Menu-bar access and keyboard-first operation
 - Optional launch-at-login mode that starts quietly without opening settings
-- Local-only settings with no account, analytics, server, or shared database
+- Local writing and settings with no writing-content analytics or shared draft database
+- 14-day Core trial with a native subscription status and billing screen
+- Stripe-hosted checkout, device-bound signed entitlements, and macOS Keychain credential storage
 - Live Accessibility and Automation status with direct macOS permission recovery
 - One signed and notarized universal Mac download for Apple Silicon and Intel
 - Signed automatic updates with visible download and install progress
@@ -97,8 +99,8 @@ base64 -i DeveloperIDApplication.p12 | pbcopy
 Paste the clipboard contents into `MAC_CERTIFICATE_P12_BASE64`. Then publish a release:
 
 ```bash
-git branch release/v1.4.0
-git push origin release/v1.4.0
+git branch release/v1.5.0
+git push origin release/v1.5.0
 ```
 
 GitHub Actions builds one universal application, signs it with the VegaNext
@@ -134,11 +136,12 @@ and materially raise the effort required to copy implementation details.
 
 ## Scaling model
 
-Drip Type has no central runtime service. Every typing session runs locally, so
-additional users do not add load to an API or database. Vercel's edge network
-supplies the update distribution layer. Release jobs use locked dependencies,
-a universal build, atomic deployments, and concurrency protection to prevent
-duplicate publication for the same tag.
+Every typing session and writing draft stays local, so additional users do not
+add writing-processing load to an API or database. A small stateless entitlement
+service verifies Stripe subscription state and issues short-lived signed access
+tokens; Vercel's edge network supplies the website and update distribution layer.
+Release jobs use locked dependencies, a universal build, atomic deployments,
+and concurrency protection to prevent duplicate publication for the same tag.
 
 Source should remain in this private repository. Public distribution at scale
 should use a separate public, binary-only release repository or an object-storage

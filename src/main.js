@@ -23,8 +23,13 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { pathToFileURL } = require('url');
+const { accessState, verifyEntitlement } = require('./subscription');
 
 const APP_ID = 'com.salt30.driptype';
+const BILLING_ORIGIN = 'https://tryzap.net';
+const BILLING_SCHEME = 'driptype';
+const KEYCHAIN_SERVICE = 'com.salt30.driptype.subscription';
+const TRIAL_KEYCHAIN_SERVICE = 'com.salt30.driptype.trial';
 const MAX_TEXT_LENGTH = 100000;
 const MAX_TEMPLATE_COUNT = 50;
 const MAX_TEMPLATE_NAME_LENGTH = 60;
@@ -63,6 +68,9 @@ const DEFAULTS = {
   launchAtLogin: true,
   theme: 'system',
   templates: DEFAULT_TEMPLATES,
+  deviceId: null,
+  trialStartedAt: null,
+  entitlementToken: '',
   automationPermissionChecked: false,
   onboardingDone: false
 };
@@ -99,6 +107,9 @@ let dripTypeRunning = false;
 let activeAppleScript = null;
 let updateCheckTimer = null;
 let lastNotifiedUpdateVersion = null;
+let pendingActivationUrl = null;
+let entitlementRefreshTimer = null;
+let billingState = null;
 let updateState = {
   status: app.isPackaged && process.platform === 'darwin' ? 'idle' : 'development',
   currentVersion: app.getVersion(),
@@ -130,6 +141,157 @@ function execFileAsync(file, args, options = {}) {
       }
     });
   });
+}
+
+function ensureDeviceId() {
+  const current = store.get('deviceId');
+  if (/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(String(current || ''))) {
+    return current;
+  }
+  const value = randomUUID();
+  store.set('deviceId', value);
+  return value;
+}
+
+function ensureTrialStartedAt() {
+  const current = Number(store.get('trialStartedAt'));
+  if (Number.isFinite(current) && current > 0) return current;
+  const value = Date.now();
+  store.set('trialStartedAt', value);
+  return value;
+}
+
+async function synchronizeTrialStartedAt() {
+  let protectedStart = 0;
+  if (process.platform === 'darwin') {
+    try {
+      const value = await execFileAsync('/usr/bin/security', [
+        'find-generic-password', '-a', APP_ID, '-s', TRIAL_KEYCHAIN_SERVICE, '-w'
+      ]);
+      if (/^\d{13}$/.test(value)) protectedStart = Number(value);
+    } catch (_) {}
+  }
+
+  const storedStart = Number(store.get('trialStartedAt'));
+  const candidates = [protectedStart, storedStart].filter((value) => Number.isFinite(value) && value > 0);
+  const trialStartedAt = candidates.length ? Math.min(...candidates) : Date.now();
+  store.set('trialStartedAt', trialStartedAt);
+
+  if (process.platform === 'darwin' && protectedStart !== trialStartedAt) {
+    try {
+      await execFileAsync('/usr/bin/security', [
+        'add-generic-password', '-U', '-a', APP_ID, '-s', TRIAL_KEYCHAIN_SERVICE,
+        '-w', String(trialStartedAt)
+      ]);
+    } catch (_) {}
+  }
+  return trialStartedAt;
+}
+
+function currentBillingState() {
+  billingState = accessState({
+    token: store.get('entitlementToken'),
+    deviceId: ensureDeviceId(),
+    trialStartedAt: ensureTrialStartedAt()
+  });
+  return { ...billingState };
+}
+
+function publishBillingState(patch = {}) {
+  billingState = { ...currentBillingState(), ...patch };
+  sendToWindow(mainWindow, 'billing:state', { ...billingState });
+  if (tray) createTrayMenuOnly();
+  return { ...billingState };
+}
+
+async function readRefreshCredential() {
+  if (process.platform !== 'darwin') return '';
+  try {
+    const value = await execFileAsync('/usr/bin/security', [
+      'find-generic-password', '-a', APP_ID, '-s', KEYCHAIN_SERVICE, '-w'
+    ]);
+    return /^sub_[A-Za-z0-9]+\.[A-Za-z0-9_-]{40,}$/.test(value) ? value : '';
+  } catch (_) {
+    return '';
+  }
+}
+
+async function saveRefreshCredential(value) {
+  if (process.platform !== 'darwin' || !/^sub_[A-Za-z0-9]+\.[A-Za-z0-9_-]{40,}$/.test(value)) {
+    throw new Error('Invalid subscription credential');
+  }
+  await execFileAsync('/usr/bin/security', [
+    'add-generic-password', '-U', '-a', APP_ID, '-s', KEYCHAIN_SERVICE, '-w', value
+  ]);
+}
+
+async function billingRequest(pathname, body) {
+  const response = await fetch(`${BILLING_ORIGIN}${pathname}`, {
+    method: 'POST',
+    redirect: 'error',
+    headers: { 'Content-Type': 'application/json', Accept: 'application/json' },
+    body: JSON.stringify(body),
+    signal: AbortSignal.timeout(15_000)
+  });
+  const result = await response.json();
+  if (!response.ok) throw new Error(result?.error || 'Subscription service is unavailable.');
+  return result;
+}
+
+function acceptEntitlement(result) {
+  const deviceId = ensureDeviceId();
+  verifyEntitlement(result.entitlement, deviceId);
+  store.set('entitlementToken', result.entitlement);
+  return publishBillingState();
+}
+
+async function refreshEntitlement({ silent = false } = {}) {
+  const refreshToken = await readRefreshCredential();
+  if (!refreshToken) return publishBillingState();
+  try {
+    const result = await billingRequest('/api/refresh-entitlement', {
+      refreshToken,
+      deviceId: ensureDeviceId()
+    });
+    return acceptEntitlement(result);
+  } catch (error) {
+    const current = currentBillingState();
+    if (!silent || !current.allowed) {
+      return publishBillingState({ message: error.message || 'Subscription could not be refreshed.' });
+    }
+    return current;
+  }
+}
+
+async function activateCheckoutSession(sessionId) {
+  if (!/^cs_live_[A-Za-z0-9_]{20,}$/.test(String(sessionId || ''))) {
+    throw new Error('Invalid activation link');
+  }
+  const result = await billingRequest('/api/claim-entitlement', {
+    sessionId,
+    deviceId: ensureDeviceId()
+  });
+  await saveRefreshCredential(result.refreshToken);
+  const state = acceptEntitlement(result);
+  showMainWindow();
+  sendToWindow(mainWindow, 'app:navigate', { page: 'billing' });
+  if (Notification.isSupported()) {
+    new Notification({ title: 'Drip Type activated', body: state.message, silent: true }).show();
+  }
+  return state;
+}
+
+function handleActivationUrl(value) {
+  try {
+    const url = new URL(value);
+    if (url.protocol !== `${BILLING_SCHEME}:` || url.hostname !== 'activate') return;
+    const sessionId = url.searchParams.get('session_id') || '';
+    activateCheckoutSession(sessionId).catch((error) => {
+      showMainWindow();
+      publishBillingState({ status: 'error', message: error.message || 'Activation failed.' });
+      sendToWindow(mainWindow, 'app:navigate', { page: 'billing' });
+    });
+  } catch (_) {}
 }
 
 function numberSetting(key, fallback) {
@@ -766,6 +928,13 @@ function createOnboardingWindow() {
 
 async function showQuickComposer() {
   if (dripTypeRunning) return;
+  const access = currentBillingState();
+  if (!access.allowed) {
+    showMainWindow();
+    publishBillingState();
+    sendToWindow(mainWindow, 'app:navigate', { page: 'billing' });
+    return;
+  }
   if (quickWindow && !quickWindow.isDestroyed() && quickWindow.isVisible()) {
     quickWindow.focus();
     return;
@@ -869,6 +1038,9 @@ function createApplicationMenu() {
 
 handleTrusted('drip-type:start', ['index.html', 'quick.html'], async (event, text) => {
   const senderWindow = BrowserWindow.fromWebContents(event.sender);
+  if (!currentBillingState().allowed) {
+    return { error: 'A Core subscription is required to start typing.', code: 'SUBSCRIPTION_REQUIRED' };
+  }
   if (!cleanMarkdown(text)) return { error: 'Enter some text first.' };
   if (typeof text !== 'string' || [...text].length > MAX_TEXT_LENGTH) {
     return { error: 'Text is limited to 100,000 characters per run.' };
@@ -971,6 +1143,29 @@ handleTrusted('app:get-info', ['index.html'], () => ({
   platform: process.platform,
   appId: APP_ID
 }));
+handleTrusted('billing:get-state', ['index.html'], () => currentBillingState());
+handleTrusted('billing:refresh', ['index.html'], () => refreshEntitlement());
+handleTrusted('billing:subscribe', ['index.html'], async () => {
+  await shell.openExternal(`${BILLING_ORIGIN}/#pricing`);
+  return currentBillingState();
+});
+handleTrusted('billing:portal', ['index.html'], async () => {
+  const refreshToken = await readRefreshCredential();
+  if (!refreshToken) return { error: 'Activate a subscription before opening billing.' };
+  try {
+    const result = await billingRequest('/api/create-portal', {
+      refreshToken,
+      deviceId: ensureDeviceId()
+    });
+    if (!/^https:\/\/billing\.stripe\.com\//.test(result.url || '')) {
+      throw new Error('Billing portal URL was rejected.');
+    }
+    await shell.openExternal(result.url);
+    return { success: true };
+  } catch (error) {
+    return { error: error.message || 'Billing portal could not be opened.' };
+  }
+});
 handleTrusted('updater:get-state', ['index.html'], () => ({ ...updateState }));
 handleTrusted('updater:check', ['index.html'], async () => {
   if (!app.isPackaged || process.platform !== 'darwin') return { status: 'development' };
@@ -997,13 +1192,26 @@ onTrusted('updater:install', ['index.html'], () => {
 });
 
 app.setName('Drip Type');
+app.setAsDefaultProtocolClient(BILLING_SCHEME);
 
-app.on('second-instance', () => {
+app.on('open-url', (event, url) => {
+  event.preventDefault();
+  if (!app.isReady()) pendingActivationUrl = url;
+  else handleActivationUrl(url);
+});
+
+app.on('second-instance', (_event, commandLine) => {
+  const activationUrl = commandLine.find((argument) => argument.startsWith(`${BILLING_SCHEME}://`));
+  if (activationUrl) {
+    handleActivationUrl(activationUrl);
+    return;
+  }
   if (dripTypeRunning) return;
   showQuickComposer();
 });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await synchronizeTrialStartedAt();
   registerAppProtocol();
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   session.defaultSession.setPermissionCheckHandler(() => false);
@@ -1018,6 +1226,14 @@ app.whenReady().then(() => {
   registerShortcuts();
   configureLoginItem();
   configureUpdater();
+  currentBillingState();
+  refreshEntitlement({ silent: true });
+  entitlementRefreshTimer = setInterval(() => refreshEntitlement({ silent: true }), 12 * 60 * 60 * 1000);
+  if (pendingActivationUrl) {
+    const url = pendingActivationUrl;
+    pendingActivationUrl = null;
+    handleActivationUrl(url);
+  }
   const openedAtLogin = process.platform === 'darwin' && app.getLoginItemSettings().wasOpenedAtLogin;
   if (!store.get('onboardingDone')) createOnboardingWindow();
   else if (!openedAtLogin) createMainWindow();
@@ -1030,6 +1246,7 @@ app.on('activate', () => {
 app.on('will-quit', () => {
   cancelDripType();
   if (updateCheckTimer) clearInterval(updateCheckTimer);
+  if (entitlementRefreshTimer) clearInterval(entitlementRefreshTimer);
   globalShortcut.unregisterAll();
 });
 app.on('window-all-closed', () => {

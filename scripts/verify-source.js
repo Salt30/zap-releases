@@ -2,8 +2,10 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const assert = require('node:assert/strict');
+const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const textTools = require('../src/text-tools');
+const subscription = require('../src/subscription');
 const {
   requestProjectOidcToken,
   resolveBlobAuthentication,
@@ -21,6 +23,8 @@ const mainSource = read('src/main.js');
 const preloadSource = read('src/preload.js');
 const quickSource = read('src/quick.js');
 const quickMarkup = read('src/quick.html');
+const indexMarkup = read('src/index.html');
+const subscriptionSource = read('src/subscription.js');
 const entitlements = read('build/entitlements.mac.plist');
 const releaseWorkflow = read('.github/workflows/release.yml');
 const blobPublisher = read('scripts/publish-update-blobs.js');
@@ -81,6 +85,22 @@ for (const marker of ['autoDownload = false', '6 * 60 * 60 * 1000', 'notifyUpdat
 }
 for (const marker of ['app.enableSandbox()', ".replace(/\\r\\n?/g, '\\n')", 'Rejected untrusted IPC sender.']) {
   if (!mainSource.includes(marker)) fail(`Application hardening requirement is missing: ${marker}`);
+}
+for (const marker of [
+  "handleTrusted('billing:get-state'",
+  "handleTrusted('billing:refresh'",
+  "handleTrusted('billing:portal'",
+  'setAsDefaultProtocolClient(BILLING_SCHEME)',
+  'TRIAL_KEYCHAIN_SERVICE',
+  "'/usr/bin/security'"
+]) {
+  if (!mainSource.includes(marker)) fail(`Subscription security requirement is missing: ${marker}`);
+}
+for (const marker of ['ENTITLEMENT_PUBLIC_KEY', 'createPublicKey', 'verifyEntitlement', 'deviceHash']) {
+  if (!subscriptionSource.includes(marker)) fail(`Signed entitlement verification is missing: ${marker}`);
+}
+for (const marker of ['id="page-billing"', 'id="billing-status"', 'id="billing-manage"']) {
+  if (!indexMarkup.includes(marker)) fail(`Native billing interface is missing: ${marker}`);
 }
 if (/uses:\s+[^\n]+@(v\d+|main|master|latest)\b/.test(releaseWorkflow) ||
     /vercel@latest\b/.test(releaseWorkflow)) {
@@ -206,6 +226,14 @@ if (!preloadSource.includes("ipcRenderer.invoke('clipboard:read-text')")) {
 for (const marker of ["ipcRenderer.invoke('templates:list')", "ipcRenderer.invoke('templates:save'", "ipcRenderer.invoke('templates:delete'"]) {
   if (!preloadSource.includes(marker)) fail(`The isolated template bridge is missing: ${marker}`);
 }
+for (const marker of [
+  "ipcRenderer.invoke('billing:get-state')",
+  "ipcRenderer.invoke('billing:refresh')",
+  "ipcRenderer.invoke('billing:portal')",
+  "ipcRenderer.on('billing:state'"
+]) {
+  if (!preloadSource.includes(marker)) fail(`The isolated billing bridge is missing: ${marker}`);
+}
 for (const marker of ['Drip Composer', 'Private draft · stored in memory only', 'id="paste"']) {
   if (!quickMarkup.includes(marker)) fail(`Composer interface requirement is missing: ${marker}`);
 }
@@ -227,6 +255,54 @@ assert.deepEqual(textTools.variableNames('Hi {{ name }}, {{topic}} / {{name}}'),
 assert.equal(textTools.fillTemplate('Hi {{name}} — {{topic}}', { name: 'Sam', topic: 'launch' }), 'Hi Sam — launch');
 assert.equal(textTools.hasUnresolvedVariables('Hi {{name}}'), true);
 assert.equal(textTools.hasUnresolvedVariables('Hi Sam'), false);
+
+const trialStart = Date.now() - 2 * 24 * 60 * 60 * 1000;
+const trialState = subscription.accessState({
+  token: '',
+  deviceId: '3b9d5ef5-b71a-4cc0-a3aa-5ad5da015a2b',
+  trialStartedAt: trialStart,
+  now: Date.now()
+});
+assert.equal(trialState.allowed, true);
+assert.equal(trialState.status, 'trial');
+assert.equal(trialState.daysRemaining, 12);
+const expiredTrialState = subscription.accessState({
+  token: '',
+  deviceId: '3b9d5ef5-b71a-4cc0-a3aa-5ad5da015a2b',
+  trialStartedAt: trialStart - subscription.TRIAL_LENGTH_MS,
+  now: Date.now()
+});
+assert.equal(expiredTrialState.allowed, false);
+assert.equal(expiredTrialState.status, 'required');
+
+const { privateKey: testPrivateKey, publicKey: testPublicKey } = crypto.generateKeyPairSync('ed25519');
+const nowSeconds = Math.floor(Date.now() / 1000);
+const testDevice = '3b9d5ef5-b71a-4cc0-a3aa-5ad5da015a2b';
+const testHeader = Buffer.from(JSON.stringify({ alg: 'EdDSA', kid: 'drip-type-v1', typ: 'JWT' })).toString('base64url');
+const testPayload = Buffer.from(JSON.stringify({
+  v: 1,
+  iss: 'https://tryzap.net',
+  aud: 'com.salt30.driptype',
+  sub: 'test-subscription',
+  plan: 'core',
+  features: ['composer', 'typing', 'hotkeys', 'templates', 'updates'],
+  device: subscription.deviceHash(testDevice),
+  iat: nowSeconds,
+  exp: nowSeconds + 60 * 60
+})).toString('base64url');
+const testInput = `${testHeader}.${testPayload}`;
+const testSignature = crypto.sign(null, Buffer.from(testInput), testPrivateKey).toString('base64url');
+const testToken = `${testInput}.${testSignature}`;
+const testPublicKeyEncoded = testPublicKey.export({ format: 'der', type: 'spki' }).toString('base64');
+assert.equal(subscription.verifyEntitlement(testToken, testDevice, Date.now(), testPublicKeyEncoded).plan, 'core');
+const tamperedPayload = Buffer.from(JSON.stringify({
+  ...JSON.parse(Buffer.from(testPayload, 'base64url').toString('utf8')),
+  plan: 'pro'
+})).toString('base64url');
+assert.throws(
+  () => subscription.verifyEntitlement(`${testHeader}.${tamperedPayload}.${testSignature}`, testDevice, Date.now(), testPublicKeyEncoded),
+  /Invalid entitlement signature/
+);
 
 const pages = [
   ['src/index.html', 'src/index.js'],

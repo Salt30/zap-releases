@@ -290,6 +290,24 @@
     .about-meta { display: grid; grid-template-columns: 120px 1fr; gap: 10px 16px; padding: 18px; color: var(--muted); font-size: 12px; }
     .about-meta dt { color: var(--subtle); }
     .about-meta dd { margin: 0; }
+    .billing-hero { overflow: hidden; position: relative; padding: 27px; }
+    .billing-hero::after { content: ''; position: absolute; width: 260px; height: 260px; top: -170px; right: -70px; border-radius: 50%; background: rgba(244,200,74,.13); filter: blur(32px); pointer-events: none; }
+    .billing-top { position: relative; z-index: 1; display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; }
+    .billing-status { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; font-weight: 650; letter-spacing: .055em; text-transform: uppercase; }
+    .billing-status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 4px rgba(240,125,134,.09); }
+    .billing-status[data-state="active"]::before { background: var(--success); box-shadow: 0 0 0 4px rgba(115,201,145,.1); }
+    .billing-status[data-state="trial"]::before { background: var(--accent); box-shadow: 0 0 0 4px rgba(244,200,74,.1); }
+    .billing-plan { margin-top: 17px; font-size: 31px; font-weight: 660; letter-spacing: -.04em; }
+    .billing-copy { max-width: 480px; margin-top: 8px; color: var(--muted); font-size: 13px; line-height: 1.55; }
+    .billing-expiry { margin-top: 15px; color: var(--subtle); font-size: 11px; }
+    .billing-actions { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 8px; margin-top: 25px; padding-top: 18px; border-top: 1px solid var(--border); }
+    .billing-note { align-self: center; min-height: 17px; color: var(--subtle); font-size: 11px; }
+    .billing-facts { display: grid; grid-template-columns: repeat(3, 1fr); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; background: var(--surface); }
+    .billing-fact { min-height: 116px; padding: 18px; border-right: 1px solid var(--border); }
+    .billing-fact:last-child { border-right: 0; }
+    .billing-fact span { display: block; color: var(--accent); font: 10px ui-monospace, SFMono-Regular, monospace; }
+    .billing-fact strong { display: block; margin-top: 17px; font-size: 12px; font-weight: 630; }
+    .billing-fact p { margin: 6px 0 0; color: var(--subtle); font-size: 10px; line-height: 1.5; }
     .check-state { display: inline-flex; align-items: center; gap: 7px; color: var(--subtle); font-size: 12px; }
     .check-state::before { content: ''; width: 8px; height: 8px; border: 1.5px solid var(--subtle); border-radius: 50%; }
     .check-state.ready { color: var(--success); }
@@ -338,6 +356,9 @@
         </button>
         <button class="nav-button" data-page="shortcuts">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M18 10h.01M8 14h8"/></svg><span>Shortcuts</span>
+        </button>
+        <button class="nav-button" data-page="billing">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M7 15h4"/></svg><span>Billing</span>
         </button>
         <button class="nav-button" data-page="setup">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1v.1h-4v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1-.4h-.1v-4H3a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1v-.1h4V3a1.7 1.7 0 0 0 1.1 1.6 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.14.37.35.71.6 1 .28.26.63.4 1 .4h.1v4H21a1.7 1.7 0 0 0-1.6.6Z"/></svg><span>Setup</span><span class="nav-update-dot" id="update-dot" hidden></span>
@@ -415,6 +436,35 @@
           <div class="shortcut-card"><div><div class="shortcut-name">Stop typing</div><div class="shortcut-description">Immediately cancels the current typing session.</div></div><input class="shortcut-input" id="stop-key" value="Alt+0" spellcheck="false"></div>
         </div>
         <div class="save-row"><button class="button primary" id="save-shortcuts">Save shortcuts</button><span class="save-note" id="shortcut-note"></span></div>
+      </section>
+
+      <section class="page" id="page-billing">
+        <div class="eyebrow">Billing</div>
+        <h1>Your Drip Type access.</h1>
+        <p class="lead">Manage the subscription connected to this Mac. Payment details are handled securely by Stripe and never stored in Drip Type.</p>
+        <div class="section-list">
+          <div class="card billing-hero">
+            <div class="billing-top">
+              <div>
+                <div class="billing-status" id="billing-status" data-state="trial">Checking access</div>
+                <div class="billing-plan" id="billing-plan">Drip Type Core</div>
+                <div class="billing-copy" id="billing-copy">Confirming the access available on this Mac…</div>
+                <div class="billing-expiry" id="billing-expiry"></div>
+              </div>
+            </div>
+            <div class="billing-actions">
+              <button class="button primary" id="billing-subscribe">Choose Core</button>
+              <button class="button secondary" id="billing-manage" disabled>Manage billing</button>
+              <button class="button secondary" id="billing-refresh">Refresh access</button>
+              <span class="billing-note" id="billing-note"></span>
+            </div>
+          </div>
+          <div class="billing-facts" aria-label="Subscription security">
+            <div class="billing-fact"><span>01</span><strong>Stripe-hosted checkout</strong><p>Card and payment details never enter the app.</p></div>
+            <div class="billing-fact"><span>02</span><strong>Keychain protected</strong><p>The private activation credential stays in macOS Keychain.</p></div>
+            <div class="billing-fact"><span>03</span><strong>Cancel anytime</strong><p>Invoices, payment methods, and cancellation live in Stripe’s portal.</p></div>
+          </div>
+        </div>
       </section>
 
       <section class="page" id="page-setup">

@@ -1,6 +1,6 @@
 {
   "name": "drip-type",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "Natural, configurable typing for macOS.",
   "main": "src/main.js",
   "author": "VegaNext LLC",
@@ -9,7 +9,7 @@
   "scripts": {
     "start": "electron .",
     "build:app": "node scripts/build-app.js",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/index.js && node --check src/quick.js && node --check src/text-tools.js && node --check src/onboarding.js && node --check scripts/build-app.js && node --check scripts/after-pack.js && node --check scripts/publish-update-blobs.js && node --check scripts/verify-source.js && node --check scripts/verify-package.js",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/index.js && node --check src/quick.js && node --check src/text-tools.js && node --check src/subscription.js && node --check src/onboarding.js && node --check scripts/build-app.js && node --check scripts/after-pack.js && node --check scripts/publish-update-blobs.js && node --check scripts/verify-source.js && node --check scripts/verify-package.js",
     "test:source": "node scripts/verify-source.js",
     "verify": "npm run check && npm run test:source && npm run build:app",
     "verify:package": "node scripts/verify-package.js",
@@ -63,8 +63,8 @@
       }
     ],
     "releaseInfo": {
-      "releaseName": "Drip Type 1.4.0",
-      "releaseNotes": "Create and manage private local templates, fill reusable fields directly in Drip Composer, clean spacing, toggle bullets, and catch unresolved template fields before typing. This release remains API-free and keeps composer content on the Mac."
+      "releaseName": "Drip Type 1.5.0",
+      "releaseNotes": "Start with a 14-day Core trial, activate a paid subscription from Stripe Checkout, view access in the native Billing page, and manage billing securely. Activation is device-bound, verified with signed entitlements, and protected by macOS Keychain. Composer content remains local."
     },
     "mac": {
       "category": "public.app-category.productivity",
@@ -86,6 +86,12 @@
       "entitlements": "build/entitlements.mac.plist",
       "entitlementsInherit": "build/entitlements.mac.plist",
       "extendInfo": {
+        "CFBundleURLTypes": [
+          {
+            "CFBundleURLName": "Drip Type activation",
+            "CFBundleURLSchemes": ["driptype"]
+          }
+        ],
         "LSApplicationCategoryType": "public.app-category.productivity",
         "NSAppleEventsUsageDescription": "Drip Type uses macOS System Events to type text into the application you choose.",
         "NSAccessibilityUsageDescription": "Drip Type needs Accessibility access to type text into other applications."

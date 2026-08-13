@@ -53,6 +53,9 @@ async function main() {
   if (!plist.includes('<key>ElectronAsarIntegrity</key>') || !plist.includes('<string>SHA256</string>')) {
     throw new Error('ASAR integrity metadata is missing from Info.plist.');
   }
+  if (!plist.includes('<key>CFBundleURLSchemes</key>') || !plist.includes('<string>driptype</string>')) {
+    throw new Error('The signed activation URL scheme is missing from Info.plist.');
+  }
 
   console.log('Package security verification passed.');
 }
