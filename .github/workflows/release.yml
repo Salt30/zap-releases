@@ -170,15 +170,8 @@ jobs:
         run: |
           mkdir -p update-site/.vercel
           cp updates-host/index.html updates-host/vercel.json update-site/
-          cp dist/latest-mac.yml dist/*.dmg dist/*.zip dist/*.blockmap update-site/
+          cp dist/latest-mac.yml update-site/
           node -e 'const fs=require("fs"); fs.writeFileSync("update-site/.vercel/project.json", JSON.stringify({orgId:process.env.VERCEL_ORG_ID,projectId:process.env.VERCEL_PROJECT_ID}))'
-
-      - name: Publish in-app update feed
-        env:
-          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-        run: |
-          : "${VERCEL_TOKEN:?Missing VERCEL_TOKEN}"
-          npx --yes vercel@58.9.1 deploy update-site --prod --yes --token "$VERCEL_TOKEN"
 
       - name: Upload release artifacts
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -194,9 +187,19 @@ jobs:
           if-no-files-found: error
           retention-days: 14
 
+      - name: Publish immutable update files and atomic feed
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          : "${VERCEL_TOKEN:?Missing VERCEL_TOKEN}"
+          npx --yes vercel@58.9.1 env pull "$RUNNER_TEMP/drip-type-updates.env" --environment=production --yes --token "$VERCEL_TOKEN" --cwd update-site
+          node --env-file="$RUNNER_TEMP/drip-type-updates.env" scripts/publish-update-blobs.js
+          npx --yes vercel@58.9.1 deploy update-site --prod --yes --token "$VERCEL_TOKEN"
+
       - name: Remove signing material
         if: always()
         run: |
+          rm -f "$RUNNER_TEMP/drip-type-updates.env"
           security delete-keychain "$RUNNER_TEMP/build.keychain-db" >/dev/null 2>&1 || true
           rm -f "$RUNNER_TEMP/developer-id.p12"
 

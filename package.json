@@ -9,7 +9,7 @@
   "scripts": {
     "start": "electron .",
     "build:app": "node scripts/build-app.js",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/index.js && node --check src/quick.js && node --check src/text-tools.js && node --check src/onboarding.js && node --check scripts/build-app.js && node --check scripts/after-pack.js && node --check scripts/verify-source.js && node --check scripts/verify-package.js",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/index.js && node --check src/quick.js && node --check src/text-tools.js && node --check src/onboarding.js && node --check scripts/build-app.js && node --check scripts/after-pack.js && node --check scripts/publish-update-blobs.js && node --check scripts/verify-source.js && node --check scripts/verify-package.js",
     "test:source": "node scripts/verify-source.js",
     "verify": "npm run check && npm run test:source && npm run build:app",
     "verify:package": "node scripts/verify-package.js",
@@ -30,6 +30,7 @@
   },
   "devDependencies": {
     "@electron/fuses": "2.1.3",
+    "@vercel/blob": "2.8.0",
     "electron": "43.1.1",
     "electron-builder": "26.15.3",
     "esbuild": "0.25.12"

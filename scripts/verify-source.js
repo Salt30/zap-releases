@@ -1,6 +1,8 @@
 const fs = require('node:fs');
+const os = require('node:os');
 const path = require('node:path');
 const assert = require('node:assert/strict');
+const { execFileSync } = require('node:child_process');
 const textTools = require('../src/text-tools');
 
 const root = path.resolve(__dirname, '..');
@@ -15,6 +17,7 @@ const quickSource = read('src/quick.js');
 const quickMarkup = read('src/quick.html');
 const entitlements = read('build/entitlements.mac.plist');
 const releaseWorkflow = read('.github/workflows/release.yml');
+const blobPublisher = read('scripts/publish-update-blobs.js');
 
 if (!packageJson.private || packageJson.license !== 'UNLICENSED') {
   fail('The package must remain private and proprietary.');
@@ -82,6 +85,56 @@ if (releaseWorkflow.includes('git fetch') ||
     !releaseWorkflow.includes('RELEASE_TAG="${RELEASE_TAG%%/*}"') ||
     !releaseWorkflow.includes('RELEASE_TAG="${RELEASE_TAG%%-retry-*}"')) {
   fail('Release validation must use the credential-free checkout and support an isolated retry branch.');
+}
+for (const marker of [
+  'vercel@58.9.1 env pull',
+  'node --env-file="$RUNNER_TEMP/drip-type-updates.env" scripts/publish-update-blobs.js',
+  'cp dist/latest-mac.yml update-site/'
+]) {
+  if (!releaseWorkflow.includes(marker)) fail(`Release Blob publishing requirement is missing: ${marker}`);
+}
+if (releaseWorkflow.includes('cp dist/latest-mac.yml dist/*.dmg')) {
+  fail('Large installers must not be copied into the Vercel deployment.');
+}
+for (const marker of [
+  "access: 'public'",
+  'multipart: true',
+  'cacheControlMaxAge: 31536000',
+  "crypto.createHash('sha256')",
+  '`releases/v${packageVersion}/${digest}/${name}`'
+]) {
+  if (!blobPublisher.includes(marker)) fail(`Blob publisher requirement is missing: ${marker}`);
+}
+
+const blobTestRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dt-update-publish-test-'));
+try {
+  const blobTestDist = path.join(blobTestRoot, 'dist');
+  const blobTestSite = path.join(blobTestRoot, 'site');
+  fs.mkdirSync(blobTestDist);
+  for (const name of [
+    `Drip-Type-${packageJson.version}-mac.dmg`,
+    `Drip-Type-${packageJson.version}-mac.dmg.blockmap`,
+    `Drip-Type-${packageJson.version}-mac.zip`,
+    `Drip-Type-${packageJson.version}-mac.zip.blockmap`
+  ]) {
+    fs.writeFileSync(path.join(blobTestDist, name), `fixture:${name}`);
+  }
+  execFileSync(process.execPath, ['scripts/publish-update-blobs.js'], {
+    cwd: root,
+    env: {
+      ...process.env,
+      DIST_DIR: blobTestDist,
+      UPDATE_SITE_DIR: blobTestSite,
+      PUBLISH_UPDATE_DRY_RUN: '1'
+    },
+    stdio: 'pipe'
+  });
+  const generatedConfig = JSON.parse(fs.readFileSync(path.join(blobTestSite, 'vercel.json'), 'utf8'));
+  assert.equal(generatedConfig.redirects.length, 4);
+  assert(generatedConfig.redirects.every(({ destination }) =>
+    destination.startsWith(`https://dry-run.invalid/releases/v${packageJson.version}/`)));
+} finally {
+  fs.rmSync(blobTestRoot, { recursive: true, force: true });
 }
 if (!preloadSource.includes("ipcRenderer.invoke('clipboard:read-text')")) {
   fail('The isolated clipboard bridge is missing.');
