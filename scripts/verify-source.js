@@ -90,6 +90,11 @@ for (const marker of [
   "handleTrusted('billing:get-state'",
   "handleTrusted('billing:refresh'",
   "handleTrusted('billing:portal'",
+  'deleteRefreshCredential',
+  'shouldRevokeEntitlement(error.status)',
+  'paidAccessSeen',
+  'navigateMainWindow',
+  "window.webContents.once('did-finish-load', navigate)",
   'setAsDefaultProtocolClient(BILLING_SCHEME)',
   'TRIAL_KEYCHAIN_SERVICE',
   "'/usr/bin/security'"
@@ -274,6 +279,11 @@ const expiredTrialState = subscription.accessState({
 });
 assert.equal(expiredTrialState.allowed, false);
 assert.equal(expiredTrialState.status, 'required');
+assert.equal(subscription.shouldRevokeEntitlement(401), true);
+assert.equal(subscription.shouldRevokeEntitlement(402), true);
+assert.equal(subscription.shouldRevokeEntitlement(403), true);
+assert.equal(subscription.shouldRevokeEntitlement(409), false);
+assert.equal(subscription.shouldRevokeEntitlement(503), false);
 
 const { privateKey: testPrivateKey, publicKey: testPublicKey } = crypto.generateKeyPairSync('ed25519');
 const nowSeconds = Math.floor(Date.now() / 1000);

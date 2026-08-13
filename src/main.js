@@ -23,7 +23,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { pathToFileURL } = require('url');
-const { accessState, verifyEntitlement } = require('./subscription');
+const { accessState, shouldRevokeEntitlement, verifyEntitlement } = require('./subscription');
 
 const APP_ID = 'com.salt30.driptype';
 const BILLING_ORIGIN = 'https://tryzap.net';
@@ -71,6 +71,7 @@ const DEFAULTS = {
   deviceId: null,
   trialStartedAt: null,
   entitlementToken: '',
+  paidAccessSeen: false,
   automationPermissionChecked: false,
   onboardingDone: false
 };
@@ -192,7 +193,7 @@ function currentBillingState() {
   billingState = accessState({
     token: store.get('entitlementToken'),
     deviceId: ensureDeviceId(),
-    trialStartedAt: ensureTrialStartedAt()
+    trialStartedAt: store.get('paidAccessSeen') ? 0 : ensureTrialStartedAt()
   });
   return { ...billingState };
 }
@@ -225,6 +226,15 @@ async function saveRefreshCredential(value) {
   ]);
 }
 
+async function deleteRefreshCredential() {
+  if (process.platform !== 'darwin') return;
+  try {
+    await execFileAsync('/usr/bin/security', [
+      'delete-generic-password', '-a', APP_ID, '-s', KEYCHAIN_SERVICE
+    ]);
+  } catch (_) {}
+}
+
 async function billingRequest(pathname, body) {
   const response = await fetch(`${BILLING_ORIGIN}${pathname}`, {
     method: 'POST',
@@ -233,8 +243,18 @@ async function billingRequest(pathname, body) {
     body: JSON.stringify(body),
     signal: AbortSignal.timeout(15_000)
   });
-  const result = await response.json();
-  if (!response.ok) throw new Error(result?.error || 'Subscription service is unavailable.');
+  let result = null;
+  try {
+    result = await response.json();
+  } catch (_) {}
+  if (!response.ok) {
+    const error = new Error(result?.error || 'Subscription service is unavailable.');
+    error.status = response.status;
+    throw error;
+  }
+  if (!result || typeof result !== 'object' || Array.isArray(result)) {
+    throw new Error('Subscription service returned an invalid response.');
+  }
   return result;
 }
 
@@ -242,7 +262,22 @@ function acceptEntitlement(result) {
   const deviceId = ensureDeviceId();
   verifyEntitlement(result.entitlement, deviceId);
   store.set('entitlementToken', result.entitlement);
+  store.set('paidAccessSeen', true);
   return publishBillingState();
+}
+
+async function revokeBillingAccess(message) {
+  store.set('entitlementToken', '');
+  store.set('paidAccessSeen', true);
+  await deleteRefreshCredential();
+  return publishBillingState({
+    status: 'required',
+    allowed: false,
+    plan: null,
+    features: ['updates'],
+    expiresAt: null,
+    message: message || 'Your subscription is no longer active.'
+  });
 }
 
 async function refreshEntitlement({ silent = false } = {}) {
@@ -255,6 +290,9 @@ async function refreshEntitlement({ silent = false } = {}) {
     });
     return acceptEntitlement(result);
   } catch (error) {
+    if (shouldRevokeEntitlement(error.status)) {
+      return revokeBillingAccess(error.message);
+    }
     const current = currentBillingState();
     if (!silent || !current.allowed) {
       return publishBillingState({ message: error.message || 'Subscription could not be refreshed.' });
@@ -273,8 +311,7 @@ async function activateCheckoutSession(sessionId) {
   });
   await saveRefreshCredential(result.refreshToken);
   const state = acceptEntitlement(result);
-  showMainWindow();
-  sendToWindow(mainWindow, 'app:navigate', { page: 'billing' });
+  navigateMainWindow({ page: 'billing' });
   if (Notification.isSupported()) {
     new Notification({ title: 'Drip Type activated', body: state.message, silent: true }).show();
   }
@@ -287,9 +324,8 @@ function handleActivationUrl(value) {
     if (url.protocol !== `${BILLING_SCHEME}:` || url.hostname !== 'activate') return;
     const sessionId = url.searchParams.get('session_id') || '';
     activateCheckoutSession(sessionId).catch((error) => {
-      showMainWindow();
       publishBillingState({ status: 'error', message: error.message || 'Activation failed.' });
-      sendToWindow(mainWindow, 'app:navigate', { page: 'billing' });
+      navigateMainWindow({ page: 'billing' });
     });
   } catch (_) {}
 }
@@ -930,9 +966,8 @@ async function showQuickComposer() {
   if (dripTypeRunning) return;
   const access = currentBillingState();
   if (!access.allowed) {
-    showMainWindow();
     publishBillingState();
-    sendToWindow(mainWindow, 'app:navigate', { page: 'billing' });
+    navigateMainWindow({ page: 'billing' });
     return;
   }
   if (quickWindow && !quickWindow.isDestroyed() && quickWindow.isVisible()) {
@@ -959,16 +994,19 @@ function showMainWindow() {
   if (window.isMinimized()) window.restore();
   window.show();
   window.focus();
+  return window;
+}
+
+function navigateMainWindow(target) {
+  const window = showMainWindow();
+  const navigate = () => sendToWindow(window, 'app:navigate', target);
+  if (window.webContents.isLoadingMainFrame()) window.webContents.once('did-finish-load', navigate);
+  else navigate();
+  return window;
 }
 
 function showUpdatesPage() {
-  const window = createMainWindow();
-  if (window.isMinimized()) window.restore();
-  window.show();
-  window.focus();
-  const navigate = () => sendToWindow(window, 'app:navigate', { page: 'setup', focus: 'updates' });
-  if (window.webContents.isLoadingMainFrame()) window.webContents.once('did-finish-load', navigate);
-  else navigate();
+  navigateMainWindow({ page: 'setup', focus: 'updates' });
 }
 
 function registerShortcuts() {
@@ -1163,6 +1201,7 @@ handleTrusted('billing:portal', ['index.html'], async () => {
     await shell.openExternal(result.url);
     return { success: true };
   } catch (error) {
+    if (shouldRevokeEntitlement(error.status)) await revokeBillingAccess(error.message);
     return { error: error.message || 'Billing portal could not be opened.' };
   }
 });

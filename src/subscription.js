@@ -7,6 +7,11 @@ const TRIAL_LENGTH_MS = 14 * 24 * 60 * 60 * 1000;
 const KNOWN_FEATURES = new Set([
   'composer', 'typing', 'hotkeys', 'templates', 'updates', 'profiles', 'clipboard'
 ]);
+const AUTHORITATIVE_REJECTION_STATUSES = new Set([401, 402, 403]);
+
+function shouldRevokeEntitlement(status) {
+  return AUTHORITATIVE_REJECTION_STATUSES.has(Number(status));
+}
 
 function deviceHash(deviceId) {
   return createHash('sha256').update(String(deviceId)).digest('base64url').slice(0, 40);
@@ -99,5 +104,6 @@ module.exports = {
   TRIAL_LENGTH_MS,
   accessState,
   deviceHash,
+  shouldRevokeEntitlement,
   verifyEntitlement
 };
