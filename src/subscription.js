@@ -1,6 +1,6 @@
 const { createHash, createPublicKey, verify } = require('node:crypto');
 
-const ENTITLEMENT_PUBLIC_KEY = 'MCowBQYDK2VwAyEAjyai0gEx44RayO1a3HsuJe0frk2flgbWdkfL1iBGmYA=';
+const ENTITLEMENT_PUBLIC_KEY = 'MCowBQYDK2VwAyEAmvSBJU6YWUoxNHTzpdDgutQdvceW9PBHNupa/JaManE=';
 const ENTITLEMENT_ISSUER = 'https://tryzap.net';
 const ENTITLEMENT_AUDIENCE = 'com.salt30.driptype';
 const TRIAL_LENGTH_MS = 14 * 24 * 60 * 60 * 1000;
