@@ -5,7 +5,8 @@ const ENTITLEMENT_ISSUER = 'https://tryzap.net';
 const ENTITLEMENT_AUDIENCE = 'com.salt30.driptype';
 const TRIAL_LENGTH_MS = 14 * 24 * 60 * 60 * 1000;
 const KNOWN_FEATURES = new Set([
-  'composer', 'typing', 'hotkeys', 'templates', 'updates', 'profiles', 'clipboard'
+  'composer', 'typing', 'hotkeys', 'templates', 'updates', 'profiles', 'clipboard',
+  'template_library', 'batch', 'writing_lab'
 ]);
 const AUTHORITATIVE_REJECTION_STATUSES = new Set([401, 402, 403]);
 

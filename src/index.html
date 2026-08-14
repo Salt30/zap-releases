@@ -9,19 +9,20 @@
   <style>
     :root {
       color-scheme: dark;
-      --bg: #0d0f13;
-      --sidebar: rgba(16, 18, 23, 0.82);
-      --surface: #17191f;
-      --surface-raised: #1d2027;
-      --surface-hover: #22252d;
+      --bg: #08080e;
+      --sidebar: rgba(15, 15, 24, 0.9);
+      --surface: #0f0f18;
+      --surface-raised: #16161f;
+      --surface-hover: #12122a;
       --border: rgba(255, 255, 255, 0.085);
       --border-strong: rgba(255, 255, 255, 0.14);
       --text: #f4f5f7;
       --muted: #9b9fa9;
       --subtle: #6e737e;
-      --accent: #f4c84a;
-      --accent-hover: #ffd760;
-      --accent-ink: #211b08;
+      --accent: #ffd24d;
+      --accent-hover: #ffe08a;
+      --accent-ink: #08080e;
+      --electric: #7aa2f7;
       --danger: #f07d86;
       --success: #73c991;
       --radius: 12px;
@@ -52,7 +53,7 @@
     body {
       background: var(--bg);
       color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
       font-size: 14px;
       -webkit-font-smoothing: antialiased;
       user-select: none;
@@ -73,17 +74,7 @@
     }
 
     .brand { display: flex; align-items: center; gap: 11px; padding: 0 10px 24px; }
-    .brand-mark {
-      display: grid;
-      place-items: center;
-      width: 32px;
-      height: 32px;
-      border-radius: 9px;
-      background: var(--accent);
-      color: var(--accent-ink);
-      box-shadow: 0 5px 18px rgba(244, 200, 74, 0.16);
-    }
-    .brand-mark svg { width: 17px; height: 17px; }
+    .brand-mark { width: 32px; height: 32px; border-radius: 9px; box-shadow: 0 5px 18px rgba(255,210,77,.16); }
     .brand-name { font-weight: 680; letter-spacing: -0.02em; }
     .brand-version { color: var(--subtle); font-size: 11px; margin-top: 2px; }
 
@@ -106,6 +97,7 @@
     .nav-button:hover { color: var(--text); background: rgba(255, 255, 255, 0.045); }
     .nav-button.active { color: var(--text); background: rgba(255, 255, 255, 0.075); }
     .nav-button svg { width: 16px; height: 16px; opacity: .86; }
+    .nav-button.locked::after { content:'PRO'; margin-left:auto; color:var(--accent); font:700 9px ui-monospace,monospace; letter-spacing:.08em; }
     .nav-update-dot { width: 6px; height: 6px; margin-left: auto; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px rgba(244,200,74,.08); }
     .nav-update-dot[hidden] { display: none; }
 
@@ -271,6 +263,30 @@
     .template-item-actions button { height:30px; padding:0 10px; border:1px solid var(--border); border-radius:7px; background:var(--surface-raised); color:var(--muted); cursor:pointer; font-size:11px; }
     .template-item-actions button:hover { color:var(--text); border-color:var(--border-strong); }
     .template-empty { padding:30px; border:1px dashed var(--border); border-radius:10px; color:var(--subtle); text-align:center; font-size:12px; }
+    .pro-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+    .pro-card { padding:18px; }
+    .pro-card h2 { margin:0; font-size:15px; }
+    .pro-card p { margin:6px 0 14px; color:var(--subtle); font-size:11px; line-height:1.5; }
+    .field, .select, .pro-textarea { width:100%; border:1px solid var(--border); border-radius:8px; outline:0; background:#0a0a10; color:var(--text); user-select:text; }
+    .field, .select { height:38px; padding:0 10px; }
+    .pro-textarea { min-height:142px; padding:11px; resize:vertical; line-height:1.5; }
+    .field:focus, .select:focus, .pro-textarea:focus { border-color:rgba(255,210,77,.55); box-shadow:0 0 0 3px rgba(255,210,77,.08); }
+    .stack { display:grid; gap:9px; }
+    .row { display:flex; align-items:center; gap:8px; }
+    .row .select { flex:1; }
+    .pro-note { min-height:16px; color:var(--subtle); font-size:11px; }
+    .batch-results, .clipboard-list, .profile-list { display:grid; gap:8px; margin-top:12px; }
+    .result-item, .clipboard-item, .profile-item { padding:12px; border:1px solid var(--border); border-radius:9px; background:var(--surface-raised); }
+    .result-item pre, .clipboard-item p { margin:0; white-space:pre-wrap; word-break:break-word; color:var(--muted); font:11px/1.5 ui-monospace,"SF Mono",monospace; user-select:text; }
+    .item-head { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+    .item-head strong { font-size:12px; }
+    .item-head .row { margin-left:auto; }
+    .mini { height:28px; padding:0 9px; border:1px solid var(--border); border-radius:6px; background:transparent; color:var(--muted); cursor:pointer; font-size:10px; }
+    .mini:hover { color:var(--text); border-color:var(--border-strong); }
+    .pro-lock { padding:20px; margin-bottom:14px; border:1px solid rgba(255,210,77,.2); border-radius:12px; background:linear-gradient(135deg,rgba(255,224,138,.08),rgba(122,162,247,.04)); }
+    .pro-lock strong { display:block; }
+    .pro-lock p { margin:6px 0 12px; color:var(--muted); font-size:12px; }
+    .pro-only[aria-disabled="true"] { display:none; }
 
     .setup-card { display: flex; align-items: center; gap: 16px; padding: 18px; }
     .setup-icon { display: grid; place-items: center; width: 40px; height: 40px; flex: none; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-raised); color: var(--accent); }
@@ -338,10 +354,8 @@
   <div class="app">
     <aside class="sidebar">
       <div class="brand">
-        <div class="brand-mark" aria-hidden="true">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M13 2 5.7 13h6.1L11 22l7.3-11h-6.1L13 2Z"/></svg>
-        </div>
-        <div><div class="brand-name">Drip Type</div><div class="brand-version" id="brand-version">Version 1.0.0</div></div>
+        <img class="brand-mark" src="zap-icon.svg" alt="">
+        <div><div class="brand-name">Drip Type <span style="color:var(--subtle);font-weight:500">by Zap</span></div><div class="brand-version" id="brand-version">Version 1.6.0</div></div>
       </div>
 
       <nav class="nav" aria-label="Main navigation">
@@ -350,6 +364,15 @@
         </button>
         <button class="nav-button" data-page="templates">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg><span>Templates</span>
+        </button>
+        <button class="nav-button" data-page="studio" data-feature="batch">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m13 2-2 8H4l7 12 2-8h7L13 2Z"/></svg><span>Pro Studio</span>
+        </button>
+        <button class="nav-button" data-page="profiles" data-feature="profiles">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></svg><span>Profiles</span>
+        </button>
+        <button class="nav-button" data-page="clipboard" data-feature="clipboard">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="5" width="14" height="16" rx="2"/><path d="M9 5V3h6v2M8 10h8M8 14h8"/></svg><span>Clipboard</span>
         </button>
         <button class="nav-button" data-page="typing">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M7 12h10M9 17h6"/></svg><span>Typing</span>
@@ -404,9 +427,33 @@
           <input class="template-input" id="template-name" maxlength="60" placeholder="Template name" aria-label="Template name">
           <textarea class="template-body" id="template-body" maxlength="20000" placeholder="Hi {{name}},&#10;&#10;Following up about {{topic}}…" aria-label="Template body"></textarea>
           <div class="template-help">Templates and filled values stay on this Mac. Filled values are never saved to the template.</div>
-          <div class="template-actions"><button class="button primary" id="save-template">Save template</button><button class="button secondary" id="cancel-template" hidden>Cancel edit</button><span class="save-note" id="template-note"></span></div>
+          <div class="template-actions"><button class="button primary" id="save-template">Save template</button><button class="button secondary" id="cancel-template" hidden>Cancel edit</button><button class="button secondary" id="install-library">Install Pro library</button><span class="save-note" id="template-note"></span></div>
         </div>
         <div class="template-list" id="template-list"></div>
+      </section>
+
+      <section class="page" id="page-studio">
+        <div class="eyebrow">Pro Studio</div>
+        <h1>Personalize and polish, entirely on-device.</h1>
+        <p class="lead">Generate one message per CSV or tab-separated row, or apply transparent writing transforms. No text leaves this Mac.</p>
+        <div class="pro-lock" data-pro-lock><strong>Unlock Pro Studio</strong><p>Batch personalization and the local Writing Lab are included with Pro.</p><button class="button primary" data-upgrade>Choose Pro</button></div>
+        <div class="pro-grid pro-only" data-pro-content aria-disabled="true">
+          <div class="card pro-card stack"><h2>Batch personalization</h2><p>Select a template, then paste CSV/TSV whose headers match the {{fields}}.</p><select class="select" id="batch-template"></select><textarea class="pro-textarea" id="batch-data" placeholder="name,topic&#10;Maya,launch plan&#10;Devon,renewal"></textarea><button class="button primary" id="batch-run">Generate locally</button><div class="pro-note" id="batch-note"></div></div>
+          <div class="card pro-card stack"><h2>Writing Lab</h2><p>Rule-based transforms are predictable, fast, and private—no generative service is called.</p><select class="select" id="transform-mode"><option value="tighten">Tighten</option><option value="direct">Make direct</option><option value="warm">Warm up</option><option value="outline">Turn into outline</option></select><textarea class="pro-textarea" id="transform-input" placeholder="Paste text to transform locally…"></textarea><button class="button primary" id="transform-run">Transform locally</button><textarea class="pro-textarea" id="transform-output" readonly placeholder="Result appears here"></textarea><div class="row"><button class="button secondary" id="transform-copy">Copy</button><button class="button secondary" id="transform-compose">Send to Composer</button></div><div class="pro-note" id="transform-note"></div></div>
+        </div>
+        <div class="batch-results" id="batch-results"></div>
+      </section>
+
+      <section class="page" id="page-profiles">
+        <div class="eyebrow">Pro Profiles</div><h1>Switch typing styles in one click.</h1><p class="lead">Save different speeds and rhythms for email, support, outreach, or long-form work.</p>
+        <div class="pro-lock" data-pro-lock><strong>Unlock writing profiles</strong><p>Multiple reusable local profiles are included with Pro.</p><button class="button primary" data-upgrade>Choose Pro</button></div>
+        <div class="pro-only" data-pro-content aria-disabled="true"><div class="card pro-card stack"><input class="field" id="profile-name" maxlength="40" placeholder="Profile name"><button class="button primary" id="profile-save">Save current typing settings</button><div class="pro-note" id="profile-note"></div></div><div class="profile-list" id="profile-list"></div></div>
+      </section>
+
+      <section class="page" id="page-clipboard">
+        <div class="eyebrow">Private Clipboard</div><h1>Keep useful text close.</h1><p class="lead">Capture clipboard text only when you press the button. Search, pin, reuse, and delete it locally.</p>
+        <div class="pro-lock" data-pro-lock><strong>Unlock the clipboard workspace</strong><p>A bounded, searchable, local text workspace is included with Pro.</p><button class="button primary" data-upgrade>Choose Pro</button></div>
+        <div class="pro-only" data-pro-content aria-disabled="true"><div class="row"><input class="field" id="clipboard-search" placeholder="Search saved clipboard text"><button class="button primary" id="clipboard-capture">Capture clipboard</button></div><div class="pro-note" id="clipboard-note"></div><div class="clipboard-list" id="clipboard-list"></div></div>
       </section>
 
       <section class="page" id="page-typing">

@@ -24,6 +24,7 @@ const os = require('os');
 const path = require('path');
 const { pathToFileURL } = require('url');
 const { accessState, shouldRevokeEntitlement, verifyEntitlement } = require('./subscription');
+const { renderBatch, searchClipboard, transformWriting } = require('./pro-tools');
 
 const APP_ID = 'com.salt30.driptype';
 const BILLING_ORIGIN = 'https://tryzap.net';
@@ -31,14 +32,19 @@ const BILLING_SCHEME = 'driptype';
 const KEYCHAIN_SERVICE = 'com.salt30.driptype.subscription';
 const TRIAL_KEYCHAIN_SERVICE = 'com.salt30.driptype.trial';
 const MAX_TEXT_LENGTH = 100000;
-const MAX_TEMPLATE_COUNT = 50;
+const MAX_CORE_TEMPLATE_COUNT = 50;
+const MAX_PRO_TEMPLATE_COUNT = 250;
 const MAX_TEMPLATE_NAME_LENGTH = 60;
 const MAX_TEMPLATE_BODY_LENGTH = 20000;
+const MAX_PROFILE_COUNT = 20;
+const MAX_CLIPBOARD_COUNT = 200;
+const MAX_CLIPBOARD_ITEM_LENGTH = 20000;
 const APP_SCHEME = 'drip';
 const APP_HOST = 'app';
 const APP_RESOURCES = new Set([
   'index.html', 'index.js', 'quick.html', 'quick.js',
-  'onboarding.html', 'onboarding.js'
+  'onboarding.html', 'onboarding.js', 'zap-icon.svg',
+  'zap-wordmark-dark.svg', 'zap-wordmark-light.svg'
 ]);
 const DEFAULT_TEMPLATES = [
   {
@@ -57,6 +63,17 @@ const DEFAULT_TEMPLATES = [
     body: 'Hi {{name}},\n\nHere is a quick recap of {{meeting}}:\n\nDecisions\n• {{decisions}}\n\nNext steps\n• {{next_steps}}\n\nBest,\n{{sender}}'
   }
 ];
+const PRO_TEMPLATE_LIBRARY = [
+  { id: 'pro-sales-intro', name: 'Warm introduction', category: 'Sales', tags: ['intro', 'outreach'], body: 'Hi {{name}},\n\nI noticed {{relevant_detail}} and thought {{offering}} could help with {{goal}}. Would {{time_option}} work for a quick conversation?\n\nBest,\n{{sender}}' },
+  { id: 'pro-support-update', name: 'Support update', category: 'Support', tags: ['status', 'customer'], body: 'Hi {{name}},\n\nHere is the latest on {{issue}}:\n\n• Current status: {{status}}\n• Next action: {{next_action}}\n• Expected update: {{next_update}}\n\nThanks for your patience,\n{{sender}}' },
+  { id: 'pro-recruiting-followup', name: 'Candidate follow-up', category: 'Recruiting', tags: ['candidate', 'follow-up'], body: 'Hi {{name}},\n\nThank you for taking the time to discuss the {{role}} role. The team especially appreciated {{highlight}}. We will follow up with {{next_step}} by {{date}}.\n\nBest,\n{{sender}}' },
+  { id: 'pro-project-brief', name: 'Project brief', category: 'Operations', tags: ['brief', 'project'], body: 'Project: {{project}}\nOwner: {{owner}}\nOutcome: {{outcome}}\nDeadline: {{deadline}}\n\nScope\n• {{scope}}\n\nRisks\n• {{risks}}\n\nNext milestone\n• {{milestone}}' },
+  { id: 'pro-meeting-agenda', name: 'Decision agenda', category: 'Meetings', tags: ['agenda', 'decision'], body: 'Meeting: {{meeting}}\nDecision needed: {{decision}}\n\nContext\n{{context}}\n\nOptions\n• {{option_one}}\n• {{option_two}}\n\nOwner / next step\n{{owner}} — {{next_step}}' }
+];
+const DEFAULT_PROFILE = {
+  id: 'profile-default', name: 'Natural', dripWPM: 45, dripDelay: 3,
+  typoRate: 0.03, dripPauseChance: 0.03, dripBurstChance: 0.08
+};
 const DEFAULTS = {
   dripWPM: 45,
   dripDelay: 3,
@@ -68,6 +85,9 @@ const DEFAULTS = {
   launchAtLogin: true,
   theme: 'system',
   templates: DEFAULT_TEMPLATES,
+  profiles: [DEFAULT_PROFILE],
+  activeProfileId: DEFAULT_PROFILE.id,
+  clipboardWorkspace: [],
   deviceId: null,
   trialStartedAt: null,
   entitlementToken: '',
@@ -196,6 +216,15 @@ function currentBillingState() {
     trialStartedAt: store.get('paidAccessSeen') ? 0 : ensureTrialStartedAt()
   });
   return { ...billingState };
+}
+
+function hasFeature(feature) {
+  return currentBillingState().features.includes(feature);
+}
+
+function proRequired(feature) {
+  if (hasFeature(feature)) return null;
+  return { error: 'Drip Type Pro is required for this feature.', code: 'PRO_REQUIRED' };
 }
 
 function publishBillingState(patch = {}) {
@@ -403,7 +432,10 @@ function registerAppProtocol() {
     if (request.method !== 'GET' || url.hostname !== APP_HOST || !APP_RESOURCES.has(resource)) {
       return new Response('Not found', { status: 404 });
     }
-    return net.fetch(pathToFileURL(path.join(__dirname, resource)).href);
+    const localPath = resource.startsWith('zap-')
+      ? path.join(__dirname, '..', 'assets', 'brand', 'zap', 'logo', resource)
+      : path.join(__dirname, resource);
+    return net.fetch(pathToFileURL(localPath).href);
   });
 }
 
@@ -540,13 +572,17 @@ function sanitizeTemplate(template, existingId = null) {
   if (!name || !body.trim()) return null;
   const requestedId = typeof template.id === 'string' ? template.id : '';
   const id = existingId || (/^[A-Za-z0-9-]{1,80}$/.test(requestedId) ? requestedId : `template-${randomUUID()}`);
-  return { id, name, body };
+  const category = typeof template.category === 'string' ? template.category.trim().slice(0, 40) : '';
+  const tags = Array.isArray(template.tags)
+    ? [...new Set(template.tags.map((tag) => String(tag).trim().slice(0, 30)).filter(Boolean))].slice(0, 8)
+    : [];
+  return { id, name, body, category, tags, favorite: Boolean(template.favorite) };
 }
 
 function listTemplates() {
   const templates = store.get('templates', DEFAULT_TEMPLATES);
   if (!Array.isArray(templates)) return DEFAULT_TEMPLATES.map((template) => ({ ...template }));
-  return templates.slice(0, MAX_TEMPLATE_COUNT)
+  return templates.slice(0, hasFeature('template_library') ? MAX_PRO_TEMPLATE_COUNT : MAX_CORE_TEMPLATE_COUNT)
     .map((template) => sanitizeTemplate(template, template?.id))
     .filter(Boolean);
 }
@@ -555,8 +591,9 @@ function saveTemplate(input) {
   const templates = listTemplates();
   const requestedId = typeof input?.id === 'string' ? input.id : '';
   const index = requestedId ? templates.findIndex((template) => template.id === requestedId) : -1;
-  if (index < 0 && templates.length >= MAX_TEMPLATE_COUNT) {
-    return { error: `Template limit reached (${MAX_TEMPLATE_COUNT}).`, templates };
+  const limit = hasFeature('template_library') ? MAX_PRO_TEMPLATE_COUNT : MAX_CORE_TEMPLATE_COUNT;
+  if (index < 0 && templates.length >= limit) {
+    return { error: `Template limit reached (${limit}).`, templates };
   }
   const template = sanitizeTemplate(input, index >= 0 ? templates[index].id : null);
   if (!template) return { error: 'Add a template name and body.', templates };
@@ -564,6 +601,115 @@ function saveTemplate(input) {
   else templates.unshift(template);
   store.set('templates', templates);
   return { template, templates };
+}
+
+function installProTemplateLibrary() {
+  const blocked = proRequired('template_library');
+  if (blocked) return { ...blocked, templates: listTemplates() };
+  const templates = listTemplates();
+  const existing = new Set(templates.map((template) => template.id));
+  const additions = PRO_TEMPLATE_LIBRARY.filter((template) => !existing.has(template.id));
+  const merged = [...additions, ...templates].slice(0, MAX_PRO_TEMPLATE_COUNT).map((template) => sanitizeTemplate(template, template.id));
+  store.set('templates', merged);
+  return { success: true, installed: additions.length, templates: merged };
+}
+
+function sanitizeProfile(input, existingId = null) {
+  if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
+  const name = typeof input.name === 'string' ? input.name.trim().slice(0, 40) : '';
+  if (!name) return null;
+  const id = existingId || (/^[A-Za-z0-9-]{1,80}$/.test(input.id || '') ? input.id : `profile-${randomUUID()}`);
+  const bounds = { dripWPM: [15, 240], dripDelay: [0, 30], typoRate: [0, 0.5], dripPauseChance: [0, 0.5], dripBurstChance: [0, 0.5] };
+  const profile = { id, name };
+  for (const [key, [minimum, maximum]] of Object.entries(bounds)) {
+    const value = Number(input[key]);
+    profile[key] = Number.isFinite(value) ? Math.min(maximum, Math.max(minimum, value)) : DEFAULT_PROFILE[key];
+  }
+  return profile;
+}
+
+function listProfiles() {
+  const values = store.get('profiles', [DEFAULT_PROFILE]);
+  const profiles = (Array.isArray(values) ? values : [DEFAULT_PROFILE]).slice(0, MAX_PROFILE_COUNT)
+    .map((profile) => sanitizeProfile(profile, profile?.id)).filter(Boolean);
+  return profiles.length ? profiles : [{ ...DEFAULT_PROFILE }];
+}
+
+function saveProfile(input) {
+  const blocked = proRequired('profiles');
+  if (blocked) return { ...blocked, profiles: listProfiles() };
+  const profiles = listProfiles();
+  const index = profiles.findIndex((profile) => profile.id === input?.id);
+  if (index < 0 && profiles.length >= MAX_PROFILE_COUNT) return { error: `Profile limit reached (${MAX_PROFILE_COUNT}).`, profiles };
+  const profile = sanitizeProfile(input, index >= 0 ? profiles[index].id : null);
+  if (!profile) return { error: 'Add a profile name.', profiles };
+  if (index >= 0) profiles[index] = profile; else profiles.unshift(profile);
+  store.set('profiles', profiles);
+  return { profile, profiles };
+}
+
+function activateProfile(id) {
+  const blocked = proRequired('profiles');
+  if (blocked) return { ...blocked, profiles: listProfiles() };
+  const profile = listProfiles().find((item) => item.id === id);
+  if (!profile) return { error: 'Profile not found.', profiles: listProfiles() };
+  applySettings(profile);
+  store.set('activeProfileId', profile.id);
+  return { success: true, activeProfileId: profile.id, profile, profiles: listProfiles() };
+}
+
+function deleteProfile(id) {
+  const blocked = proRequired('profiles');
+  if (blocked) return { ...blocked, profiles: listProfiles() };
+  const profiles = listProfiles();
+  if (profiles.length === 1) return { error: 'Keep at least one profile.', profiles };
+  const filtered = profiles.filter((profile) => profile.id !== id);
+  if (filtered.length === profiles.length) return { error: 'Profile not found.', profiles };
+  store.set('profiles', filtered);
+  if (store.get('activeProfileId') === id) store.set('activeProfileId', filtered[0].id);
+  return { success: true, activeProfileId: store.get('activeProfileId'), profiles: filtered };
+}
+
+function sanitizeClipboardItem(item) {
+  if (!item || typeof item !== 'object') return null;
+  const text = typeof item.text === 'string' ? item.text.replace(/\r\n?/g, '\n').slice(0, MAX_CLIPBOARD_ITEM_LENGTH) : '';
+  if (!text.trim()) return null;
+  return {
+    id: /^[A-Za-z0-9-]{1,80}$/.test(item.id || '') ? item.id : `clip-${randomUUID()}`,
+    text,
+    pinned: Boolean(item.pinned),
+    createdAt: Number.isFinite(Number(item.createdAt)) ? Number(item.createdAt) : Date.now()
+  };
+}
+
+function listClipboardItems(query = '') {
+  const items = (Array.isArray(store.get('clipboardWorkspace')) ? store.get('clipboardWorkspace') : [])
+    .slice(0, MAX_CLIPBOARD_COUNT).map(sanitizeClipboardItem).filter(Boolean)
+    .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.createdAt - a.createdAt);
+  return searchClipboard(items, query);
+}
+
+function captureClipboardItem() {
+  const blocked = proRequired('clipboard');
+  if (blocked) return { ...blocked, items: [] };
+  const item = sanitizeClipboardItem({ text: clipboard.readText(), createdAt: Date.now() });
+  if (!item) return { error: 'The clipboard has no text to save.', items: listClipboardItems() };
+  const items = [item, ...listClipboardItems().filter((existing) => existing.text !== item.text)].slice(0, MAX_CLIPBOARD_COUNT);
+  store.set('clipboardWorkspace', items);
+  return { item, items };
+}
+
+function updateClipboardItem(id, action) {
+  const blocked = proRequired('clipboard');
+  if (blocked) return { ...blocked, items: [] };
+  let items = listClipboardItems();
+  const item = items.find((entry) => entry.id === id);
+  if (!item) return { error: 'Clipboard item not found.', items };
+  if (action === 'delete') items = items.filter((entry) => entry.id !== id);
+  else if (action === 'pin') item.pinned = !item.pinned;
+  else return { error: 'Invalid clipboard action.', items };
+  store.set('clipboardWorkspace', items);
+  return { success: true, items: listClipboardItems() };
 }
 
 function deleteTemplate(id) {
@@ -985,7 +1131,8 @@ async function showQuickComposer() {
   sendToWindow(window, 'quick:opened', {
     targetName: quickTarget?.name || 'previous app',
     settings: store.store,
-    templates: listTemplates()
+    templates: listTemplates(),
+    features: access.features
   });
 }
 
@@ -1102,9 +1249,36 @@ handleTrusted('drip-type:start', ['index.html', 'quick.html'], async (event, tex
 handleTrusted('clipboard:read-text', ['quick.html'], () => (
   clipboard.readText().slice(0, MAX_TEXT_LENGTH)
 ));
+handleTrusted('clipboard:write-text', ['index.html'], (_event, value) => {
+  const text = typeof value === 'string' ? value.slice(0, MAX_TEXT_LENGTH) : '';
+  if (!text) return { error: 'There is no text to copy.' };
+  clipboard.writeText(text);
+  return { success: true };
+});
 handleTrusted('templates:list', ['index.html', 'quick.html'], () => listTemplates());
 handleTrusted('templates:save', ['index.html'], (_event, template) => saveTemplate(template));
 handleTrusted('templates:delete', ['index.html'], (_event, id) => deleteTemplate(id));
+handleTrusted('templates:install-library', ['index.html'], () => installProTemplateLibrary());
+handleTrusted('profiles:list', ['index.html'], () => ({
+  profiles: listProfiles(), activeProfileId: store.get('activeProfileId', DEFAULT_PROFILE.id)
+}));
+handleTrusted('profiles:save', ['index.html'], (_event, profile) => saveProfile(profile));
+handleTrusted('profiles:activate', ['index.html'], (_event, id) => activateProfile(id));
+handleTrusted('profiles:delete', ['index.html'], (_event, id) => deleteProfile(id));
+handleTrusted('clipboard-workspace:list', ['index.html'], (_event, query) => {
+  const blocked = proRequired('clipboard');
+  return blocked || { items: listClipboardItems(query) };
+});
+handleTrusted('clipboard-workspace:capture', ['index.html'], () => captureClipboardItem());
+handleTrusted('clipboard-workspace:update', ['index.html'], (_event, id, action) => updateClipboardItem(id, action));
+handleTrusted('pro:batch-render', ['index.html'], (_event, body, input) => {
+  const blocked = proRequired('batch');
+  return blocked || renderBatch(String(body || '').slice(0, MAX_TEMPLATE_BODY_LENGTH), String(input || '').slice(0, 500000));
+});
+handleTrusted('pro:transform', ['index.html'], (_event, value, mode) => {
+  const blocked = proRequired('writing_lab');
+  return blocked || { text: transformWriting(value, mode) };
+});
 
 onTrusted('drip-type:cancel', ['index.html', 'quick.html'], cancelDripType);
 onTrusted('quick:show', ['index.html'], showQuickComposer);

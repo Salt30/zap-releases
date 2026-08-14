@@ -15,6 +15,12 @@ let launchAtLogin = true;
 let templates = [];
 let editingTemplateId = null;
 let billingState = { allowed: true, status: 'checking', plan: 'core' };
+let profiles = [];
+let activeProfileId = null;
+
+function hasFeature(feature) {
+  return Array.isArray(billingState.features) && billingState.features.includes(feature);
+}
 
 function applyTheme(preference = 'system') {
   themePreference = ['system', 'light', 'dark'].includes(preference) ? preference : 'system';
@@ -29,6 +35,12 @@ function applyTheme(preference = 'system') {
 }
 
 function setPage(name) {
+  const button = document.querySelector(`.nav-button[data-page="${name}"]`);
+  if (button?.dataset.feature && !hasFeature(button.dataset.feature)) {
+    document.querySelectorAll('.nav-button').forEach((item) => item.classList.toggle('active', item.dataset.page === name));
+    document.querySelectorAll('.page').forEach((page) => page.classList.toggle('active', page.id === `page-${name}`));
+    return;
+  }
   document.querySelectorAll('.nav-button').forEach((button) => {
     button.classList.toggle('active', button.dataset.page === name);
   });
@@ -79,7 +91,7 @@ function renderTemplates(nextTemplates = []) {
     item.className = 'template-item';
     const copy = document.createElement('div');
     const title = document.createElement('strong');
-    title.textContent = template.name;
+    title.textContent = template.category ? `${template.name} · ${template.category}` : template.name;
     const preview = document.createElement('p');
     preview.textContent = template.body.replace(/\s+/g, ' ').trim();
     copy.append(title, preview);
@@ -104,6 +116,21 @@ function renderTemplates(nextTemplates = []) {
     item.append(copy, actions);
     list.appendChild(item);
   }
+  renderBatchTemplatePicker();
+}
+
+function renderBatchTemplatePicker() {
+  const picker = $('batch-template');
+  if (!picker) return;
+  const previous = picker.value;
+  picker.replaceChildren();
+  for (const template of templates) {
+    const option = document.createElement('option');
+    option.value = template.id;
+    option.textContent = template.name;
+    picker.appendChild(option);
+  }
+  if (templates.some((template) => template.id === previous)) picker.value = previous;
 }
 
 async function saveTemplate() {
@@ -167,8 +194,101 @@ function renderBilling(state = {}) {
     ? active ? `Access verified through ${expiry}. It refreshes automatically.` : `Trial ends ${expiry}.`
     : '';
   $('billing-manage').disabled = !active;
-  $('billing-subscribe').textContent = active ? 'View plans' : 'Choose Core';
+  $('billing-subscribe').textContent = active ? (billingState.plan === 'pro' ? 'View plans' : 'Upgrade to Pro') : 'Choose a plan';
+  renderProAccess();
   refreshTextMeta();
+}
+
+function renderProAccess() {
+  const pro = billingState.status === 'active' && billingState.plan === 'pro';
+  document.querySelectorAll('.nav-button[data-feature]').forEach((button) => {
+    button.classList.toggle('locked', !hasFeature(button.dataset.feature));
+  });
+  document.querySelectorAll('[data-pro-lock]').forEach((element) => { element.hidden = pro; });
+  document.querySelectorAll('[data-pro-content]').forEach((element) => element.setAttribute('aria-disabled', String(!pro)));
+  $('install-library').disabled = !hasFeature('template_library');
+  $('install-library').textContent = hasFeature('template_library') ? 'Install Pro library' : 'Pro library';
+}
+
+function sendToComposer(value) {
+  $('text').value = String(value || '').slice(0, 100000);
+  refreshTextMeta();
+  setPage('composer');
+  $('text').focus();
+}
+
+async function runBatch() {
+  const template = templates.find((item) => item.id === $('batch-template').value);
+  if (!template) { $('batch-note').textContent = 'Choose a template first.'; return; }
+  const result = await window.dripType.renderBatch(template.body, $('batch-data').value);
+  if (result?.code === 'PRO_REQUIRED') { $('batch-note').textContent = result.error; return; }
+  $('batch-note').textContent = result.errors?.length ? result.errors.join(' ') : `Generated ${result.outputs.length} messages locally.`;
+  const list = $('batch-results');
+  list.replaceChildren();
+  for (const output of result.outputs || []) {
+    const item = document.createElement('article'); item.className = 'result-item';
+    const head = document.createElement('div'); head.className = 'item-head';
+    const title = document.createElement('strong'); title.textContent = `Row ${output.index}`;
+    const actions = document.createElement('div'); actions.className = 'row';
+    const copy = document.createElement('button'); copy.className = 'mini'; copy.textContent = 'Copy'; copy.addEventListener('click', () => window.dripType.writeClipboardText(output.text));
+    const compose = document.createElement('button'); compose.className = 'mini'; compose.textContent = 'Compose'; compose.addEventListener('click', () => sendToComposer(output.text));
+    actions.append(copy, compose); head.append(title, actions);
+    const pre = document.createElement('pre'); pre.textContent = output.text;
+    item.append(head, pre); list.appendChild(item);
+  }
+}
+
+async function runTransform() {
+  const result = await window.dripType.transformWriting($('transform-input').value, $('transform-mode').value);
+  if (result?.error) { $('transform-note').textContent = result.error; return; }
+  $('transform-output').value = result.text;
+  $('transform-note').textContent = 'Transformed locally. No network service was used.';
+}
+
+function renderProfiles(result = {}) {
+  profiles = Array.isArray(result.profiles) ? result.profiles : [];
+  activeProfileId = result.activeProfileId || activeProfileId;
+  const list = $('profile-list'); list.replaceChildren();
+  for (const profile of profiles) {
+    const item = document.createElement('article'); item.className = 'profile-item';
+    const head = document.createElement('div'); head.className = 'item-head';
+    const title = document.createElement('strong'); title.textContent = `${profile.name}${profile.id === activeProfileId ? ' · Active' : ''}`;
+    const actions = document.createElement('div'); actions.className = 'row';
+    const activate = document.createElement('button'); activate.className = 'mini'; activate.textContent = 'Activate'; activate.disabled = profile.id === activeProfileId;
+    activate.addEventListener('click', async () => { const next = await window.dripType.activateProfile(profile.id); renderProfiles(next); if (next.profile) applyProfileControls(next.profile); });
+    const remove = document.createElement('button'); remove.className = 'mini'; remove.textContent = 'Delete'; remove.addEventListener('click', async () => renderProfiles(await window.dripType.deleteProfile(profile.id)));
+    actions.append(activate, remove); head.append(title, actions);
+    const detail = document.createElement('div'); detail.className = 'pro-note'; detail.textContent = `${profile.dripWPM} WPM · ${profile.dripDelay}s delay · ${Math.round(profile.typoRate * 100)}% corrected typos`;
+    item.append(head, detail); list.appendChild(item);
+  }
+}
+
+function applyProfileControls(profile) {
+  controls.wpm.value = profile.dripWPM; controls.delay.value = profile.dripDelay;
+  controls.typos.value = profile.typoRate; controls.pauses.value = profile.dripPauseChance; controls.bursts.value = profile.dripBurstChance;
+  refreshValues();
+}
+
+async function renderClipboard(query = '') {
+  const result = await window.dripType.listClipboardItems(query);
+  const list = $('clipboard-list'); list.replaceChildren();
+  if (result?.error) { $('clipboard-note').textContent = result.error; return; }
+  for (const clip of result.items || []) {
+    const item = document.createElement('article'); item.className = 'clipboard-item';
+    const head = document.createElement('div'); head.className = 'item-head';
+    const title = document.createElement('strong'); title.textContent = `${clip.pinned ? 'Pinned · ' : ''}${new Date(clip.createdAt).toLocaleString()}`;
+    const actions = document.createElement('div'); actions.className = 'row';
+    for (const [label, action] of [['Copy', 'copy'], [clip.pinned ? 'Unpin' : 'Pin', 'pin'], ['Delete', 'delete']]) {
+      const button = document.createElement('button'); button.className = 'mini'; button.textContent = label;
+      button.addEventListener('click', async () => {
+        if (action === 'copy') await window.dripType.writeClipboardText(clip.text);
+        else { const next = await window.dripType.updateClipboardItem(clip.id, action); if (!next.error) renderClipboard($('clipboard-search').value); }
+      }); actions.appendChild(button);
+    }
+    const compose = document.createElement('button'); compose.className = 'mini'; compose.textContent = 'Compose'; compose.addEventListener('click', () => sendToComposer(clip.text)); actions.appendChild(compose);
+    head.append(title, actions); const copy = document.createElement('p'); copy.textContent = clip.text;
+    item.append(head, copy); list.appendChild(item);
+  }
 }
 
 function refreshValues() {
@@ -339,6 +459,34 @@ $('billing-manage').addEventListener('click', async () => {
 });
 $('save-template').addEventListener('click', saveTemplate);
 $('cancel-template').addEventListener('click', clearTemplateEditor);
+$('install-library').addEventListener('click', async () => {
+  const result = await window.dripType.installTemplateLibrary();
+  renderTemplates(result.templates || templates);
+  $('template-note').textContent = result.error || `${result.installed} Pro templates installed.`;
+});
+$('batch-run').addEventListener('click', runBatch);
+$('transform-run').addEventListener('click', runTransform);
+$('transform-copy').addEventListener('click', async () => {
+  const result = await window.dripType.writeClipboardText($('transform-output').value);
+  $('transform-note').textContent = result.error || 'Copied.';
+});
+$('transform-compose').addEventListener('click', () => sendToComposer($('transform-output').value));
+$('profile-save').addEventListener('click', async () => {
+  const result = await window.dripType.saveProfile({ name: $('profile-name').value.trim(), ...currentBehavior() });
+  renderProfiles(result);
+  $('profile-note').textContent = result.error || 'Profile saved.';
+  if (!result.error) $('profile-name').value = '';
+});
+$('clipboard-capture').addEventListener('click', async () => {
+  const result = await window.dripType.captureClipboardItem();
+  $('clipboard-note').textContent = result.error || 'Clipboard text saved locally.';
+  if (!result.error) renderClipboard($('clipboard-search').value);
+});
+$('clipboard-search').addEventListener('input', () => renderClipboard($('clipboard-search').value));
+document.querySelectorAll('[data-upgrade]').forEach((button) => button.addEventListener('click', async () => {
+  $('billing-note').textContent = 'Opening secure plan selection…';
+  await window.dripType.subscribe();
+}));
 document.querySelectorAll('.theme-option').forEach((button) => {
   button.addEventListener('click', async () => {
     applyTheme(button.dataset.themeValue);
@@ -403,12 +551,13 @@ window.dripType.onNavigate(({ page, focus } = {}) => {
 });
 
 async function load() {
-  const [settings, info, updater, savedTemplates, subscription] = await Promise.all([
+  const [settings, info, updater, savedTemplates, subscription, savedProfiles] = await Promise.all([
     window.dripType.getSettings(),
     window.dripType.getAppInfo(),
     window.dripType.getUpdateState(),
     window.dripType.listTemplates(),
-    window.dripType.getBillingState()
+    window.dripType.getBillingState(),
+    window.dripType.listProfiles()
   ]);
   controls.wpm.value = settings.dripWPM;
   controls.delay.value = settings.dripDelay;
@@ -428,6 +577,8 @@ async function load() {
   renderUpdate(updater);
   renderTemplates(savedTemplates);
   renderBilling(subscription);
+  renderProfiles(savedProfiles);
+  if (subscription.plan === 'pro') renderClipboard();
 }
 
 load();

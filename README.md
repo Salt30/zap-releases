@@ -16,6 +16,10 @@ Drip Type is a native-feeling macOS utility that turns prepared text into natura
 - First-run onboarding, interactive typing demo, and enforced native permission checklist
 - Translucent global-hotkey composer
 - Private local templates with reusable fill-in fields
+- Pro batch personalization from CSV or TSV, processed entirely on-device
+- Pro reusable typing profiles and categorized starter template libraries
+- Pro private searchable clipboard workspace with explicit capture only
+- Pro deterministic Writing Lab transforms with no remote writing API
 - Deterministic local spacing cleanup and bullet formatting tools
 - Explicit local clipboard paste and in-memory-only drafts
 - Automatic return to the previously active app
@@ -39,8 +43,8 @@ Drip Type is a native-feeling macOS utility that turns prepared text into natura
 - Minified production bundles with raw source excluded from distributable files
 - Automated macOS quality gates on every push, pull request, and release
 
-The proposed Core and Pro packages, feature roadmap, and secure entitlement
-architecture are documented in [docs/PRODUCT_AND_SUBSCRIPTIONS.md](docs/PRODUCT_AND_SUBSCRIPTIONS.md).
+The live Core and Pro packages and signed entitlement architecture are
+documented in [docs/PRODUCT_AND_SUBSCRIPTIONS.md](docs/PRODUCT_AND_SUBSCRIPTIONS.md).
 
 ## Development
 
@@ -99,8 +103,8 @@ base64 -i DeveloperIDApplication.p12 | pbcopy
 Paste the clipboard contents into `MAC_CERTIFICATE_P12_BASE64`. Then publish a release:
 
 ```bash
-git branch release/v1.5.0
-git push origin release/v1.5.0
+git branch release/v1.6.0
+git push origin release/v1.6.0
 ```
 
 GitHub Actions builds one universal application, signs it with the VegaNext

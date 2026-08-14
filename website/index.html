@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charSet="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1"/>
+<style>:root{--bg:#08080e;--bg-raised:#0f0f18;--panel:#16161f;--panel-2:#1a1c21;--ink:#f4f3ee;--muted:#a2a3a8;--subtle:#686b72;--accent:#ffd24d;--accent-hover:#ffe08a;--accent-ink:#08080e;--paper:#eeede7;--paper-ink:#121316;--paper-muted:#62646a;--line:#ffffff1b;--line-strong:#ffffff2e;--shell:min(1180px, calc(100vw - 56px))}*{box-sizing:border-box}html{scroll-behavior:smooth;background:var(--bg)}body{background:var(--bg);color:var(--ink);-webkit-font-smoothing:antialiased;text-rendering:optimizelegibility;margin:0;font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif;overflow-x:hidden}a{color:inherit;text-decoration:none}button,textarea{font:inherit}button,a{-webkit-tap-highlight-color:transparent}::selection{color:#fff;background:#ffd24d4d}.section-shell{width:var(--shell);margin-inline:auto}.reveal{animation:.72s cubic-bezier(.2,.78,.2,1) both reveal}@keyframes reveal{0%{opacity:0;transform:translateY(15px)}to{opacity:1;transform:none}}.site-header{z-index:100;-webkit-backdrop-filter:blur(20px)saturate(135%);backdrop-filter:blur(20px)saturate(135%);background:#08080ec2;border-bottom:1px solid #ffffff13;width:100%;position:fixed;top:0;left:0}.nav-shell{width:var(--shell);align-items:center;height:72px;margin:auto;display:flex}.brand{align-items:center;gap:11px;min-width:max-content;display:inline-flex}.brand-mark{background:#16161f;border:1px solid #ffffff1f;border-radius:8px;place-items:center;width:31px;height:31px;display:grid;box-shadow:inset 0 1px #ffffff0d,0 8px 26px #0003}.brand-mark svg{width:17px;height:17px}.brand-mark-caret{fill:var(--paper)}.brand-mark-signal{fill:var(--accent)}.brand-copy{align-items:baseline;gap:6px;line-height:1;display:flex}.brand-copy strong{letter-spacing:-.018em;font-size:13px;font-weight:700}.brand-copy small{color:#676a71;letter-spacing:.08em;text-transform:uppercase;font-size:9px;font-weight:650}.desktop-nav{align-items:center;gap:30px;margin-left:auto;display:flex}.desktop-nav a{color:#999ba1;font-size:11px;font-weight:520;transition:color .16s;position:relative}.desktop-nav a:after{background:var(--accent);content:"";transform-origin:100%;height:1px;transition:transform .18s;position:absolute;bottom:-7px;left:0;right:0;transform:scaleX(0)}.desktop-nav a:hover{color:var(--ink)}.desktop-nav a:hover:after{transform-origin:0;transform:scaleX(1)}.nav-cta{border:1px solid var(--line);color:#ecebe7;background:#ffffff0e;border-radius:8px;align-items:center;gap:9px;height:38px;margin-left:28px;padding:0 15px;font-size:11px;font-weight:660;transition:border-color .16s,background .16s,transform .16s;display:inline-flex}.nav-cta:hover{border-color:var(--line-strong);background:#ffffff17;transform:translateY(-1px)}.hero{padding:150px 0 0;position:relative;overflow:hidden}.hero:before{filter:blur(120px);content:"";pointer-events:none;background:#ffd24d16;border-radius:50%;width:820px;height:720px;position:absolute;top:-420px;left:51%}.twentyone-pattern{pointer-events:none;position:absolute;inset:0;overflow:hidden}.twentyone-pattern-grid{opacity:.34;background-image:linear-gradient(#ffffff06 1px,#0000 1px),linear-gradient(90deg,#ffffff06 1px,#0000 1px);background-size:72px 72px;position:absolute;inset:0;-webkit-mask-image:linear-gradient(#000,#0000 83%);mask-image:linear-gradient(#000,#0000 83%)}.twentyone-pattern-vignette{background:radial-gradient(circle at 68% 27%,#ffd24d14,#0000 31%),linear-gradient(90deg,#08080e2e,#0000 45%,#08080e1f);position:absolute;inset:0}.twentyone-pattern-signal{opacity:.38;gap:7px;display:grid;position:absolute;top:114px;right:max(28px,50vw - 656px)}.twentyone-pattern-signal i{background:var(--accent);border-radius:4px;width:2px;height:15px}.twentyone-pattern-signal i:nth-child(2){opacity:.67;height:7px}.twentyone-pattern-signal i:nth-child(3){opacity:.42;height:3px}.hero-shell{grid-template-columns:.82fr 1.18fr;align-items:center;gap:clamp(44px,6vw,86px);min-height:690px;display:grid;position:relative}.hero-copy{z-index:4;padding-bottom:10px;position:relative}.release-label{color:#94969c;letter-spacing:.1em;text-transform:uppercase;align-items:center;gap:9px;font-size:10px;font-weight:680;display:inline-flex}.release-label span{background:#7fda9e;border-radius:50%;width:6px;height:6px;box-shadow:0 0 0 5px #7fda9e17}.hero h1{letter-spacing:-.067em;max-width:590px;margin:29px 0 0;font-size:clamp(64px,6.2vw,92px);font-weight:570;line-height:.91}.hero h1 em{color:var(--accent);font-style:normal;font-weight:570}.hero-copy>p{color:#a3a5aa;letter-spacing:-.012em;max-width:500px;margin:30px 0 0;font-size:16px;line-height:1.68}.hero-actions{gap:9px;margin-top:34px;display:flex}.button{border:1px solid #0000;border-radius:9px;justify-content:center;align-items:center;gap:11px;min-height:47px;padding:0 17px;font-size:12px;font-weight:700;transition:background .16s,border-color .16s,transform .16s,box-shadow .16s;display:inline-flex}.button:hover{transform:translateY(-2px)}.button-primary{background:var(--accent);color:var(--accent-ink);box-shadow:0 12px 34px #ffd24d1f,inset 0 1px #ffffff6b}.button-primary:hover{background:var(--accent-hover);box-shadow:0 16px 44px #ffd24d2b}.button-secondary{border-color:var(--line);color:#deddd9;background:#ffffff09}.button-secondary:hover{border-color:var(--line-strong);background:#fff1}.hero-proof{color:#686b72;letter-spacing:.015em;align-items:center;gap:11px;margin-top:26px;font-size:9px;font-weight:600;display:flex}.hero-proof i{background:#4b4d53;border-radius:50%;width:2px;height:2px}.compatibility-strip{border-top:1px solid var(--line);border-bottom:1px solid var(--line);justify-content:space-between;align-items:center;min-height:112px;margin-top:68px;display:flex;position:relative}.compatibility-strip>span{color:#60636a;letter-spacing:.065em;text-transform:uppercase;font-size:10px;font-weight:650}.compatibility-strip div{align-items:center;gap:30px;display:flex}.compatibility-strip b{color:#919398;letter-spacing:-.01em;font-size:11px;font-weight:600}.demo-stage{z-index:2;isolation:isolate;background:#111318;border:1px solid #ffffff1f;border-radius:24px;height:650px;position:relative;overflow:hidden;box-shadow:0 55px 130px #0000007a,inset 0 1px #ffffff0e}.demo-stage:before{content:"";background-image:linear-gradient(#ffffff06 1px,#0000 1px),linear-gradient(90deg,#ffffff06 1px,#0000 1px);background-size:38px 38px;position:absolute;inset:46px 0 0}.demo-header{z-index:6;background:#16161f;border-bottom:1px solid #ffffff14;align-items:center;height:46px;padding:0 15px;display:flex;position:relative}.demo-header>div{gap:6px;display:flex}.demo-header>div i{background:#373a40;border-radius:50%;width:7px;height:7px}.demo-header>span{color:#777a81;margin-left:14px;font-size:9px}.demo-header>b{color:#777a81;letter-spacing:.06em;text-transform:uppercase;margin-left:auto;font-size:8px;font-weight:680}.ambient{filter:blur(75px);opacity:.21;border-radius:50%;position:absolute}.ambient-one{background:#967d1b;width:390px;height:330px;top:50px;right:-90px}.ambient-two{background:#2c4157;width:390px;height:310px;bottom:20px;left:-130px}.destination-window{z-index:1;color:#17181b;background:#e9e8e3;border:1px solid #fff3;border-radius:16px;height:326px;position:absolute;top:105px;left:105px;right:26px;overflow:hidden;transform:rotate(.7deg);box-shadow:0 24px 80px #00000057}.window-bar{background:#ffffff47;border-bottom:1px solid #1011131a;align-items:center;gap:5px;height:39px;padding:0 12px;display:flex}.window-bar>span{background:#bebdb8;border-radius:50%;width:7px;height:7px}.window-bar em{color:#858581;margin-left:5px;font-size:9px;font-style:normal}.window-bar b{color:#777772;margin-left:auto;font-size:8px;font-weight:650}.destination-body{padding:26px;position:relative}.message-avatar{color:#77766f;background:#d6d4cd;border-radius:50%;place-items:center;width:28px;height:28px;font-size:9px;font-weight:700;display:grid}.conversation-line{background:#18191b17;border-radius:99px;width:64%;height:7px;margin:13px 0}.conversation-line.short{width:42%}.message-field{color:#333439;background:#ffffff78;border:1px solid #0f10121f;border-radius:11px;min-height:78px;padding:13px 14px;font-size:11px;line-height:1.5;position:absolute;bottom:18px;left:18px;right:18px}.cursor{vertical-align:-2px;background:#987c05;width:1px;height:13px;margin-left:2px;animation:1s step-end infinite blink;display:inline-block}@keyframes blink{50%{opacity:0}}.composer-window{z-index:4;-webkit-backdrop-filter:blur(34px)saturate(140%);backdrop-filter:blur(34px)saturate(140%);background:#17191ee0;border:1px solid #ffffff2e;border-radius:16px;position:absolute;bottom:78px;left:24px;right:24px;overflow:hidden;box-shadow:0 34px 100px #0000009e,inset 0 1px #ffffff12}.composer-top{border-bottom:1px solid #ffffff13;align-items:center;height:48px;padding:0 12px;display:flex}.mini-mark{width:25px;height:25px;color:var(--paper);background:#111216;border:1px solid #ffffff1c;border-radius:7px;place-items:center;margin-right:9px;display:grid}.mini-mark svg{width:14px;height:14px}.composer-title{gap:2px;min-width:max-content;display:grid}.composer-title strong{color:#f0efeb;font-size:10px;font-weight:680}.composer-title small{color:#666970;font-size:7px}.destination-pill{color:#686b72;white-space:nowrap;border:1px solid #ffffff17;border-radius:999px;min-width:0;margin-left:10px;padding:4px 7px;font-size:8px}.destination-pill b{color:#96989e}.key-hint{color:#70737a;align-items:center;gap:3px;margin-left:auto;font-size:8px;display:flex}kbd{color:#a6a8ad;background:#ffffff0b;border:1px solid #ffffff24;border-radius:5px;place-items:center;min-width:20px;height:19px;padding:0 5px;font:9px -apple-system,sans-serif;display:inline-grid;box-shadow:inset 0 1px #ffffff0b}.composer-window textarea{resize:none;color:#ededea;width:100%;height:148px;caret-color:var(--accent);background:0 0;border:0;outline:0;padding:16px 17px;font:12px/1.6 -apple-system,sans-serif;display:block}.composer-footer{background:#ffffff05;border-top:1px solid #ffffff13;align-items:center;min-height:61px;padding:9px 9px 9px 15px;display:flex}.composer-meta{gap:3px;min-width:0;display:grid}.composer-meta b{color:#a1a3a9;font-size:8px;font-weight:560}.composer-meta span{color:#60636a;text-overflow:ellipsis;white-space:nowrap;max-width:210px;font-size:7px;overflow:hidden}.composer-buttons{gap:5px;margin-left:auto;display:flex}.mini-button{color:#a1a3a8;cursor:pointer;background:#ffffff0b;border:1px solid #ffffff1a;border-radius:7px;height:30px;padding:0 9px;font-size:8px;font-weight:680;transition:background .14s,color .14s}.mini-button:hover:not(:disabled){color:#fff;background:#ffffff16}.mini-button:disabled{opacity:.5;cursor:default}.mini-button-primary{background:var(--accent);color:var(--accent-ink);border-color:#0000}.mini-button-primary:hover:not(:disabled){background:var(--accent-hover);color:var(--accent-ink)}.shortcut-float{z-index:5;color:#696c73;-webkit-backdrop-filter:blur(16px);backdrop-filter:blur(16px);background:#0d0e11ba;border:1px solid #ffffff1c;border-radius:8px;align-items:center;gap:4px;padding:7px 8px 7px 10px;font-size:8px;display:flex;position:absolute;top:68px;left:24px}.shortcut-float span{margin-right:5px}.demo-footnote{z-index:5;color:#5e6168;justify-content:space-between;align-items:center;font-size:8px;display:flex;position:absolute;bottom:22px;left:24px;right:24px}.demo-footnote span{align-items:center;gap:7px;display:flex}.demo-footnote span i{background:#73ce91;border-radius:50%;width:5px;height:5px;box-shadow:0 0 0 4px #73ce9114}.demo-footnote b{color:#74777d;font-size:8px;font-weight:600}.eyebrow{color:var(--accent);letter-spacing:.145em;text-transform:uppercase;font-size:9px;font-weight:760;display:inline-block}.manifesto{padding:174px 0 188px}.manifesto p{color:#d8d7d2;letter-spacing:-.052em;max-width:1050px;margin:27px 0 0;font-size:clamp(43px,5.3vw,72px);font-weight:520;line-height:1.08}.manifesto p:first-line{color:#73767d}.section-heading h2{letter-spacing:-.052em;margin:17px 0 0;font-size:clamp(45px,5vw,68px);font-weight:560;line-height:1.01}.section-heading>p{max-width:490px;color:var(--muted);font-size:14px;line-height:1.72}.split-heading{justify-content:space-between;align-items:flex-end;gap:70px;display:flex}.split-heading>p{margin:0 0 3px}.centered{text-align:center}.centered>p{margin:21px auto 0}.product-section{padding:28px 0 176px}.core-feature-list{border-top:1px solid var(--line);margin-top:67px}.core-feature{border-bottom:1px solid var(--line);grid-template-columns:72px 1fr 180px;align-items:start;gap:32px;padding:38px 0 42px;display:grid}.feature-index{color:#585b62;letter-spacing:.09em;font:9px ui-monospace,SFMono-Regular,Menlo,monospace}.core-feature h3{letter-spacing:-.036em;margin:-5px 0 0;font-size:26px;font-weight:580}.core-feature p{color:#92949a;max-width:620px;margin:13px 0 0;font-size:13px;line-height:1.7}.feature-detail{color:#6a6d73;letter-spacing:.075em;text-transform:uppercase;justify-self:end;padding-top:1px;font-size:9px;font-weight:650}.workflow-section{background:var(--paper);color:var(--paper-ink)}.workflow-shell{grid-template-columns:.83fr 1.17fr;gap:120px;padding-top:152px;padding-bottom:152px;display:grid}.eyebrow-dark{color:#786508}.workflow-copy h2{letter-spacing:-.067em;margin:23px 0 0;font-size:clamp(62px,7vw,96px);font-weight:580;line-height:.88}.workflow-copy p{max-width:420px;color:var(--paper-muted);margin:31px 0 0;font-size:14px;line-height:1.72}.workflow-steps{border-top:1px solid #12131633}.workflow-steps article{border-bottom:1px solid #12131633;grid-template-columns:46px 1fr;gap:22px;min-height:142px;padding:29px 0;display:grid}.workflow-steps article>span{color:#74756f;border:1px solid #12131633;border-radius:50%;align-self:start;place-items:center;width:30px;height:30px;font:9px ui-monospace,monospace;display:grid}.workflow-steps strong{letter-spacing:-.028em;font-size:19px;font-weight:640}.workflow-steps p{color:#696a65;margin:11px 0 0;font-size:12px;line-height:1.6}.workflow-steps kbd{color:#3e3f3b;box-shadow:none;background:#12131609;border-color:#1213162e;margin:0 2px}.workflow-note{background:var(--paper-ink);color:#fff;justify-content:space-between;margin-top:31px;padding:16px 18px;display:flex}.workflow-note b,.workflow-note span{font-size:10px}.workflow-note b{color:var(--accent)}.workflow-note span{color:#a8a9a6}.pro-section{padding:172px 0 190px}.pro-intro{justify-content:space-between;align-items:flex-end;gap:40px;display:flex}.pro-intro h2{letter-spacing:-.054em;margin:17px 0 0;font-size:clamp(45px,5vw,68px);font-weight:560;line-height:1.02}.availability-note{color:#777a81;letter-spacing:.08em;text-transform:uppercase;align-items:center;gap:9px;margin-bottom:5px;font-size:9px;font-weight:680;display:flex}.availability-note span{background:var(--accent);border-radius:50%;width:6px;height:6px;box-shadow:0 0 0 5px #ffd24d14}.pro-grid{border-top:1px solid var(--line);border-left:1px solid var(--line);grid-template-columns:repeat(4,1fr);margin-top:62px;display:grid}.pro-grid article{border-right:1px solid var(--line);border-bottom:1px solid var(--line);min-height:345px;padding:25px 23px}.pro-grid article>span{color:#55585f;margin-top:51px;font:8px ui-monospace,monospace;display:block}.pro-grid h3{letter-spacing:-.03em;margin:14px 0 0;font-size:19px;font-weight:590}.pro-grid p{color:#8c8f95;margin:12px 0 0;font-size:11px;line-height:1.68}.pro-glyph{background:#111318;border:1px solid #ffffff13;justify-content:center;align-items:center;gap:5px;height:86px;display:flex;position:relative;overflow:hidden}.pro-glyph:after{content:"";background-image:linear-gradient(#ffffff06 1px,#0000 1px),linear-gradient(90deg,#ffffff06 1px,#0000 1px);background-size:16px 16px;position:absolute;inset:0}.pro-glyph i{z-index:1;background:#555961;display:block;position:relative}.pro-glyph-1 i{border-radius:9px;width:28px;height:4px}.pro-glyph-1 i:nth-child(2){background:var(--accent);width:48px}.pro-glyph-1 i:nth-child(3){width:18px}.pro-glyph-2 i{border-radius:2px;width:7px;height:31px}.pro-glyph-2 i:nth-child(2){background:var(--accent);height:47px}.pro-glyph-2 i:nth-child(3){height:23px}.pro-glyph-3 i{border-radius:4px;width:3px}.pro-glyph-3 i:first-child{height:16px}.pro-glyph-3 i:nth-child(2){background:var(--accent);height:43px}.pro-glyph-3 i:nth-child(3){height:27px}.pro-glyph-4{gap:0}.pro-glyph-4 i{background:#5c6068;width:30px;height:1px}.pro-glyph-4 i:nth-child(2){border:1px solid var(--accent);background:var(--accent);border-radius:50%;width:9px;height:9px}.privacy-section{border-block:1px solid var(--line);background:#0d0f12}.privacy-shell{grid-template-columns:110px 1fr .78fr;align-items:start;gap:46px;padding-top:118px;padding-bottom:122px;display:grid}.privacy-mark{width:88px;height:88px;color:var(--accent);background:#ffd24d09;border:1px solid #ffd24d33;place-items:center;display:grid}.privacy-mark svg{width:42px}.privacy-copy h2{letter-spacing:-.052em;margin:18px 0 0;font-size:clamp(40px,4vw,58px);font-weight:560;line-height:1.01}.privacy-copy p{color:#95979d;max-width:610px;margin:23px 0 0;font-size:13px;line-height:1.73}.privacy-facts{border-top:1px solid var(--line)}.privacy-facts div{border-bottom:1px solid var(--line);grid-template-columns:31px 1fr;padding:17px 0 18px;display:grid}.privacy-facts span{color:#575a61;grid-row:1/3;font:8px ui-monospace,monospace}.privacy-facts strong{color:#d1d0cc;font-size:10px;font-weight:650}.privacy-facts p{color:#6f7279;margin:7px 0 0;font-size:9px;line-height:1.55}.pricing-section{width:var(--shell);margin:0 auto;padding:168px 0 174px}.pricing-grid{grid-template-columns:1fr 1fr;gap:12px;max-width:930px;margin:62px auto 0;display:grid}.plan-card{border:1px solid var(--line);background:#111317;padding:30px;position:relative}.plan-card-featured{background:#151719;border-color:#ffd24d4d;box-shadow:0 34px 90px #0000003d}.plan-card-featured:after{background:var(--accent);content:"";height:2px;position:absolute;top:0;left:0;right:0}.popular-label{color:#7b7e85;letter-spacing:.08em;text-transform:uppercase;font-size:8px;font-weight:700;position:absolute;top:-28px;right:0}.plan-top{justify-content:space-between;align-items:flex-start;gap:14px;display:flex}.plan-name{letter-spacing:-.03em;font-size:20px;font-weight:680}.plan-top p{color:#81848a;margin:8px 0 0;font-size:10px}.plan-badge{border:1px solid var(--line);color:#6d7077;letter-spacing:.055em;text-transform:uppercase;padding:5px 7px;font-size:7px;font-weight:720}.plan-badge-pro{color:#b39b32;border-color:#ffd24d2e}.price{align-items:baseline;gap:7px;margin-top:39px;display:flex}.price strong{letter-spacing:-.065em;font-size:62px;font-weight:560}.price span{color:#6a6d74;font-size:10px}.plan-card ul{border-top:1px solid var(--line);gap:12px;min-height:174px;margin:31px 0;padding:25px 0 0;list-style:none;display:grid}.plan-card li{color:#b6b7ba;align-items:center;gap:10px;font-size:10px;display:flex}.plan-card li span{color:var(--accent)}.checkout-wrap{width:100%}.plan-button{border:1px solid var(--line);width:100%;height:44px;color:var(--ink);cursor:pointer;background:#ffffff0b;border-radius:8px;font-size:10px;font-weight:700;transition:background .15s,border-color .15s}.plan-button:hover:not(:disabled){border-color:var(--line-strong);background:#ffffff13}.plan-button-pro{background:var(--accent);color:var(--accent-ink);border-color:#0000}.plan-button-pro:hover:not(:disabled){background:var(--accent-hover)}.plan-button:disabled{opacity:.55;cursor:not-allowed}.checkout-error{color:#ef9a9f;margin:8px 0 0;font-size:9px}.pricing-note{color:#62656c;text-align:center;margin:19px 0 0;font-size:9px}.standalone-pricing{padding-top:166px}.plan-assurance{grid-template-columns:repeat(3,1fr);gap:10px;margin-top:-105px;margin-bottom:120px;display:grid}.plan-assurance div{border-top:1px solid var(--line);gap:6px;padding:20px;display:grid}.plan-assurance strong{font-size:11px}.plan-assurance span{color:var(--subtle);font-size:9px}.faq{grid-template-columns:.72fr 1.28fr;gap:100px;padding:55px 0 174px;display:grid}.faq .section-heading h2{font-size:clamp(41px,4.5vw,60px)}.faq-list{margin-top:4px}.faq details{border-top:1px solid var(--line)}.faq details:last-child{border-bottom:1px solid var(--line)}.faq summary{color:#d7d6d2;cursor:pointer;justify-content:space-between;gap:24px;padding:23px 0;font-size:12px;list-style:none;display:flex}.faq summary::-webkit-details-marker{display:none}.faq summary span{color:var(--accent);font-size:17px;font-weight:300;transition:transform .18s}.faq details[open] summary span{transform:rotate(45deg)}.faq details p{color:#898c92;max-width:630px;margin:-5px 0 23px;font-size:11px;line-height:1.72}.closing{border:1px solid var(--line);text-align:center;background:#0f0f18;margin-bottom:110px;padding:118px 28px;position:relative;overflow:hidden}.closing-grid{opacity:.6;background-image:linear-gradient(#ffffff08 1px,#0000 1px),linear-gradient(90deg,#ffffff08 1px,#0000 1px);background-size:50px 50px;position:absolute;inset:0;-webkit-mask-image:radial-gradient(circle,#000,#0000 68%);mask-image:radial-gradient(circle,#000,#0000 68%)}.closing:before{filter:blur(100px);content:"";background:#ffd24d21;border-radius:50%;width:730px;height:540px;position:absolute;top:-310px;left:50%;transform:translate(-50%)}.closing>:not(.closing-grid){position:relative}.closing h2{letter-spacing:-.062em;margin:20px 0 0;font-size:clamp(51px,6.4vw,82px);font-weight:560;line-height:.95}.closing p{color:#8f9197;margin:23px 0 29px;font-size:12px}.site-footer{width:var(--shell);border-top:1px solid var(--line);margin:auto;padding:55px 0 24px}.footer-top{justify-content:space-between;min-height:190px;display:flex}.brand-footer{width:max-content}.footer-top>div>p{color:#666970;max-width:240px;margin:18px 0 0;font-size:10px;line-height:1.5}.footer-links{gap:92px;display:flex}.footer-links>div{align-content:start;gap:11px;display:grid}.footer-links strong{color:#d0cfcb;margin-bottom:5px;font-size:9px;font-weight:680}.footer-links a{color:#6f7279;font-size:9px}.footer-links a:hover{color:var(--ink)}.footer-bottom{border-top:1px solid var(--line);color:#50535a;justify-content:space-between;padding-top:20px;font-size:8px;display:flex}.subpage-main{min-height:80vh}.message-page{place-items:center;min-height:760px;padding:130px 24px 70px;display:grid}.message-card{border:1px solid var(--line);background:var(--panel);text-align:center;width:min(570px,100%);padding:56px}.success-mark{color:#73c991;background:#73c99114;border:1px solid #73c99133;place-items:center;width:56px;height:56px;margin:0 auto 24px;font-size:22px;display:grid}.message-card h1{letter-spacing:-.05em;margin:12px 0 0;font-size:46px}.message-card p{color:var(--muted);margin:18px auto 28px;font-size:12px;line-height:1.65}.legal-page{width:min(860px,100vw - 48px);margin:auto;padding:170px 0 130px}.legal-page header{border-bottom:1px solid var(--line);padding-bottom:48px}.legal-page h1{letter-spacing:-.055em;margin:16px 0 0;font-size:clamp(48px,7vw,78px);font-weight:580}.legal-page header>p{max-width:650px;color:var(--muted);margin:19px 0 0;font-size:13px;line-height:1.7}.legal-draft{color:#c9ae47;background:#ffd24d0b;border:1px solid #ffd24d2e;margin-top:22px;padding:11px 13px;font-size:9px}.legal-copy{padding:34px 0 0}.legal-copy h2{letter-spacing:-.02em;margin:38px 0 10px;font-size:18px}.legal-copy p{color:var(--muted);margin:0;font-size:12px;line-height:1.8}@media (max-width:980px){:root{--shell:min(100% - 38px, 760px)}.hero-shell{grid-template-columns:1fr}.hero-copy{width:min(620px,100%);padding:30px 0 22px}.hero h1{max-width:680px;font-size:clamp(67px,11vw,92px)}.demo-stage{width:100%;height:650px}.compatibility-strip{flex-direction:column;justify-content:center;align-items:flex-start;gap:22px}.compatibility-strip div{flex-wrap:wrap;gap:17px 28px}.split-heading{flex-direction:column;align-items:flex-start;gap:22px}.core-feature{grid-template-columns:55px 1fr 140px}.workflow-shell{grid-template-columns:1fr;gap:80px}.workflow-copy{max-width:620px}.pro-grid{grid-template-columns:1fr 1fr}.privacy-shell{grid-template-columns:88px 1fr}.privacy-facts{grid-column:2}.faq{grid-template-columns:1fr;gap:45px}}@media (max-width:680px){:root{--shell:calc(100vw - 28px)}.nav-shell{height:64px}.desktop-nav{display:none}.nav-cta{height:36px;margin-left:auto;padding:0 12px}.hero{padding-top:104px}.hero-shell{gap:34px}.hero-copy{padding-top:20px}.hero h1{margin-top:25px;font-size:clamp(54px,16vw,75px);line-height:.91}.hero-copy>p{margin-top:25px;font-size:14px}.hero-actions{flex-direction:column;align-items:stretch;width:min(330px,100%)}.hero-proof{flex-wrap:wrap}.demo-stage{border-radius:17px;height:540px}.demo-header{padding-inline:11px}.demo-header>span{display:none}.destination-window{height:260px;top:83px;left:38px;right:13px}.composer-window{bottom:67px;left:10px;right:10px}.composer-window textarea{height:124px}.composer-footer{flex-direction:column;align-items:flex-start;gap:9px}.composer-buttons{width:100%;margin:0}.mini-button{flex:1}.destination-pill,.shortcut-float{display:none}.demo-footnote{bottom:20px;left:13px;right:13px}.demo-footnote b{display:none}.compatibility-strip{margin-top:58px}.compatibility-strip div{gap:15px 22px}.manifesto{padding:116px 0 128px}.manifesto p{font-size:39px}.section-heading h2,.pro-intro h2{font-size:43px}.product-section{padding-bottom:120px}.core-feature{grid-template-columns:35px 1fr;gap:13px;padding:30px 0 33px}.feature-detail{grid-column:2;justify-self:start}.core-feature h3{font-size:21px}.workflow-shell{gap:62px;padding-top:106px;padding-bottom:106px}.workflow-copy h2{font-size:68px}.pro-section{padding:120px 0}.pro-intro{flex-direction:column;align-items:flex-start}.pro-grid{grid-template-columns:1fr}.pro-grid article{min-height:300px}.privacy-shell{grid-template-columns:1fr;gap:32px;padding-top:90px;padding-bottom:90px}.privacy-facts{grid-column:auto}.privacy-copy h2{font-size:40px}.pricing-section{padding:118px 0}.pricing-grid{grid-template-columns:1fr;gap:38px}.plan-card{padding:24px}.faq{padding-bottom:118px}.closing{margin-bottom:80px;padding:88px 18px}.closing h2{font-size:50px}.footer-top{flex-direction:column;gap:55px;padding-bottom:55px}.footer-links{gap:62px}.footer-bottom{flex-direction:column;align-items:flex-start;gap:7px}.plan-assurance{grid-template-columns:1fr;margin-top:-62px}.message-card{padding:38px 24px}}@media (prefers-reduced-motion:reduce){html{scroll-behavior:auto}*,:before,:after{transition-duration:.01ms!important;animation-duration:.01ms!important;animation-iteration-count:1!important}}
+</style>
+<title>Drip Type by Zap — Private, local-first writing for Mac</title>
+<meta name="theme-color" content="#08080e"/>
+<meta name="description" content="Drip Type is a private, local-first macOS composer with global hotkeys, natural typing, reusable templates, fill-in fields, and an instant hard stop."/>
+<meta name="application-name" content="Drip Type"/>
+<meta name="apple-mobile-web-app-title" content="Drip Type"/>
+<meta name="author" content="Zap"/>
+<link rel="manifest" href="/manifest.webmanifest"/>
+<meta name="keywords" content="Drip Type,macOS writing app,local-first writing tool,text expander,global composer,typing utility,smart templates"/>
+<meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1"/>
+<link rel="canonical" href="https://tryzap.net/"/>
+<meta property="og:title" content="Drip Type by Zap — Write once. Type anywhere."/>
+<meta property="og:description" content="A private, API-free writing layer for macOS with a global composer, natural typing, smart local templates, and complete keyboard control."/>
+<meta property="og:url" content="https://tryzap.net/"/>
+<meta property="og:site_name" content="Drip Type by Zap"/>
+<meta property="og:locale" content="en_US"/>
+<meta property="og:image" content="https://tryzap.net/brand/zap/zap-og-card.png"/>
+<meta property="og:image:secure_url" content="https://tryzap.net/brand/zap/zap-og-card.png"/>
+<meta property="og:image:type" content="image/png"/>
+<meta property="og:image:width" content="1200"/>
+<meta property="og:image:height" content="630"/>
+<meta property="og:image:alt" content="Drip Type by Zap, a private local-first writing layer for macOS"/>
+<meta property="og:type" content="website"/>
+<meta name="twitter:card" content="summary_large_image"/>
+<meta name="twitter:title" content="Drip Type by Zap — Write once. Type anywhere."/>
+<meta name="twitter:description" content="Private, API-free writing tools, smart local templates, and natural typing across your Mac."/>
+<meta name="twitter:image" content="https://tryzap.net/brand/zap/zap-og-card.png"/>
+<meta name="twitter:image:alt" content="Drip Type by Zap for macOS"/>
+<link rel="icon" href="/brand/zap/zap-favicon.svg" type="image/svg+xml"/>
+<link rel="icon" href="/favicon.ico" sizes="any"/>
+<link rel="apple-touch-icon" href="/brand/zap/apple-touch-icon.png" sizes="180x180" type="image/png"/>
+<script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://tryzap.net/#website","url":"https://tryzap.net/","name":"Drip Type by Zap","description":"Private, local-first writing and typing software for macOS.","inLanguage":"en-US"},{"@type":"Organization","@id":"https://tryzap.net/#organization","name":"Zap","url":"https://tryzap.net/","logo":{"@type":"ImageObject","url":"https://tryzap.net/brand/zap/zap-icon-512.png"}},{"@type":"SoftwareApplication","@id":"https://tryzap.net/#software","name":"Drip Type","alternateName":"Drip Type by Zap","url":"https://tryzap.net/","operatingSystem":"macOS","applicationCategory":"BusinessApplication","applicationSubCategory":"Writing and productivity software","softwareVersion":"1.6.0","description":"A private, local-first macOS writing and typing utility with advanced on-device Pro workflows.","image":"https://tryzap.net/brand/zap/zap-og-card.png","author":{"@id":"https://tryzap.net/#organization"},"isAccessibleForFree":false,"offers":[{"@type":"Offer","name":"Core","price":"9.99","priceCurrency":"USD","url":"https://tryzap.net/#pricing"},{"@type":"Offer","name":"Pro","price":"25.00","priceCurrency":"USD","url":"https://tryzap.net/#pricing"}],"featureList":["Global translucent composer","Natural configurable typing","Reusable local templates","Batch personalization","Multiple writing profiles","Private searchable clipboard workspace","On-device Writing Lab transforms","Signed automatic updates"]},{"@type":"FAQPage","@id":"https://tryzap.net/#faq","mainEntity":[{"@type":"Question","name":"Does Drip Type work in every Mac app?","acceptedAnswer":{"@type":"Answer","text":"Drip Type is designed for standard text fields across macOS applications and browsers. Secure or specialized fields may intentionally block automated input."}},{"@type":"Question","name":"Does my writing leave my Mac?","acceptedAnswer":{"@type":"Answer","text":"Core and Pro writing features stay on the Mac. Drip Type 1.6 does not use a third-party AI writing API."}},{"@type":"Question","name":"Why does Drip Type need Accessibility permission?","acceptedAnswer":{"@type":"Answer","text":"macOS requires Accessibility and Automation permission before an application can enter keystrokes into another application."}},{"@type":"Question","name":"Can I cancel whenever I want?","acceptedAnswer":{"@type":"Answer","text":"Yes. Core and Pro subscriptions can be managed or canceled through Stripe's Customer Portal."}}]}]}</script>
+</head>
+<body id="top">
+<div hidden="">
+<!--$-->
+<!--/$-->
+</div>
+<header class="site-header">
+<div class="nav-shell">
+<a class="brand" aria-label="Drip Type by Zap home" href="#top">
+<img class="brand-mark" src="/brand/zap/zap-icon.svg" alt=""/>
+<span class="brand-copy">
+<strong>Drip Type</strong>
+<small>by Zap</small>
+</span>
+</a>
+<nav class="desktop-nav" aria-label="Primary navigation">
+<a href="#features">Product</a>
+<a href="#how">How it works</a>
+<a href="#security">Privacy</a>
+<a href="#pricing">Pricing</a>
+</nav>
+<a class="nav-cta" href="https://drip-type-updates.vercel.app/Drip-Type-1.6.0-mac.dmg">Download v1.6 <span aria-hidden="true">↓</span>
+</a>
+</div>
+</header>
+<main>
+<section class="hero" id="top">
+<div class="twentyone-pattern" aria-hidden="true">
+<div class="twentyone-pattern-grid">
+</div>
+<div class="twentyone-pattern-vignette">
+</div>
+<div class="twentyone-pattern-signal">
+<i>
+</i>
+<i>
+</i>
+<i>
+</i>
+</div>
+</div>
+<div class="hero-shell section-shell">
+<div class="hero-copy reveal">
+<div class="release-label">
+<span>
+</span> Version 1.6 · Core and Pro available for macOS</div>
+<h1>One shortcut.<br/>
+<em>Every place</em>
+<br/>you write.</h1>
+<p>Drip Type is a private, API-free writing layer for your Mac. Open it anywhere, fill a reusable template or compose from scratch, then place your words with controlled, natural timing.</p>
+<div class="hero-actions">
+<a class="button button-primary" href="https://drip-type-updates.vercel.app/Drip-Type-1.6.0-mac.dmg">Download for Mac <span aria-hidden="true">↓</span>
+</a>
+<a class="button button-secondary" id="try-interaction" href="#demo" aria-controls="demo">Try the interaction</a>
+</div>
+<div class="hero-proof" aria-label="Product qualities">
+<span>Native macOS</span>
+<i>
+</i>
+<span>Local-first Core</span>
+<i>
+</i>
+<span>Keyboard-first</span>
+</div>
+</div>
+<div class="demo-stage" id="demo" aria-label="Interactive Drip Composer preview">
+<div class="demo-header">
+<div>
+<i>
+</i>
+<i>
+</i>
+<i>
+</i>
+</div>
+<span>Interactive product preview</span>
+<b>Drip Type · Core</b>
+</div>
+<div class="ambient ambient-one">
+</div>
+<div class="ambient ambient-two">
+</div>
+<div class="destination-window" aria-hidden="true">
+<div class="window-bar">
+<span>
+</span>
+<span>
+</span>
+<span>
+</span>
+<em>Messages</em>
+<b>New message</b>
+</div>
+<div class="destination-body">
+<div class="message-avatar">A</div>
+<div class="conversation-line">
+</div>
+<div class="conversation-line short">
+</div>
+<div class="message-field">
+<span>Your text lands here…</span>
+</div>
+</div>
+</div>
+<div class="composer-window">
+<div class="composer-top">
+<span class="mini-mark" aria-hidden="true">
+<svg viewBox="0 0 24 24" fill="none">
+<path d="M6.7 3.2c0-1 .8-1.8 1.8-1.8h7c1 0 1.8.8 1.8 1.8v7.9c0 .8-.3 1.5-.9 2L12 17l-4.4-3.9c-.6-.5-.9-1.2-.9-2V3.2Z" fill="currentColor">
+</path>
+<rect width="2.2" height="5.2" x="10.9" y="10.2" rx="1.1" fill="#F6D34A">
+</rect>
+<circle cx="12" cy="19.4" r="1.1" fill="#F6D34A">
+</circle>
+<circle cx="12" cy="22.2" r=".62" fill="#F6D34A">
+</circle>
+</svg>
+</span>
+<span class="composer-title">
+<strong>Drip Composer</strong>
+<small>Private session</small>
+</span>
+<span class="destination-pill">Returns to <b>Messages</b>
+</span>
+<span class="key-hint">
+<kbd>⌘</kbd>
+<kbd>↵</kbd> drip</span>
+</div>
+<textarea aria-label="Try the Drip Composer" maxLength="100000">The best tools disappear the moment your work begins.</textarea>
+<div class="composer-footer">
+<div class="composer-meta">
+<b>9<!-- --> <!-- -->words<!-- --> · <!-- -->53<!-- --> characters</b>
+<span>Private draft · stored locally</span>
+</div>
+<div class="composer-buttons">
+<button class="mini-button" type="button">Paste</button>
+<button class="mini-button" type="button">Clear</button>
+<button class="mini-button mini-button-primary" type="button">Try the flow</button>
+</div>
+</div>
+</div>
+<div class="shortcut-float">
+<span>From any Mac app</span>
+<kbd>⌥</kbd>
+<kbd>5</kbd>
+</div>
+<div class="demo-footnote">
+<span>
+<i>
+</i> Local Core session</span>
+<b>Type above, then try the flow</b>
+</div>
+</div>
+</div>
+<div class="compatibility-strip section-shell">
+<span>Designed for standard text fields across macOS</span>
+<div aria-label="Example compatible apps">
+<b>Mail</b>
+<b>Messages</b>
+<b>Safari</b>
+<b>Chrome</b>
+<b>Notes</b>
+<b>Slack</b>
+</div>
+</div>
+</section>
+<section class="manifesto section-shell">
+<span class="eyebrow">The premise</span>
+<p>Writing software should move at the speed of a thought—not ask you to reorganize your entire day around it.</p>
+</section>
+<section class="product-section section-shell" id="features">
+<div class="section-heading split-heading reveal">
+<div>
+<span class="eyebrow">Drip Type Core</span>
+<h2>Less interface.<br/>More momentum.</h2>
+</div>
+<p>The essential writing loop, reduced to three deliberate actions. No dashboard to manage. No workspace to maintain.</p>
+</div>
+<div class="core-feature-list">
+<article class="core-feature">
+<div class="feature-index">01</div>
+<div>
+<h3>A composer that appears anywhere</h3>
+<p>Press one shortcut over the app you are already using. Drip Composer opens in place and remembers exactly where your words belong.</p>
+</div>
+<span class="feature-detail">Global hotkey</span>
+</article>
+<article class="core-feature">
+<div class="feature-index">02</div>
+<div>
+<h3>Typing that feels unmistakably human</h3>
+<p>Choose the pace, pauses, and rhythm. Drip Type returns to the active field and enters your message with controlled, natural timing.</p>
+</div>
+<span class="feature-detail">Natural timing engine</span>
+</article>
+<article class="core-feature">
+<div class="feature-index">03</div>
+<div>
+<h3>Control without complexity</h3>
+<p>Pause instantly, adjust speed, or stop from the keyboard. The utility stays quiet in your menu bar until the moment you need it.</p>
+</div>
+<span class="feature-detail">Keyboard-first control</span>
+</article>
+</div>
+</section>
+<section class="workflow-section" id="how">
+<div class="workflow-shell section-shell">
+<div class="workflow-copy reveal">
+<span class="eyebrow eyebrow-dark">Three seconds to flow</span>
+<h2>Invoke.<br/>Compose.<br/>Drip.</h2>
+<p>Everything important has a keyboard path. The interface arrives when called and disappears when the work is done.</p>
+</div>
+<div class="workflow-steps">
+<article>
+<span>1</span>
+<div>
+<strong>Call the composer</strong>
+<p>Press <kbd>⌥</kbd>
+<kbd>5</kbd> from any supported app.</p>
+</div>
+</article>
+<article>
+<span>2</span>
+<div>
+<strong>Shape the message</strong>
+<p>Type or paste into a focused translucent workspace.</p>
+</div>
+</article>
+<article>
+<span>3</span>
+<div>
+<strong>Send it back</strong>
+<p>Press <kbd>⌘</kbd>
+<kbd>↵</kbd>. Drip Type returns and starts typing.</p>
+</div>
+</article>
+<div class="workflow-note">
+<b>One thought in.</b>
+<span>Finished words out.</span>
+</div>
+</div>
+</div>
+</section>
+<section class="pro-section section-shell">
+<div class="pro-intro">
+<div>
+<span class="eyebrow">The next layer</span>
+<h2>Your writing system,<br/>not another writing app.</h2>
+</div>
+<div class="availability-note">
+<span>
+</span> Pro is live in version 1.6</div>
+</div>
+<div class="pro-grid">
+<article>
+<div class="pro-glyph pro-glyph-1" aria-hidden="true">
+<i>
+</i>
+<i>
+</i>
+<i>
+</i>
+</div>
+<span>0<!-- -->1</span>
+<h3>Batch personalization</h3>
+<p>Turn a local template and CSV or TSV rows into up to 250 personalized messages without uploading the data.</p>
+</article>
+<article>
+<div class="pro-glyph pro-glyph-2" aria-hidden="true">
+<i>
+</i>
+<i>
+</i>
+<i>
+</i>
+</div>
+<span>0<!-- -->2</span>
+<h3>Expanded templates</h3>
+<p>Install categorized starter libraries, keep up to 250 templates, and fill private reusable fields.</p>
+</article>
+<article>
+<div class="pro-glyph pro-glyph-3" aria-hidden="true">
+<i>
+</i>
+<i>
+</i>
+<i>
+</i>
+</div>
+<span>0<!-- -->3</span>
+<h3>Profiles + clipboard</h3>
+<p>Switch between reusable typing styles and search an explicitly captured private clipboard workspace.</p>
+</article>
+<article>
+<div class="pro-glyph pro-glyph-4" aria-hidden="true">
+<i>
+</i>
+<i>
+</i>
+<i>
+</i>
+</div>
+<span>0<!-- -->4</span>
+<h3>On-device Writing Lab</h3>
+<p>Apply transparent rule-based tighten, direct, warm, and outline transforms with no remote writing API.</p>
+</article>
+</div>
+</section>
+<section class="privacy-section" id="security">
+<div class="privacy-shell section-shell">
+<div class="privacy-mark" aria-hidden="true">
+<svg viewBox="0 0 48 48" fill="none">
+<path d="M24 5 9 11v11c0 9.7 5.8 17 15 21 9.2-4 15-11.3 15-21V11L24 5Z" stroke="currentColor" stroke-width="1.5">
+</path>
+<path d="m18 24 4 4 8-9" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+</path>
+</svg>
+</div>
+<div class="privacy-copy reveal">
+<span class="eyebrow">Local-first by design</span>
+<h2>Your words are yours.<br/>That is the whole point.</h2>
+<p>Core composition and typing happen on your Mac. Drip Type asks only for the macOS permissions required to enter text, explains each one during onboarding, and keeps you in control.</p>
+</div>
+<div class="privacy-facts">
+<div>
+<span>01</span>
+<strong>Core drafts stay local</strong>
+<p>Your composer text is not an advertising profile.</p>
+</div>
+<div>
+<span>02</span>
+<strong>Permissions are explicit</strong>
+<p>Onboarding explains Accessibility and Automation access.</p>
+</div>
+<div>
+<span>03</span>
+<strong>Pro stays on-device</strong>
+<p>Batch rows, profiles, clipboard items, and Writing Lab transforms stay on your Mac.</p>
+</div>
+</div>
+</div>
+</section>
+<section class="pricing-section" id="pricing">
+<div class="section-heading centered reveal">
+<span class="eyebrow">Straightforward pricing</span>
+<h2>Start simple.<br/>Add power when you need it.</h2>
+<p>Core covers the essential writing loop. Pro adds advanced local workflows for repeatable, writing-heavy work.</p>
+</div>
+<div class="pricing-grid">
+<article class="plan-card reveal">
+<div class="plan-top">
+<div>
+<span class="plan-name">Core</span>
+<p>Everything you need to write anywhere.</p>
+</div>
+<span class="plan-badge">Individual</span>
+</div>
+<div class="price">
+<strong>$9.99</strong>
+<span>/ month</span>
+</div>
+<ul>
+<li>
+<span>✓</span>Global translucent Drip Composer</li>
+<li>
+<span>✓</span>Natural typing engine and presets</li>
+<li>
+<span>✓</span>Custom hotkeys and emergency hard stop</li>
+<li>
+<span>✓</span>Local smart templates and private fill-in fields</li>
+<li>
+<span>✓</span>Apple Silicon + Intel support</li>
+</ul>
+<div class="checkout-wrap">
+<button class="plan-button" type="button" data-checkout-plan="core" disabled>Checking availability…</button>
+</div>
+</article>
+<article class="plan-card plan-card-featured reveal">
+<div class="popular-label">Advanced writing layer</div>
+<div class="plan-top">
+<div>
+<span class="plan-name">Pro</span>
+<p>For writing-heavy, repeatable work.</p>
+</div>
+<span class="plan-badge plan-badge-pro">Live</span>
+</div>
+<div class="price">
+<strong>$25</strong>
+<span>/ month</span>
+</div>
+<ul>
+<li>
+<span>✓</span>Everything in Core</li>
+<li>
+<span>✓</span>Expanded local template libraries</li>
+<li>
+<span>✓</span>Advanced fields and batch personalization</li>
+<li>
+<span>✓</span>Multiple local writing profiles</li>
+<li>
+<span>✓</span>Private searchable clipboard workspace</li>
+<li>
+<span>✓</span>Transparent on-device Writing Lab transforms</li>
+</ul>
+<div class="checkout-wrap">
+<button class="plan-button plan-button-pro" type="button" data-checkout-plan="pro" disabled>Checking availability…</button>
+</div>
+</article>
+</div>
+<p class="pricing-note">Core is $9.99 per month. Pro is $25 per month. Both use Stripe-hosted checkout and can be managed or canceled in the Customer Portal.</p>
+</section>
+<section class="faq section-shell">
+<div class="section-heading reveal">
+<span class="eyebrow">Answers, without the spin</span>
+<h2>What you should know.</h2>
+</div>
+<div class="faq-list">
+<details>
+<summary>Does Drip Type work in every Mac app?<span>+</span>
+</summary>
+<p>Drip Type is designed for standard text fields across macOS applications and browsers. Secure or specialized fields may intentionally block automated input.</p>
+</details>
+<details>
+<summary>Does my writing leave my Mac?<span>+</span>
+</summary>
+<p>Core and Pro writing features stay on the Mac. Drip Type 1.6 does not use a third-party AI writing API.</p>
+</details>
+<details>
+<summary>Why does Drip Type need Accessibility permission?<span>+</span>
+</summary>
+<p>macOS requires Accessibility and Automation permission before an application can enter keystrokes into another application. Drip Type explains and checks both permissions during onboarding.</p>
+</details>
+<details>
+<summary>Can I cancel whenever I want?<span>+</span>
+</summary>
+<p>Yes. Core and Pro subscriptions can be managed or canceled through Stripe's Customer Portal.</p>
+</details>
+</div>
+</section>
+<section class="closing section-shell" id="launch">
+<div class="closing-grid" aria-hidden="true">
+</div>
+<span class="eyebrow">Drip Type by Zap</span>
+<h2>Keep the thought.<br/>Lose the friction.</h2>
+<p>A quieter, private way to compose and reuse writing across your Mac.</p>
+<a class="button button-primary" href="https://drip-type-updates.vercel.app/Drip-Type-1.6.0-mac.dmg">Download v1.6 <span>↓</span>
+</a>
+</section>
+</main>
+<footer class="site-footer">
+<div class="footer-top">
+<div>
+<a class="brand brand-footer" aria-label="Drip Type by Zap home" href="#top">
+<img class="brand-mark" src="/brand/zap/zap-icon.svg" alt=""/>
+<span class="brand-copy">
+<strong>Drip Type</strong>
+<small>by Zap</small>
+</span>
+</a>
+<p>The system-wide writing layer for macOS.</p>
+</div>
+<div class="footer-links">
+<div>
+<strong>Product</strong>
+<a href="#features">Overview</a>
+<a href="#how">How it works</a>
+<a href="#pricing">Pricing</a>
+</div>
+<div>
+<strong>Trust</strong>
+<a href="/privacy">Privacy</a>
+<a href="/terms">Terms</a>
+<a href="/refunds">Refunds</a>
+<a href="/brand/zap/zap-brand-kit.zip" download="">Brand kit</a>
+</div>
+</div>
+</div>
+<div class="footer-bottom">
+<span>© 2026 Zap. Drip Type for macOS.</span>
+<span>Made with care for the Mac.</span>
+</div>
+</footer>
+<!--$-->
+<!--/$-->
+<style>
+.composer-window.demo-attention{animation:demo-attention .8s cubic-bezier(.2,.78,.2,1)}
+@keyframes demo-attention{0%,100%{box-shadow:0 26px 90px #0008,0 0 0 1px #ffffff14}45%{box-shadow:0 26px 90px #0008,0 0 0 2px #ffd24daa,0 0 48px #ffd24d2e}}
+</style>
+<script>
+(() => {
+  const demo = document.getElementById('demo');
+  const tryInteraction = document.getElementById('try-interaction');
+  const composer = document.querySelector('.composer-window');
+  const input = document.querySelector('.composer-window textarea');
+  const buttons = [...document.querySelectorAll('.composer-buttons button')];
+  const output = document.querySelector('.message-field span');
+  const count = document.querySelector('.composer-meta b');
+  const status = document.querySelector('.composer-meta span');
+  if (!input || buttons.length < 3 || !output || !count || !status) return;
+  let timer;
+  const updateCount = () => {
+    const value = input.value;
+    const words = value.trim() ? value.trim().split(/\s+/).length : 0;
+    count.textContent = words + (words === 1 ? ' word' : ' words') + ' · ' + [...value].length + ' characters';
+  };
+  const run = () => {
+    const value = input.value.trim();
+    if (!value || timer) return;
+    const chars = [...value];
+    let index = 0;
+    output.textContent = '';
+    status.textContent = 'Returning to Messages…';
+    buttons[2].textContent = 'Dripping…';
+    buttons[2].disabled = true;
+    setTimeout(() => {
+      status.textContent = 'Dripping into Messages…';
+      timer = setInterval(() => {
+        index += 1;
+        output.textContent = chars.slice(0, index).join('');
+        if (index >= chars.length) {
+          clearInterval(timer);
+          timer = undefined;
+          status.textContent = 'Demo complete · the Mac app works across applications';
+          buttons[2].textContent = 'Try the flow';
+          buttons[2].disabled = false;
+        }
+      }, 24);
+    }, 420);
+  };
+  input.addEventListener('input', () => { updateCount(); status.textContent = 'Private draft · stored in this browser only'; });
+  input.addEventListener('keydown', (event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); run(); } });
+  buttons[0].addEventListener('click', async () => {
+    try { input.value = await navigator.clipboard.readText(); status.textContent = 'Pasted from your clipboard · kept in this browser only'; }
+    catch { status.textContent = 'Use ⌘V to paste—browser clipboard access is blocked'; }
+    updateCount();
+  });
+  buttons[1].addEventListener('click', () => { input.value = ''; output.textContent = 'Your text lands here…'; updateCount(); });
+  buttons[2].addEventListener('click', run);
+  tryInteraction?.addEventListener('click', (event) => {
+    event.preventDefault();
+    demo?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    composer?.classList.remove('demo-attention');
+    void composer?.offsetWidth;
+    composer?.classList.add('demo-attention');
+    input.focus({ preventScroll: true });
+    window.setTimeout(run, 360);
+  });
+})();
+</script>
+<script src="/checkout.js" defer>
+</script>
+</body>
+</html>

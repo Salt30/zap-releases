@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="Zap app icon">
+  <defs>
+    <linearGradient id="zap-bg" x1="0" y1="0" x2="0" y2="512" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#161638"/>
+      <stop offset="1" stop-color="#0a0a16"/>
+    </linearGradient>
+    <linearGradient id="zap-bolt" x1="176" y1="96" x2="336" y2="416" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffe08a"/>
+      <stop offset="0.5" stop-color="#ffd24d"/>
+      <stop offset="1" stop-color="#f5a623"/>
+    </linearGradient>
+    <filter id="zap-glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="14"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="116" fill="url(#zap-bg)"/>
+  <rect x="1" y="1" width="510" height="510" rx="115" fill="none" stroke="#ffffff" stroke-opacity="0.06" stroke-width="2"/>
+  <g transform="translate(76 76) scale(15)">
+    <path d="M13 2 L3 14 L12 14 L11 22 L21 10 L12 10 Z" fill="url(#zap-bolt)" opacity="0.55" filter="url(#zap-glow)"/>
+    <path d="M13 2 L3 14 L12 14 L11 22 L21 10 L12 10 Z" fill="url(#zap-bolt)" stroke="url(#zap-bolt)" stroke-width="0.6" stroke-linejoin="round"/>
+  </g>
+</svg>

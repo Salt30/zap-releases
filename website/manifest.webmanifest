@@ -1,0 +1,12 @@
+{
+  "name": "Drip Type by Zap",
+  "short_name": "Drip Type",
+  "description": "Private, local-first writing, reusable templates, and natural typing across macOS.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#08080e",
+  "theme_color": "#08080e",
+  "icons": [
+    { "src": "/brand/zap/zap-icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+  ]
+}

@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 360 120" width="360" height="120" role="img" aria-label="Zap logo">
+  <defs>
+    <linearGradient id="wm-bg" x1="0" y1="0" x2="0" y2="96" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#161638"/>
+      <stop offset="1" stop-color="#0a0a16"/>
+    </linearGradient>
+    <linearGradient id="wm-bolt" x1="12" y1="8" x2="72" y2="88" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#ffe08a"/>
+      <stop offset="0.5" stop-color="#ffd24d"/>
+      <stop offset="1" stop-color="#f5a623"/>
+    </linearGradient>
+  </defs>
+  <!-- mark -->
+  <rect x="12" y="12" width="96" height="96" rx="24" fill="url(#wm-bg)"/>
+  <rect x="12.5" y="12.5" width="95" height="95" rx="23.5" fill="none" stroke="#ffffff" stroke-opacity="0.06"/>
+  <g transform="translate(30 26) scale(2.75)">
+    <path d="M13 2 L3 14 L12 14 L11 22 L21 10 L12 10 Z" fill="url(#wm-bolt)" stroke="url(#wm-bolt)" stroke-width="0.6" stroke-linejoin="round"/>
+  </g>
+  <!-- wordmark -->
+  <text x="130" y="60" dominant-baseline="central" font-family="Inter, ui-sans-serif, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif" font-size="62" font-weight="600" letter-spacing="-2" fill="#ffffff">Zap</text>
+</svg>

@@ -1,7 +1,7 @@
 {
   "name": "drip-type",
-  "version": "1.5.0",
-  "description": "Natural, configurable typing for macOS.",
+  "version": "1.6.0",
+  "description": "Private, configurable typing for macOS — Drip Type by Zap.",
   "main": "src/main.js",
   "author": "VegaNext LLC",
   "license": "UNLICENSED",
@@ -9,7 +9,7 @@
   "scripts": {
     "start": "electron .",
     "build:app": "node scripts/build-app.js",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/index.js && node --check src/quick.js && node --check src/text-tools.js && node --check src/subscription.js && node --check src/onboarding.js && node --check scripts/build-app.js && node --check scripts/after-pack.js && node --check scripts/publish-update-blobs.js && node --check scripts/verify-source.js && node --check scripts/verify-package.js",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/index.js && node --check src/quick.js && node --check src/text-tools.js && node --check src/pro-tools.js && node --check src/subscription.js && node --check src/onboarding.js && node --check scripts/build-app.js && node --check scripts/after-pack.js && node --check scripts/publish-update-blobs.js && node --check scripts/verify-source.js && node --check scripts/verify-package.js",
     "test:source": "node scripts/verify-source.js",
     "verify": "npm run check && npm run test:source && npm run build:app",
     "verify:package": "node scripts/verify-package.js",
@@ -63,8 +63,8 @@
       }
     ],
     "releaseInfo": {
-      "releaseName": "Drip Type 1.5.0",
-      "releaseNotes": "Start with a 14-day Core trial, activate a paid subscription from Stripe Checkout, view access in the native Billing page, and manage billing securely. Activation is device-bound, verified with signed entitlements, and protected by macOS Keychain. Composer content remains local."
+      "releaseName": "Drip Type by Zap 1.6.0",
+      "releaseNotes": "Pro is live with batch template personalization, reusable writing profiles, a searchable private clipboard workspace, expanded local template libraries, and transparent on-device writing transforms. The app now carries the Zap brand throughout. Core remains available and all composer content stays local."
     },
     "mac": {
       "category": "public.app-category.productivity",

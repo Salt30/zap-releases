@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const textTools = require('../src/text-tools');
+const proTools = require('../src/pro-tools');
 const subscription = require('../src/subscription');
 const {
   requestProjectOidcToken,
@@ -28,6 +29,9 @@ const subscriptionSource = read('src/subscription.js');
 const entitlements = read('build/entitlements.mac.plist');
 const releaseWorkflow = read('.github/workflows/release.yml');
 const blobPublisher = read('scripts/publish-update-blobs.js');
+const websiteBillingSource = read('website/api/_billing.js');
+const websiteBilling = require('../website/api/_billing');
+const websiteMarkup = read('website/index.html');
 
 if (!packageJson.private || packageJson.license !== 'UNLICENSED') {
   fail('The package must remain private and proprietary.');
@@ -100,6 +104,19 @@ for (const marker of [
   "'/usr/bin/security'"
 ]) {
   if (!mainSource.includes(marker)) fail(`Subscription security requirement is missing: ${marker}`);
+}
+for (const marker of ['"template_library"', '"batch"', '"writing_lab"', 'STRIPE_PRO_PRICE_ID']) {
+  if (!websiteBillingSource.includes(marker)) fail(`Website Pro entitlement requirement is missing: ${marker}`);
+}
+for (const marker of ['Pro is live in version 1.6', 'data-checkout-plan="pro"', '>$25<', '/brand/zap/zap-icon.svg']) {
+  if (!websiteMarkup.includes(marker)) fail(`Website Pro launch requirement is missing: ${marker}`);
+}
+for (const marker of [
+  "handleTrusted('pro:batch-render'", "handleTrusted('pro:transform'",
+  "handleTrusted('profiles:save'", "handleTrusted('clipboard-workspace:capture'",
+  "proRequired('clipboard')", 'MAX_CLIPBOARD_COUNT'
+]) {
+  if (!mainSource.includes(marker)) fail(`Pro enforcement requirement is missing: ${marker}`);
 }
 for (const marker of ['ENTITLEMENT_PUBLIC_KEY', 'createPublicKey', 'verifyEntitlement', 'deviceHash']) {
   if (!subscriptionSource.includes(marker)) fail(`Signed entitlement verification is missing: ${marker}`);
@@ -245,7 +262,7 @@ for (const marker of ['Drip Composer', 'Private draft · stored in memory only',
 if (!quickSource.includes('readClipboardText') || !quickSource.includes('100000')) {
   fail('Composer clipboard input must use the bounded preload bridge.');
 }
-for (const marker of ['MAX_TEMPLATE_COUNT', "handleTrusted('templates:list'", 'sanitizeTemplate']) {
+for (const marker of ['MAX_CORE_TEMPLATE_COUNT', 'MAX_PRO_TEMPLATE_COUNT', "handleTrusted('templates:list'", 'sanitizeTemplate']) {
   if (!mainSource.includes(marker)) fail(`Local template safety requirement is missing: ${marker}`);
 }
 for (const marker of ['template-picker', 'template-dialog', 'tool-clean', 'tool-bullets']) {
@@ -260,6 +277,13 @@ assert.deepEqual(textTools.variableNames('Hi {{ name }}, {{topic}} / {{name}}'),
 assert.equal(textTools.fillTemplate('Hi {{name}} — {{topic}}', { name: 'Sam', topic: 'launch' }), 'Hi Sam — launch');
 assert.equal(textTools.hasUnresolvedVariables('Hi {{name}}'), true);
 assert.equal(textTools.hasUnresolvedVariables('Hi Sam'), false);
+const batch = proTools.renderBatch('Hi {{name}} — {{topic}}', 'name,topic\nSam,Launch\nMaya,"Quarterly, plan"');
+assert.deepEqual(batch.outputs.map(({ text }) => text), ['Hi Sam — Launch', 'Hi Maya — Quarterly, plan']);
+assert.equal(proTools.renderBatch('Hi {{name}}', 'person\nSam').outputs.length, 0);
+assert.match(proTools.renderBatch('Hi {{name}}', 'person\nSam').errors[0], /Missing columns/);
+assert.equal(proTools.transformWriting('I just wanted to maybe share this.', 'direct'), 'share this.');
+assert.equal(proTools.transformWriting('One. Two?', 'outline'), '• One.\n• Two?');
+assert.deepEqual(proTools.searchClipboard([{ text: 'Launch note' }, { text: 'Invoice' }], 'launch'), [{ text: 'Launch note' }]);
 
 const trialStart = Date.now() - 2 * 24 * 60 * 60 * 1000;
 const trialState = subscription.accessState({
@@ -305,6 +329,27 @@ const testSignature = crypto.sign(null, Buffer.from(testInput), testPrivateKey).
 const testToken = `${testInput}.${testSignature}`;
 const testPublicKeyEncoded = testPublicKey.export({ format: 'der', type: 'spki' }).toString('base64');
 assert.equal(subscription.verifyEntitlement(testToken, testDevice, Date.now(), testPublicKeyEncoded).plan, 'core');
+const proPayload = Buffer.from(JSON.stringify({
+  ...JSON.parse(Buffer.from(testPayload, 'base64url').toString('utf8')),
+  plan: 'pro',
+  features: ['composer', 'typing', 'hotkeys', 'templates', 'updates', 'profiles', 'clipboard', 'template_library', 'batch', 'writing_lab']
+})).toString('base64url');
+const proInput = `${testHeader}.${proPayload}`;
+const proSignature = crypto.sign(null, Buffer.from(proInput), testPrivateKey).toString('base64url');
+const proEntitlement = subscription.verifyEntitlement(`${proInput}.${proSignature}`, testDevice, Date.now(), testPublicKeyEncoded);
+assert.equal(proEntitlement.plan, 'pro');
+assert.equal(proEntitlement.features.includes('batch'), true);
+const previousSigningKey = process.env.ENTITLEMENT_PRIVATE_KEY;
+process.env.ENTITLEMENT_PRIVATE_KEY = testPrivateKey.export({ format: 'der', type: 'pkcs8' }).toString('base64');
+const issuedPro = websiteBilling.signedEntitlement({ id: 'sub_live_pro_fixture' }, 'pro', testDevice);
+const verifiedIssuedPro = subscription.verifyEntitlement(issuedPro.token, testDevice, Date.now(), testPublicKeyEncoded);
+assert.equal(verifiedIssuedPro.plan, 'pro');
+assert.deepEqual(verifiedIssuedPro.features, [
+  'composer', 'typing', 'hotkeys', 'templates', 'updates', 'profiles', 'clipboard',
+  'template_library', 'batch', 'writing_lab'
+]);
+if (previousSigningKey === undefined) delete process.env.ENTITLEMENT_PRIVATE_KEY;
+else process.env.ENTITLEMENT_PRIVATE_KEY = previousSigningKey;
 const tamperedPayload = Buffer.from(JSON.stringify({
   ...JSON.parse(Buffer.from(testPayload, 'base64url').toString('utf8')),
   plan: 'pro'

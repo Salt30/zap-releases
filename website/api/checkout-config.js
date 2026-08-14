@@ -1,0 +1,18 @@
+module.exports = function checkoutConfig(request, response) {
+  response.setHeader("Cache-Control", "no-store");
+  response.setHeader("X-Content-Type-Options", "nosniff");
+  if (request.method && request.method !== "GET") {
+    response.setHeader("Allow", "GET");
+    return response.status(405).json({ error: "Method not allowed" });
+  }
+  const hasSecret = /^(?:rk|sk)_live_[A-Za-z0-9]+$/.test(process.env.STRIPE_SECRET_KEY || "");
+  const hasSigningKey = /^[A-Za-z0-9+/=]{40,200}$/.test(process.env.ENTITLEMENT_PRIVATE_KEY || "");
+  const hasCorePrice = /^price_[A-Za-z0-9]+$/.test(process.env.STRIPE_CORE_PRICE_ID || "");
+  const hasProPrice = /^price_[A-Za-z0-9]+$/.test(process.env.STRIPE_PRO_PRICE_ID || "");
+  response.status(200).json({
+    plans: {
+      core: hasSecret && hasSigningKey && hasCorePrice && process.env.STRIPE_CORE_CHECKOUT_ENABLED === "true",
+      pro: hasSecret && hasSigningKey && hasProPrice && process.env.STRIPE_PRO_CHECKOUT_ENABLED === "true",
+    },
+  });
+};

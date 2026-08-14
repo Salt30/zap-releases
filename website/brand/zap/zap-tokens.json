@@ -1,0 +1,38 @@
+{
+  "name": "Zap",
+  "version": "1.0.0",
+  "color": {
+    "surface": {
+      "ink": "#08080e",
+      "inkPure": "#050509",
+      "surface": "#0f0f18",
+      "surface2": "#16161f",
+      "tile": "#12122a"
+    },
+    "accent": {
+      "gold": "#ffd24d",
+      "goldBright": "#ffe08a",
+      "amber": "#f5a623",
+      "electric": "#7aa2f7"
+    },
+    "text": {
+      "primary": "#ffffff",
+      "muted": "#a3a3a3",
+      "dim": "#6b6b73"
+    }
+  },
+  "gradient": {
+    "gold": "linear-gradient(120deg, #ffe08a 0%, #ffd24d 45%, #f5a623 100%)",
+    "headline": "linear-gradient(to bottom, #ffffff 0%, #9ca3af 100%)"
+  },
+  "font": {
+    "sans": "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+    "mono": "JetBrains Mono, ui-monospace, 'SF Mono', Menlo, Consolas, monospace"
+  },
+  "radius": {
+    "sm": "8px",
+    "md": "16px",
+    "lg": "24px",
+    "pill": "9999px"
+  }
+}
