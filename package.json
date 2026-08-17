@@ -1,6 +1,6 @@
 {
   "name": "drip-type",
-  "version": "1.6.1",
+  "version": "1.6.2",
   "description": "Private, configurable typing for macOS — Drip Type by Zap.",
   "main": "src/main.js",
   "author": "VegaNext LLC",
@@ -64,8 +64,8 @@
       }
     ],
     "releaseInfo": {
-      "releaseName": "Drip Type by Zap 1.6.1",
-      "releaseNotes": "Shortcuts now capture the exact key combination you press, validate availability before saving, and safely keep the previous working shortcuts if registration fails. The default Composer shortcut is Option+5. Typing controls now flush before a session begins, and custom shortcuts stay consistent across Settings, Setup, the sidebar, and the menu bar."
+      "releaseName": "Drip Type by Zap 1.6.2",
+      "releaseNotes": "Typing settings are now presented as direct controls without preset buttons. The website now states the system-wide workflow clearly, uses the production Zap logo reliably, and no longer publishes a downloadable brand-kit archive."
     },
     "mac": {
       "category": "public.app-category.productivity",

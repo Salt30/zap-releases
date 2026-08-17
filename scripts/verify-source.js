@@ -27,6 +27,7 @@ const preloadSource = read('src/preload.js');
 const quickSource = read('src/quick.js');
 const quickMarkup = read('src/quick.html');
 const indexMarkup = read('src/index.html');
+const indexSource = read('src/index.js');
 const subscriptionSource = read('src/subscription.js');
 const entitlements = read('build/entitlements.mac.plist');
 const releaseWorkflow = read('.github/workflows/release.yml');
@@ -155,18 +156,25 @@ for (const [name, source] of [
 ]) {
   if (!source.includes('hasExactKeys')) fail(`Website ${name} API must reject unexpected fields.`);
 }
-for (const marker of ['Pro is live in version 1.6', 'data-checkout-plan="pro"', '>$25<', '/brand/zap/zap-icon.svg']) {
+for (const marker of ['Pro is live in version 1.6', 'data-checkout-plan="pro"', '>$25<', '/brand/zap/zap-icon-192.png']) {
   if (!websiteMarkup.includes(marker)) fail(`Website Pro launch requirement is missing: ${marker}`);
 }
 for (const marker of [
   'Typing speed', 'Start delay', 'Corrected typos', 'Thinking pauses', 'Speed bursts',
-  'data-rhythm-preset="steady"', 'data-rhythm-preset="natural"',
-  'data-rhythm-preset="expressive"', 'What ships today', 'Signed + notarized'
+  'One shortcut. Every Mac app.', 'What ships today', 'Signed + notarized'
 ]) {
   if (!websiteMarkup.includes(marker)) fail(`Website verified-product showcase is missing: ${marker}`);
 }
 if (websiteMarkup.includes('Pause instantly')) {
   fail('Website must not claim a pause/resume control that the application does not provide.');
+}
+for (const forbidden of ['data-rhythm-preset=', 'Steady</button>', 'Natural</button>', 'Expressive</button>', 'zap-brand-kit.zip']) {
+  if (websiteMarkup.includes(forbidden)) fail(`Website contains removed marketing UI or private brand-kit access: ${forbidden}`);
+}
+for (const forbidden of ['data-preset=', 'class="preset"', "querySelectorAll('.preset')"]) {
+  if (indexMarkup.includes(forbidden) || indexSource.includes(forbidden)) {
+    fail(`Application contains removed typing preset UI: ${forbidden}`);
+  }
 }
 if (!websiteMarkup.includes('name="google-site-verification"')) {
   fail('Google Search Console ownership verification must remain in the production homepage.');

@@ -24,7 +24,7 @@ Drip Type is a native-feeling macOS utility that turns prepared text into natura
 - Explicit local clipboard paste and in-memory-only drafts
 - Automatic return to the previously active app
 - Adjustable WPM, start delay, typo rate, thinking pauses, and speed bursts
-- Three behavior presets plus full manual control
+- Direct controls for speed, delay, corrected typos, thinking pauses, and bursts
 - System, light, and dark appearance modes across every window
 - Nearby-key typos followed by realistic corrections
 - Natural timing variation and punctuation-aware pauses
@@ -103,8 +103,8 @@ base64 -i DeveloperIDApplication.p12 | pbcopy
 Paste the clipboard contents into `MAC_CERTIFICATE_P12_BASE64`. Then publish a release:
 
 ```bash
-git branch release/v1.6.1
-git push origin release/v1.6.1
+git branch release/v1.6.2
+git push origin release/v1.6.2
 ```
 
 GitHub Actions builds one universal application, signs it with the VegaNext

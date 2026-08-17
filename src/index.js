@@ -578,20 +578,6 @@ $('start').addEventListener('click', async () => {
 });
 $('cancel').addEventListener('click', () => window.dripType.cancel());
 
-document.querySelectorAll('.preset').forEach((button) => {
-  button.addEventListener('click', () => {
-    const presets = {
-      steady: { wpm: 55, delay: 3, typos: 0, pauses: 0.01, bursts: 0.03 },
-      natural: { wpm: 45, delay: 3, typos: 0.03, pauses: 0.03, bursts: 0.08 },
-      expressive: { wpm: 38, delay: 4, typos: 0.05, pauses: 0.06, bursts: 0.15 }
-    };
-    const preset = presets[button.dataset.preset];
-    Object.entries(preset).forEach(([key, value]) => { controls[key].value = value; });
-    refreshValues();
-    saveBehavior();
-  });
-});
-
 $('save-shortcuts').addEventListener('click', async () => {
   $('save-shortcuts').disabled = true;
   shortcutMessage('Checking shortcut availability…');

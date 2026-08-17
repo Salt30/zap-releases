@@ -225,9 +225,6 @@
     }
     input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 99px; background: linear-gradient(90deg, var(--accent) 0 var(--fill, 30%), #373a42 var(--fill, 30%) 100%); }
     input[type="range"]::-webkit-slider-thumb { width: 16px; height: 16px; margin-top: -6px; appearance: none; border: 2px solid var(--surface); border-radius: 50%; background: var(--accent); box-shadow: 0 1px 5px rgba(0,0,0,.4); }
-    .preset-row { display: flex; gap: 8px; margin-bottom: 18px; }
-    .preset { height: 31px; padding: 0 12px; border: 1px solid var(--border); border-radius: 7px; background: transparent; color: var(--muted); cursor: pointer; }
-    .preset:hover { color: var(--text); border-color: var(--border-strong); }
 
     .shortcut-card { display: grid; grid-template-columns: 1fr 210px; align-items: center; gap: 24px; padding: 18px; border-bottom: 1px solid var(--border); }
     .shortcut-card:last-child { border-bottom: 0; }
@@ -357,7 +354,7 @@
     <aside class="sidebar">
       <div class="brand">
         <img class="brand-mark" src="zap-icon.svg" alt="">
-        <div><div class="brand-name">Drip Type <span style="color:var(--subtle);font-weight:500">by Zap</span></div><div class="brand-version" id="brand-version">Version 1.6.1</div></div>
+        <div><div class="brand-name">Drip Type <span style="color:var(--subtle);font-weight:500">by Zap</span></div><div class="brand-version" id="brand-version">Version 1.6.2</div></div>
       </div>
 
       <nav class="nav" aria-label="Main navigation">
@@ -461,12 +458,7 @@
       <section class="page" id="page-typing">
         <div class="eyebrow">Typing</div>
         <h1>Make the rhythm yours.</h1>
-        <p class="lead">Start with a preset, then tune individual behaviors. Changes are saved locally on this Mac.</p>
-        <div class="preset-row">
-          <button class="preset" data-preset="steady">Steady</button>
-          <button class="preset" data-preset="natural">Natural</button>
-          <button class="preset" data-preset="expressive">Expressive</button>
-        </div>
+        <p class="lead">Tune each behavior directly. Changes are saved locally on this Mac.</p>
         <div class="section-list">
           <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Typing speed</div><div class="settings-description">Average pace before natural character variation.</div></div><output class="value" id="wpm-out">45 WPM</output></div><input id="wpm" type="range" min="15" max="120" step="5"></div>
           <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Start delay</div><div class="settings-description">Time to focus a destination after pressing Start.</div></div><output class="value" id="delay-out">3 seconds</output></div><input id="delay" type="range" min="1" max="15" step="1"></div>
