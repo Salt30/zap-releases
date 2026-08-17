@@ -1,6 +1,6 @@
 {
   "name": "drip-type",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "Private, configurable typing for macOS — Drip Type by Zap.",
   "main": "src/main.js",
   "author": "VegaNext LLC",
@@ -9,8 +9,9 @@
   "scripts": {
     "start": "electron .",
     "build:app": "node scripts/build-app.js",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/index.js && node --check src/quick.js && node --check src/text-tools.js && node --check src/pro-tools.js && node --check src/subscription.js && node --check src/onboarding.js && node --check scripts/build-app.js && node --check scripts/after-pack.js && node --check scripts/publish-update-blobs.js && node --check scripts/verify-api.js && node --check scripts/verify-source.js && node --check scripts/verify-package.js",
-    "test:source": "node scripts/verify-source.js && node scripts/verify-api.js",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/index.js && node --check src/quick.js && node --check src/shortcut-utils.js && node --check src/text-tools.js && node --check src/pro-tools.js && node --check src/subscription.js && node --check src/onboarding.js && node --check scripts/build-app.js && node --check scripts/after-pack.js && node --check scripts/publish-update-blobs.js && node --check scripts/test-shortcuts.js && node --check scripts/verify-api.js && node --check scripts/verify-source.js && node --check scripts/verify-package.js",
+    "test:source": "node scripts/test-shortcuts.js && node scripts/verify-source.js && node scripts/verify-api.js",
+    "test:shortcuts:mac": "electron scripts/smoke-shortcuts-electron.js",
     "verify": "npm run check && npm run test:source && npm run build:app",
     "verify:package": "node scripts/verify-package.js",
     "pack:mac": "npm run build:app && electron-builder --mac --dir --universal -c.mac.forceCodeSigning=false",
@@ -63,8 +64,8 @@
       }
     ],
     "releaseInfo": {
-      "releaseName": "Drip Type by Zap 1.6.0",
-      "releaseNotes": "Pro is live with batch template personalization, reusable writing profiles, a searchable private clipboard workspace, expanded local template libraries, and transparent on-device writing transforms. The app now carries the Zap brand throughout. Core remains available and all composer content stays local."
+      "releaseName": "Drip Type by Zap 1.6.1",
+      "releaseNotes": "Shortcuts now capture the exact key combination you press, validate availability before saving, and safely keep the previous working shortcuts if registration fails. The default Composer shortcut is Option+5. Typing controls now flush before a session begins, and custom shortcuts stay consistent across Settings, Setup, the sidebar, and the menu bar."
     },
     "mac": {
       "category": "public.app-category.productivity",

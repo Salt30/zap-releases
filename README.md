@@ -103,8 +103,8 @@ base64 -i DeveloperIDApplication.p12 | pbcopy
 Paste the clipboard contents into `MAC_CERTIFICATE_P12_BASE64`. Then publish a release:
 
 ```bash
-git branch release/v1.6.0
-git push origin release/v1.6.0
+git branch release/v1.6.1
+git push origin release/v1.6.1
 ```
 
 GitHub Actions builds one universal application, signs it with the VegaNext

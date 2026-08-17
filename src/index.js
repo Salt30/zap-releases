@@ -1,4 +1,5 @@
 const $ = (id) => document.getElementById(id);
+const { acceleratorFromKeyboardEvent, formatAccelerator } = require('./shortcut-utils');
 const controls = {
   wpm: $('wpm'),
   delay: $('delay'),
@@ -17,6 +18,7 @@ let editingTemplateId = null;
 let billingState = { allowed: true, status: 'checking', plan: 'core' };
 let profiles = [];
 let activeProfileId = null;
+let savedShortcuts = { hotkeyStart: 'Alt+5', hotkeyStop: 'Alt+0' };
 
 function hasFeature(feature) {
   return Array.isArray(billingState.features) && billingState.features.includes(feature);
@@ -316,6 +318,54 @@ function saveBehavior() {
   saveTimer = setTimeout(() => window.dripType.saveSettings(currentBehavior()), 180);
 }
 
+async function flushBehavior() {
+  clearTimeout(saveTimer);
+  saveTimer = null;
+  return window.dripType.saveSettings(currentBehavior());
+}
+
+function renderShortcutInput(input, accelerator) {
+  input.dataset.accelerator = accelerator;
+  input.value = formatAccelerator(accelerator);
+}
+
+function renderCurrentShortcuts(shortcuts = savedShortcuts) {
+  const start = formatAccelerator(shortcuts.hotkeyStart);
+  const stop = formatAccelerator(shortcuts.hotkeyStop);
+  $('quick-shortcut').textContent = start;
+  $('setup-shortcut-copy').textContent = `${start} opens Composer and ${stop} stops typing.`;
+}
+
+function shortcutMessage(message, error = false) {
+  const note = $('shortcut-note');
+  note.textContent = message;
+  note.classList.toggle('error', error);
+}
+
+function captureShortcut(input) {
+  input.addEventListener('keydown', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    if (event.key === 'Escape') {
+      const key = input.id === 'start-key' ? 'hotkeyStart' : 'hotkeyStop';
+      renderShortcutInput(input, savedShortcuts[key]);
+      shortcutMessage('Change canceled.');
+      return;
+    }
+    const result = acceleratorFromKeyboardEvent(event);
+    if (result.pending) {
+      shortcutMessage('Keep holding the modifiers, then press a letter, number, arrow, navigation key, or function key.');
+      return;
+    }
+    if (result.error) {
+      shortcutMessage(result.error, true);
+      return;
+    }
+    renderShortcutInput(input, result.accelerator);
+    shortcutMessage('Shortcut captured. Save to apply it everywhere.');
+  });
+}
+
 function setStatus(state) {
   const status = state.status || 'idle';
   $('status').dataset.status = status;
@@ -345,10 +395,13 @@ async function refreshPermissionChecklist() {
   const checklist = await window.dripType.getPermissionChecklist();
   const accessibilityState = $('accessibility-state');
   const automationState = $('automation-state');
+  const shortcutState = $('shortcut-state');
   accessibilityState.textContent = checklist.accessibility ? 'Allowed' : 'Required';
   accessibilityState.classList.toggle('ready', checklist.accessibility);
   automationState.textContent = checklist.automation ? 'Allowed' : 'Required';
   automationState.classList.toggle('ready', checklist.automation);
+  shortcutState.textContent = checklist.shortcuts ? 'Active' : 'Needs attention';
+  shortcutState.classList.toggle('ready', checklist.shortcuts);
   $('automation-copy').textContent = checklist.automation
     ? 'Allowed. System Events is ready for secure local typing.'
     : 'Required so Drip Type can use macOS System Events.';
@@ -419,6 +472,16 @@ Object.values(controls).forEach((control) => {
     refreshValues();
     saveBehavior();
   });
+  control.addEventListener('change', flushBehavior);
+});
+$('start-key').addEventListener('focus', () => shortcutMessage('Press the new key combination. Escape cancels.'));
+$('stop-key').addEventListener('focus', () => shortcutMessage('Press the new key combination. Escape cancels.'));
+captureShortcut($('start-key'));
+captureShortcut($('stop-key'));
+$('reset-shortcuts').addEventListener('click', () => {
+  renderShortcutInput($('start-key'), 'Alt+5');
+  renderShortcutInput($('stop-key'), 'Alt+0');
+  shortcutMessage('Defaults restored in the editor. Save to apply ⌥5 and ⌥0.');
 });
 $('text').addEventListener('input', refreshTextMeta);
 $('permission-card').addEventListener('click', () => refreshPermission(true));
@@ -430,6 +493,7 @@ $('request-automation').addEventListener('click', async () => {
   await window.dripType.requestAutomation();
   await refreshPermissionChecklist();
 });
+$('open-shortcut-settings').addEventListener('click', () => setPage('shortcuts'));
 $('preview-quick').addEventListener('click', () => window.dripType.showQuick());
 $('launch-login').addEventListener('click', async () => {
   renderLaunchAtLogin(!launchAtLogin);
@@ -498,6 +562,7 @@ window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', ()
 });
 
 $('start').addEventListener('click', async () => {
+  await flushBehavior();
   if (!await refreshPermission(false)) {
     setPage('setup');
     setStatus({ status: 'error', message: 'Enable Accessibility access before typing.' });
@@ -528,14 +593,25 @@ document.querySelectorAll('.preset').forEach((button) => {
 });
 
 $('save-shortcuts').addEventListener('click', async () => {
+  $('save-shortcuts').disabled = true;
+  shortcutMessage('Checking shortcut availability…');
   const result = await window.dripType.saveSettings({
-    hotkeyStart: $('start-key').value.trim(),
-    hotkeyStop: $('stop-key').value.trim()
+    hotkeyStart: $('start-key').dataset.accelerator,
+    hotkeyStop: $('stop-key').dataset.accelerator
   });
-  $('shortcut-note').textContent = result.shortcutFailures?.length
-    ? `Could not register: ${result.shortcutFailures.join(', ')}`
-    : 'Saved';
-  setTimeout(() => { $('shortcut-note').textContent = ''; }, 2500);
+  savedShortcuts = {
+    hotkeyStart: result.settings.hotkeyStart,
+    hotkeyStop: result.settings.hotkeyStop
+  };
+  renderShortcutInput($('start-key'), savedShortcuts.hotkeyStart);
+  renderShortcutInput($('stop-key'), savedShortcuts.hotkeyStop);
+  renderCurrentShortcuts();
+  shortcutMessage(result.shortcutFailures?.length
+    ? result.shortcutFailures.join(' ')
+    : `${formatAccelerator(savedShortcuts.hotkeyStart)} opens Composer; ${formatAccelerator(savedShortcuts.hotkeyStop)} stops typing.`,
+  Boolean(result.shortcutFailures?.length));
+  $('save-shortcuts').disabled = false;
+  await refreshPermissionChecklist();
 });
 
 window.dripType.onState(setStatus);
@@ -564,8 +640,10 @@ async function load() {
   controls.typos.value = settings.typoRate;
   controls.pauses.value = settings.dripPauseChance;
   controls.bursts.value = settings.dripBurstChance;
-  $('start-key').value = settings.hotkeyStart;
-  $('stop-key').value = settings.hotkeyStop;
+  savedShortcuts = { hotkeyStart: settings.hotkeyStart, hotkeyStop: settings.hotkeyStop };
+  renderShortcutInput($('start-key'), savedShortcuts.hotkeyStart);
+  renderShortcutInput($('stop-key'), savedShortcuts.hotkeyStop);
+  renderCurrentShortcuts();
   renderLaunchAtLogin(settings.launchAtLogin);
   applyTheme(settings.theme);
   $('brand-version').textContent = `Version ${info.version}`;

@@ -21,6 +21,8 @@ const fail = (message) => { throw new Error(message); };
 const packageJson = JSON.parse(read('package.json'));
 const packageLock = JSON.parse(read('package-lock.json'));
 const mainSource = read('src/main.js');
+const shortcutSource = read('src/shortcut-utils.js');
+const shortcutSmokeSource = read('scripts/smoke-shortcuts-electron.js');
 const preloadSource = read('src/preload.js');
 const quickSource = read('src/quick.js');
 const quickMarkup = read('src/quick.html');
@@ -37,6 +39,7 @@ const refreshSource = read('website/api/refresh-entitlement.js');
 const portalSource = read('website/api/create-portal.js');
 const checkoutStatusSource = read('website/api/checkout-status.js');
 const websiteMarkup = read('website/index.html');
+const websiteSuccess = read('website/success.html');
 const websiteLegal = read('website/legal.html');
 const websitePrivacy = read('website/privacy.html');
 const websiteTerms = read('website/terms.html');
@@ -86,12 +89,38 @@ if (!packageJson.build?.releaseInfo?.releaseName?.includes(packageJson.version) 
     !packageJson.build?.releaseInfo?.releaseNotes) {
   fail('Release metadata must include the current version name and user-visible notes.');
 }
+if (!indexMarkup.includes(`Version ${packageJson.version}`)) {
+  fail('Native application fallback version must match the package version.');
+}
+const currentDownload = `Drip-Type-${packageJson.version}-mac.dmg`;
+if (!websiteMarkup.includes(`"softwareVersion":"${packageJson.version}"`) ||
+    !websiteMarkup.includes(currentDownload) || !websiteSuccess.includes(currentDownload)) {
+  fail('Website release metadata and download links must match the application version.');
+}
 
 for (const marker of ['launchAtLogin', 'wasOpenedAtLogin', "handleTrusted('clipboard:read-text'"]) {
   if (!mainSource.includes(marker)) fail(`Background composer requirement is missing: ${marker}`);
 }
-for (const marker of ["hotkeyStart: 'Alt+5'", "store.get('hotkeyStart') === 'Alt+4'", "store.set('hotkeyStart', DEFAULTS.hotkeyStart)"]) {
+for (const marker of [
+  "hotkeyStart: 'Alt+5'", 'shortcutDefaultsMigratedToOption5',
+  "previous.accelerator === 'Alt+4'", 'validateShortcutPair',
+  'attemptShortcutRegistration', 'replaceShortcutPair', 'hasShortcutChange'
+]) {
   if (!mainSource.includes(marker)) fail(`Option+5 composer shortcut migration is missing: ${marker}`);
+}
+for (const marker of ['registerShortcutPair', 'rollbackResult', 'rollbackSuccess']) {
+  if (!shortcutSource.includes(marker)) fail(`Transactional shortcut registration is missing: ${marker}`);
+}
+for (const marker of ['globalShortcut.isRegistered', 'replaceShortcutPair', 'Option+5']) {
+  if (!shortcutSmokeSource.includes(marker)) fail(`Native shortcut smoke test is missing: ${marker}`);
+}
+for (const marker of [
+  'acceleratorFromKeyboardEvent', 'captureShortcut', 'reset-shortcuts',
+  'Save to apply it everywhere', 'await flushBehavior()'
+]) {
+  if (!indexMarkup.includes(marker) && !read('src/index.js').includes(marker)) {
+    fail(`Working customization control is missing: ${marker}`);
+  }
 }
 for (const marker of ['autoDownload = false', '6 * 60 * 60 * 1000', 'notifyUpdateAvailable']) {
   if (!mainSource.includes(marker)) fail(`In-app update requirement is missing: ${marker}`);

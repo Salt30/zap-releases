@@ -243,11 +243,13 @@
       background: #111319;
       color: var(--text);
       text-align: center;
-      user-select: text;
+      user-select: none;
+      cursor: pointer;
     }
     .shortcut-input:focus { border-color: rgba(244,200,74,.55); box-shadow: 0 0 0 3px rgba(244,200,74,.08); }
-    .save-row { display: flex; align-items: center; margin-top: 16px; }
-    .save-note { margin-left: 12px; color: var(--subtle); font-size: 12px; }
+    .save-row { display: flex; align-items: center; gap: 8px; margin-top: 16px; }
+    .save-note { margin-left: 4px; color: var(--subtle); font-size: 12px; }
+    .save-note.error { color: #f09a9f; }
     .template-editor { display:grid; gap:12px; padding:18px; }
     .template-input, .template-body { width:100%; padding:0 12px; border:1px solid var(--border); border-radius:8px; outline:0; background:#111319; color:var(--text); user-select:text; }
     .template-input { height:40px; }
@@ -355,7 +357,7 @@
     <aside class="sidebar">
       <div class="brand">
         <img class="brand-mark" src="zap-icon.svg" alt="">
-        <div><div class="brand-name">Drip Type <span style="color:var(--subtle);font-weight:500">by Zap</span></div><div class="brand-version" id="brand-version">Version 1.6.0</div></div>
+        <div><div class="brand-name">Drip Type <span style="color:var(--subtle);font-weight:500">by Zap</span></div><div class="brand-version" id="brand-version">Version 1.6.1</div></div>
       </div>
 
       <nav class="nav" aria-label="Main navigation">
@@ -393,7 +395,7 @@
           <span class="permission-dot"></span>
           <span><span class="permission-title" id="permission-title">Accessibility needed</span><span class="permission-copy" id="permission-copy">Click to enable typing access.</span></span>
         </button>
-        <div class="quick-hint">Press <kbd>⌥5</kbd> from any app to open Drip Composer.</div>
+        <div class="quick-hint">Press <kbd id="quick-shortcut">⌥5</kbd> from any app to open Drip Composer.</div>
       </div>
     </aside>
 
@@ -477,12 +479,12 @@
       <section class="page" id="page-shortcuts">
         <div class="eyebrow">Shortcuts</div>
         <h1>Stay in the flow.</h1>
-        <p class="lead">Use Electron accelerator syntax. On macOS, <strong>Alt</strong> maps to Option and <strong>Command</strong> maps to ⌘.</p>
+        <p class="lead">Click a shortcut, then press the combination you want. Drip Type checks that macOS can register it before replacing the working shortcut.</p>
         <div class="card">
-          <div class="shortcut-card"><div><div class="shortcut-name">Open Drip Composer</div><div class="shortcut-description">Show the translucent composer above the current app without opening settings.</div></div><input class="shortcut-input" id="start-key" value="Alt+5" spellcheck="false"></div>
-          <div class="shortcut-card"><div><div class="shortcut-name">Stop typing</div><div class="shortcut-description">Immediately cancels the current typing session.</div></div><input class="shortcut-input" id="stop-key" value="Alt+0" spellcheck="false"></div>
+          <div class="shortcut-card"><div><div class="shortcut-name">Open Drip Composer</div><div class="shortcut-description">Show the translucent composer above the current app without opening settings. Default: ⌥5.</div></div><input class="shortcut-input" id="start-key" value="⌥5" readonly aria-label="Open Drip Composer shortcut; press a key combination to change it"></div>
+          <div class="shortcut-card"><div><div class="shortcut-name">Stop typing</div><div class="shortcut-description">Immediately cancels the current typing session. Default: ⌥0.</div></div><input class="shortcut-input" id="stop-key" value="⌥0" readonly aria-label="Stop typing shortcut; press a key combination to change it"></div>
         </div>
-        <div class="save-row"><button class="button primary" id="save-shortcuts">Save shortcuts</button><span class="save-note" id="shortcut-note"></span></div>
+        <div class="save-row"><button class="button primary" id="save-shortcuts">Save shortcuts</button><button class="button secondary" id="reset-shortcuts">Use defaults</button><span class="save-note" id="shortcut-note" aria-live="polite"></span></div>
       </section>
 
       <section class="page" id="page-billing">
@@ -517,7 +519,7 @@
       <section class="page" id="page-setup">
         <div class="eyebrow">Setup</div>
         <h1>Ready for every app.</h1>
-        <p class="lead">Drip Type needs one macOS permission to send keystrokes. Your text and settings stay on this device.</p>
+        <p class="lead">Drip Type needs two macOS permissions to send keystrokes. Your text and settings stay on this device.</p>
         <div class="section-list">
           <div class="card setup-card">
             <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v2"/></svg></div>
@@ -530,6 +532,12 @@
             <div class="setup-copy"><div class="setup-title">Automation access</div><div class="setup-description" id="automation-copy">Required so Drip Type can use macOS System Events.</div></div>
             <span class="check-state" id="automation-state">Required</span>
             <button class="button secondary" id="request-automation">Allow automation</button>
+          </div>
+          <div class="card setup-card">
+            <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M18 10h.01M8 14h8"/></svg></div>
+            <div class="setup-copy"><div class="setup-title">Global shortcuts</div><div class="setup-description" id="setup-shortcut-copy">⌥5 opens Composer and ⌥0 stops typing.</div></div>
+            <span class="check-state" id="shortcut-state">Checking</span>
+            <button class="button secondary" id="open-shortcut-settings">Customize</button>
           </div>
           <div class="card setup-card">
             <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v14H4zM8 9h8M8 13h5"/></svg></div>

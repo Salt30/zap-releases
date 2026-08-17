@@ -25,6 +25,12 @@ const path = require('path');
 const { pathToFileURL } = require('url');
 const { accessState, shouldRevokeEntitlement, verifyEntitlement } = require('./subscription');
 const { renderBatch, searchClipboard, transformWriting } = require('./pro-tools');
+const {
+  normalizeAccelerator,
+  registerShortcutPair,
+  replaceShortcutPair,
+  validateShortcutPair
+} = require('./shortcut-utils');
 
 const APP_ID = 'com.salt30.driptype';
 const BILLING_ORIGIN = 'https://tryzap.net';
@@ -82,6 +88,7 @@ const DEFAULTS = {
   dripBurstChance: 0.08,
   hotkeyStart: 'Alt+5',
   hotkeyStop: 'Alt+0',
+  shortcutDefaultsMigratedToOption5: false,
   launchAtLogin: true,
   theme: 'system',
   templates: DEFAULT_TEMPLATES,
@@ -98,10 +105,12 @@ const DEFAULTS = {
 
 const store = new Store({ defaults: DEFAULTS });
 
-// Existing installs keep electron-store values across upgrades. Migrate only
-// the former default; preserve every other user-customized shortcut.
-if (store.get('hotkeyStart') === 'Alt+4') {
-  store.set('hotkeyStart', DEFAULTS.hotkeyStart);
+// Existing installs keep electron-store values across upgrades. Migrate the
+// former default once, then preserve every shortcut the user chooses — even ⌥4.
+if (!store.get('shortcutDefaultsMigratedToOption5', false)) {
+  const previous = normalizeAccelerator(store.get('hotkeyStart'));
+  if (previous.accelerator === 'Alt+4') store.set('hotkeyStart', DEFAULTS.hotkeyStart);
+  store.set('shortcutDefaultsMigratedToOption5', true);
 }
 
 protocol.registerSchemesAsPrivileged([{
@@ -544,11 +553,6 @@ function applySettings(settings = {}) {
     if (!Object.prototype.hasOwnProperty.call(settings, key)) continue;
     const value = Number(settings[key]);
     if (Number.isFinite(value)) store.set(key, Math.min(maximum, Math.max(minimum, value)));
-  }
-  for (const key of ['hotkeyStart', 'hotkeyStop']) {
-    if (!Object.prototype.hasOwnProperty.call(settings, key)) continue;
-    const value = typeof settings[key] === 'string' ? settings[key].trim() : '';
-    if (value && value.length <= 64) store.set(key, value);
   }
   if (Object.prototype.hasOwnProperty.call(settings, 'launchAtLogin') &&
       typeof settings.launchAtLogin === 'boolean') {
@@ -1156,24 +1160,44 @@ function showUpdatesPage() {
   navigateMainWindow({ page: 'setup', focus: 'updates' });
 }
 
-function registerShortcuts() {
-  globalShortcut.unregisterAll();
-  const failures = [];
-  const shortcuts = [
-    { key: store.get('hotkeyStart'), action: showQuickComposer, label: 'Drip Composer' },
-    { key: store.get('hotkeyStop'), action: cancelDripType, label: 'Stop typing' }
-  ];
+function attemptShortcutRegistration(pair) {
+  return registerShortcutPair(globalShortcut, pair, {
+    openComposer: showQuickComposer,
+    stopTyping: cancelDripType
+  });
+}
 
-  for (const shortcut of shortcuts) {
-    if (!shortcut.key) continue;
-    try {
-      if (!globalShortcut.register(shortcut.key, shortcut.action)) failures.push(shortcut.label);
-    } catch (_) {
-      failures.push(shortcut.label);
-    }
-  }
+function storedShortcutPair() {
+  return {
+    hotkeyStart: store.get('hotkeyStart', DEFAULTS.hotkeyStart),
+    hotkeyStop: store.get('hotkeyStop', DEFAULTS.hotkeyStop)
+  };
+}
 
-  return failures;
+function registerStoredShortcuts() {
+  const current = storedShortcutPair();
+  const validated = validateShortcutPair(current.hotkeyStart, current.hotkeyStop);
+  if (validated.error) return { success: false, failures: [validated.error] };
+  return attemptShortcutRegistration(validated);
+}
+
+function updateShortcuts(settings = {}) {
+  const previous = storedShortcutPair();
+  const requested = {
+    hotkeyStart: Object.prototype.hasOwnProperty.call(settings, 'hotkeyStart')
+      ? settings.hotkeyStart : previous.hotkeyStart,
+    hotkeyStop: Object.prototype.hasOwnProperty.call(settings, 'hotkeyStop')
+      ? settings.hotkeyStop : previous.hotkeyStop
+  };
+  const replacement = replaceShortcutPair(globalShortcut, previous, requested, {
+    openComposer: showQuickComposer,
+    stopTyping: cancelDripType
+  });
+  if (!replacement.success) return replacement;
+
+  store.set('hotkeyStart', replacement.settings.hotkeyStart);
+  store.set('hotkeyStop', replacement.settings.hotkeyStop);
+  return replacement;
 }
 
 function createTray() {
@@ -1298,7 +1322,7 @@ handleTrusted('onboarding:complete', ['onboarding.html'], async (_event, setting
   applySettings(settings);
   store.set('onboardingDone', true);
   configureLoginItem();
-  registerShortcuts();
+  registerStoredShortcuts();
   onboardingWindow?.close();
   showMainWindow();
   return { success: true };
@@ -1306,11 +1330,17 @@ handleTrusted('onboarding:complete', ['onboarding.html'], async (_event, setting
 
 handleTrusted('settings:get', ['index.html', 'onboarding.html'], () => ({ ...store.store, defaults: DEFAULTS }));
 handleTrusted('settings:save', ['index.html'], (_event, settings) => {
+  const hasShortcutChange = ['hotkeyStart', 'hotkeyStop']
+    .some((key) => Object.prototype.hasOwnProperty.call(settings || {}, key));
+  const shortcutResult = hasShortcutChange ? updateShortcuts(settings) : null;
   applySettings(settings);
   if (Object.prototype.hasOwnProperty.call(settings || {}, 'launchAtLogin')) configureLoginItem();
-  const shortcutFailures = registerShortcuts();
   if (tray) createTrayMenuOnly();
-  return { settings: store.store, shortcutFailures };
+  return {
+    settings: store.store,
+    shortcutSuccess: shortcutResult ? shortcutResult.success : true,
+    shortcutFailures: shortcutResult?.failures || []
+  };
 });
 
 function createTrayMenuOnly() {
@@ -1436,7 +1466,7 @@ app.whenReady().then(async () => {
   createApplicationMenu();
   createQuickWindow();
   createTray();
-  registerShortcuts();
+  registerStoredShortcuts();
   configureLoginItem();
   configureUpdater();
   currentBillingState();
