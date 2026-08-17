@@ -129,6 +129,9 @@ for (const [name, source] of [
 for (const marker of ['Pro is live in version 1.6', 'data-checkout-plan="pro"', '>$25<', '/brand/zap/zap-icon.svg']) {
   if (!websiteMarkup.includes(marker)) fail(`Website Pro launch requirement is missing: ${marker}`);
 }
+if (!websiteMarkup.includes('name="google-site-verification"')) {
+  fail('Google Search Console ownership verification must remain in the production homepage.');
+}
 for (const marker of ['/legal', 'renew monthly until canceled', 'By completing checkout', '/privacy', '/terms', '/refunds']) {
   if (!websiteMarkup.includes(marker)) fail(`Website legal disclosure is missing: ${marker}`);
 }
