@@ -32,6 +32,10 @@ const blobPublisher = read('scripts/publish-update-blobs.js');
 const websiteBillingSource = read('website/api/_billing.js');
 const websiteBilling = require('../website/api/_billing');
 const websiteMarkup = read('website/index.html');
+const websiteLegal = read('website/legal.html');
+const websitePrivacy = read('website/privacy.html');
+const websiteTerms = read('website/terms.html');
+const websiteRefunds = read('website/refunds.html');
 
 if (!packageJson.private || packageJson.license !== 'UNLICENSED') {
   fail('The package must remain private and proprietary.');
@@ -110,6 +114,19 @@ for (const marker of ['"template_library"', '"batch"', '"writing_lab"', 'STRIPE_
 }
 for (const marker of ['Pro is live in version 1.6', 'data-checkout-plan="pro"', '>$25<', '/brand/zap/zap-icon.svg']) {
   if (!websiteMarkup.includes(marker)) fail(`Website Pro launch requirement is missing: ${marker}`);
+}
+for (const marker of ['/legal', 'renew monthly until canceled', 'By completing checkout', '/privacy', '/terms', '/refunds']) {
+  if (!websiteMarkup.includes(marker)) fail(`Website legal disclosure is missing: ${marker}`);
+}
+for (const [name, source, markers] of [
+  ['legal center', websiteLegal, ['VegaNext LLC', 'support@tryzap.net', 'Subscription summary', '/privacy', '/terms', '/refunds']],
+  ['privacy policy', websitePrivacy, ['Effective August 16, 2026', 'Information we collect and why', 'We do not sell personal information', 'Your privacy rights', '400 Continental Blvd']],
+  ['terms', websiteTerms, ['Effective August 16, 2026', 'Paid subscriptions and renewal', 'up to three Macs', 'Governing law and disputes', 'These Terms do not require arbitration']],
+  ['refund policy', websiteRefunds, ['Effective August 16, 2026', 'Cancel online at any time', '14 calendar days', 'Renewal charges and partial periods', 'support@tryzap.net']]
+]) {
+  for (const marker of markers) {
+    if (!source.includes(marker)) fail(`Website ${name} requirement is missing: ${marker}`);
+  }
 }
 for (const marker of [
   "handleTrusted('pro:batch-render'", "handleTrusted('pro:transform'",
