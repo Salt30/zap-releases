@@ -11,11 +11,12 @@ module.exports = async function claimEntitlement(request, response) {
   } catch {
     return response.status(400).json({ error: "Invalid JSON" });
   }
-  const sessionId = String(body.sessionId || "");
-  const deviceId = String(body.deviceId || "");
-  if (!billing.validCheckoutSessionId(sessionId) || !billing.validDeviceId(deviceId)) {
+  if (!billing.hasExactKeys(body, ["sessionId", "deviceId"]) ||
+      typeof body.sessionId !== "string" || typeof body.deviceId !== "string" ||
+      !billing.validCheckoutSessionId(body.sessionId) || !billing.validDeviceId(body.deviceId)) {
     return response.status(400).json({ error: "Invalid activation request" });
   }
+  const { sessionId, deviceId } = body;
   try {
     const verified = await billing.verifiedCheckout(sessionId);
     const saved = await billing.saveRefreshCredential(verified.subscription, deviceId);

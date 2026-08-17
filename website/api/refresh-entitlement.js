@@ -8,11 +8,12 @@ module.exports = async function refreshEntitlement(request, response) {
   } catch {
     return response.status(400).json({ error: "Invalid JSON" });
   }
-  const refreshToken = String(body.refreshToken || "");
-  const deviceId = String(body.deviceId || "");
-  if (!billing.validRefreshToken(refreshToken) || !billing.validDeviceId(deviceId)) {
+  if (!billing.hasExactKeys(body, ["refreshToken", "deviceId"]) ||
+      typeof body.refreshToken !== "string" || typeof body.deviceId !== "string" ||
+      !billing.validRefreshToken(body.refreshToken) || !billing.validDeviceId(body.deviceId)) {
     return response.status(400).json({ error: "Invalid refresh request" });
   }
+  const { refreshToken, deviceId } = body;
   try {
     const verified = await billing.subscriptionForRefresh(refreshToken, deviceId);
     const entitlement = billing.signedEntitlement(verified.subscription, verified.plan, deviceId);

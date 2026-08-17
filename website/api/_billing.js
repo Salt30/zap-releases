@@ -13,6 +13,7 @@ const ENTITLEMENT_TTL_SECONDS = 72 * 60 * 60;
 const STRIPE_API_VERSION = "2026-06-24.dahlia";
 const RATE_WINDOW_MS = 60_000;
 const RATE_LIMIT = 30;
+const MAX_JSON_BODY_BYTES = 4096;
 const rateLimits = new Map();
 
 const PLAN_CONFIG = Object.freeze({
@@ -74,14 +75,45 @@ function validRefreshToken(value) {
   return /^sub_[A-Za-z0-9]+\.[A-Za-z0-9_-]{40,}$/.test(String(value || ""));
 }
 
-function parseBody(request) {
-  if (request.body && typeof request.body === "object" && !Array.isArray(request.body)) {
-    return request.body;
+function isPlainObject(value) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return false;
+  const prototype = Object.getPrototypeOf(value);
+  return prototype === Object.prototype || prototype === null;
+}
+
+function hasExactKeys(value, expectedKeys) {
+  if (!isPlainObject(value) || !Array.isArray(expectedKeys)) return false;
+  const actualKeys = Object.keys(value);
+  return actualKeys.length === expectedKeys.length &&
+    expectedKeys.every((key) => Object.prototype.hasOwnProperty.call(value, key));
+}
+
+function isJsonRequest(request) {
+  const contentType = String(request.headers?.["content-type"] || "")
+    .split(";", 1)[0]
+    .trim()
+    .toLowerCase();
+  return contentType === "application/json";
+}
+
+function parseBody(request, maximumBytes = MAX_JSON_BODY_BYTES) {
+  const limit = Number.isSafeInteger(maximumBytes) && maximumBytes > 0
+    ? maximumBytes
+    : MAX_JSON_BODY_BYTES;
+  let body = request.body;
+  if (typeof body === "string") {
+    if (Buffer.byteLength(body, "utf8") > limit) throw new Error("Request body is too large");
+    body = JSON.parse(body);
   }
-  if (typeof request.body === "string" && request.body.length <= 4096) {
-    return JSON.parse(request.body);
+  if (!isPlainObject(body)) throw new Error("Request body must be a JSON object");
+  let encoded;
+  try {
+    encoded = JSON.stringify(body);
+  } catch {
+    throw new Error("Request body must be serializable JSON");
   }
-  return {};
+  if (Buffer.byteLength(encoded, "utf8") > limit) throw new Error("Request body is too large");
+  return body;
 }
 
 function secureResponse(response) {
@@ -124,7 +156,17 @@ function requirePost(request, response) {
     response.status(405).json({ error: "Method not allowed" });
     return false;
   }
-  if (Number(request.headers["content-length"] || 0) > 4096) {
+  if (!isJsonRequest(request)) {
+    response.status(415).json({ error: "Content-Type must be application/json" });
+    return false;
+  }
+  const rawLength = request.headers?.["content-length"];
+  const declaredLength = rawLength === undefined ? 0 : Number(rawLength);
+  if (!Number.isSafeInteger(declaredLength) || declaredLength < 0) {
+    response.status(400).json({ error: "Invalid Content-Length" });
+    return false;
+  }
+  if (declaredLength > MAX_JSON_BODY_BYTES) {
     response.status(413).json({ error: "Request too large" });
     return false;
   }
@@ -327,6 +369,8 @@ function publicError(error) {
 Object.assign(apiNotFound, {
   checkoutSession,
   configuredSiteOrigin,
+  hasExactKeys,
+  isJsonRequest,
   parseBody,
   publicError,
   limitRequest,

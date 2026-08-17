@@ -9,8 +9,8 @@
   "scripts": {
     "start": "electron .",
     "build:app": "node scripts/build-app.js",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/index.js && node --check src/quick.js && node --check src/text-tools.js && node --check src/pro-tools.js && node --check src/subscription.js && node --check src/onboarding.js && node --check scripts/build-app.js && node --check scripts/after-pack.js && node --check scripts/publish-update-blobs.js && node --check scripts/verify-source.js && node --check scripts/verify-package.js",
-    "test:source": "node scripts/verify-source.js",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/index.js && node --check src/quick.js && node --check src/text-tools.js && node --check src/pro-tools.js && node --check src/subscription.js && node --check src/onboarding.js && node --check scripts/build-app.js && node --check scripts/after-pack.js && node --check scripts/publish-update-blobs.js && node --check scripts/verify-api.js && node --check scripts/verify-source.js && node --check scripts/verify-package.js",
+    "test:source": "node scripts/verify-source.js && node scripts/verify-api.js",
     "verify": "npm run check && npm run test:source && npm run build:app",
     "verify:package": "node scripts/verify-package.js",
     "pack:mac": "npm run build:app && electron-builder --mac --dir --universal -c.mac.forceCodeSigning=false",

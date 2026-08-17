@@ -1,5 +1,7 @@
 const { createHash, createPublicKey, verify } = require('node:crypto');
 
+// This verification key is intentionally public and shipped with the app. The matching
+// signing key is server-only in Vercel's encrypted environment and never enters a build.
 const ENTITLEMENT_PUBLIC_KEY = 'MCowBQYDK2VwAyEAmvSBJU6YWUoxNHTzpdDgutQdvceW9PBHNupa/JaManE=';
 const ENTITLEMENT_ISSUER = 'https://tryzap.net';
 const ENTITLEMENT_AUDIENCE = 'com.salt30.driptype';

@@ -31,6 +31,11 @@ const releaseWorkflow = read('.github/workflows/release.yml');
 const blobPublisher = read('scripts/publish-update-blobs.js');
 const websiteBillingSource = read('website/api/_billing.js');
 const websiteBilling = require('../website/api/_billing');
+const checkoutSource = read('website/api/create-checkout.js');
+const claimSource = read('website/api/claim-entitlement.js');
+const refreshSource = read('website/api/refresh-entitlement.js');
+const portalSource = read('website/api/create-portal.js');
+const checkoutStatusSource = read('website/api/checkout-status.js');
 const websiteMarkup = read('website/index.html');
 const websiteLegal = read('website/legal.html');
 const websitePrivacy = read('website/privacy.html');
@@ -111,6 +116,15 @@ for (const marker of [
 }
 for (const marker of ['"template_library"', '"batch"', '"writing_lab"', 'STRIPE_PRO_PRICE_ID']) {
   if (!websiteBillingSource.includes(marker)) fail(`Website Pro entitlement requirement is missing: ${marker}`);
+}
+for (const [name, source] of [
+  ['checkout', checkoutSource],
+  ['claim', claimSource],
+  ['refresh', refreshSource],
+  ['portal', portalSource],
+  ['checkout status', checkoutStatusSource]
+]) {
+  if (!source.includes('hasExactKeys')) fail(`Website ${name} API must reject unexpected fields.`);
 }
 for (const marker of ['Pro is live in version 1.6', 'data-checkout-plan="pro"', '>$25<', '/brand/zap/zap-icon.svg']) {
   if (!websiteMarkup.includes(marker)) fail(`Website Pro launch requirement is missing: ${marker}`);
@@ -325,6 +339,18 @@ assert.equal(subscription.shouldRevokeEntitlement(402), true);
 assert.equal(subscription.shouldRevokeEntitlement(403), true);
 assert.equal(subscription.shouldRevokeEntitlement(409), false);
 assert.equal(subscription.shouldRevokeEntitlement(503), false);
+
+assert.deepEqual(
+  websiteBilling.parseBody({ body: '{"plan":"pro"}' }, 64),
+  { plan: 'pro' },
+);
+assert.equal(websiteBilling.hasExactKeys({ plan: 'pro' }, ['plan']), true);
+assert.equal(websiteBilling.hasExactKeys({ plan: 'pro', admin: true }, ['plan']), false);
+assert.equal(websiteBilling.hasExactKeys({ sessionId: 'one' }, ['sessionId', 'deviceId']), false);
+assert.equal(websiteBilling.isJsonRequest({ headers: { 'content-type': 'application/json; charset=utf-8' } }), true);
+assert.equal(websiteBilling.isJsonRequest({ headers: { 'content-type': 'text/plain' } }), false);
+assert.throws(() => websiteBilling.parseBody({ body: '[]' }), /JSON object/);
+assert.throws(() => websiteBilling.parseBody({ body: { plan: 'pro', data: 'x'.repeat(80) } }, 64), /too large/);
 
 const { privateKey: testPrivateKey, publicKey: testPublicKey } = crypto.generateKeyPairSync('ed25519');
 const nowSeconds = Math.floor(Date.now() / 1000);

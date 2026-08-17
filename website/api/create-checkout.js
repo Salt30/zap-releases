@@ -1,4 +1,5 @@
 const { randomBytes, randomUUID } = require("node:crypto");
+const billing = require("./_billing");
 
 const PLANS = Object.freeze({
   core: { priceVariable: "STRIPE_CORE_PRICE_ID" },
@@ -55,7 +56,15 @@ module.exports = async function createCheckout(request, response) {
     response.setHeader("Allow", "POST");
     return response.status(405).json({ error: "Method not allowed" });
   }
-  if (Number(request.headers["content-length"] || 0) > 1024) {
+  if (!billing.isJsonRequest(request)) {
+    return response.status(415).json({ error: "Content-Type must be application/json." });
+  }
+  const rawLength = request.headers?.["content-length"];
+  const declaredLength = rawLength === undefined ? 0 : Number(rawLength);
+  if (!Number.isSafeInteger(declaredLength) || declaredLength < 0) {
+    return response.status(400).json({ error: "Invalid Content-Length." });
+  }
+  if (declaredLength > 1024) {
     return response.status(413).json({ error: "Request too large." });
   }
   if (isRateLimited(request)) {
@@ -65,11 +74,14 @@ module.exports = async function createCheckout(request, response) {
 
   let body;
   try {
-    body = typeof request.body === "string" ? JSON.parse(request.body) : request.body || {};
+    body = billing.parseBody(request, 1024);
   } catch {
     return response.status(400).json({ error: "Invalid JSON." });
   }
-  const planId = String(body.plan || "").toLowerCase();
+  if (!billing.hasExactKeys(body, ["plan"]) || typeof body.plan !== "string") {
+    return response.status(400).json({ error: "Invalid checkout request." });
+  }
+  const planId = body.plan.toLowerCase();
   const plan = PLANS[planId];
   if (!plan) return response.status(400).json({ error: "Invalid plan." });
   const priceId = process.env[plan.priceVariable] || "";
