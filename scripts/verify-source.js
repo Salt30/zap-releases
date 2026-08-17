@@ -129,6 +129,16 @@ for (const [name, source] of [
 for (const marker of ['Pro is live in version 1.6', 'data-checkout-plan="pro"', '>$25<', '/brand/zap/zap-icon.svg']) {
   if (!websiteMarkup.includes(marker)) fail(`Website Pro launch requirement is missing: ${marker}`);
 }
+for (const marker of [
+  'Typing speed', 'Start delay', 'Corrected typos', 'Thinking pauses', 'Speed bursts',
+  'data-rhythm-preset="steady"', 'data-rhythm-preset="natural"',
+  'data-rhythm-preset="expressive"', 'What ships today', 'Signed + notarized'
+]) {
+  if (!websiteMarkup.includes(marker)) fail(`Website verified-product showcase is missing: ${marker}`);
+}
+if (websiteMarkup.includes('Pause instantly')) {
+  fail('Website must not claim a pause/resume control that the application does not provide.');
+}
 if (!websiteMarkup.includes('name="google-site-verification"')) {
   fail('Google Search Console ownership verification must remain in the production homepage.');
 }
