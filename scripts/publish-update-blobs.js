@@ -134,15 +134,47 @@ function sha256(filePath) {
   });
 }
 
+function supersededReleaseUrls(blobs, currentVersion = packageVersion) {
+  const currentPrefix = `releases/v${currentVersion}/`;
+  return blobs
+    .filter(({ pathname, url }) =>
+      typeof pathname === 'string' &&
+      typeof url === 'string' &&
+      /^releases\/v\d+\.\d+\.\d+\//.test(pathname) &&
+      !pathname.startsWith(currentPrefix))
+    .map(({ url }) => url);
+}
+
+async function pruneSupersededReleases(blobApi, blobAuthentication) {
+  const blobs = [];
+  let cursor;
+  do {
+    const page = await blobApi.list({
+      prefix: 'releases/',
+      limit: 1000,
+      ...(cursor ? { cursor } : {}),
+      ...blobAuthentication,
+    });
+    blobs.push(...page.blobs);
+    cursor = page.cursor;
+  } while (cursor);
+
+  const urls = supersededReleaseUrls(blobs);
+  if (urls.length === 0) return;
+  await blobApi.del(urls, blobAuthentication);
+  process.stdout.write(`Pruned ${urls.length} superseded release blobs after publishing v${packageVersion}.\n`);
+}
+
 async function main() {
   const dryRun = process.env.PUBLISH_UPDATE_DRY_RUN === '1';
   const blobAuthentication = dryRun
     ? { token: 'vercel_blob_rw_dry_run_token' }
     : await resolveBlobAuthentication();
 
+  const blobApi = dryRun ? null : await import('@vercel/blob');
   const put = dryRun
     ? async (blobPath) => ({ url: `https://dry-run.invalid/${blobPath}` })
-    : (await import('@vercel/blob')).put;
+    : blobApi.put;
   const files = listReleaseFiles();
   const redirects = [];
 
@@ -167,6 +199,8 @@ async function main() {
     process.stdout.write(`Published ${name} -> ${blob.url}\n`);
   }
 
+  if (!dryRun) await pruneSupersededReleases(blobApi, blobAuthentication);
+
   const baseConfig = JSON.parse(fs.readFileSync(baseConfigPath, 'utf8'));
   fs.mkdirSync(updateSiteDir, { recursive: true });
   fs.writeFileSync(
@@ -183,8 +217,10 @@ if (require.main === module) {
 }
 
 module.exports = {
+  pruneSupersededReleases,
   requestProjectOidcToken,
   resolveBlobAuthentication,
   resolveBlobStoreId,
   resolveBlobToken,
+  supersededReleaseUrls,
 };

@@ -23,5 +23,27 @@
         { "key": "X-Content-Type-Options", "value": "nosniff" }
       ]
     }
+  ],
+  "redirects": [
+    {
+      "source": "/Drip-Type-1.6.2-mac.dmg",
+      "destination": "https://github.com/Salt30/drip-type-releases/releases/download/v1.6.2/Drip-Type-1.6.2-mac.dmg",
+      "permanent": false
+    },
+    {
+      "source": "/Drip-Type-1.6.2-mac.dmg.blockmap",
+      "destination": "https://github.com/Salt30/drip-type-releases/releases/download/v1.6.2/Drip-Type-1.6.2-mac.dmg.blockmap",
+      "permanent": false
+    },
+    {
+      "source": "/Drip-Type-1.6.2-mac.zip",
+      "destination": "https://github.com/Salt30/drip-type-releases/releases/download/v1.6.2/Drip-Type-1.6.2-mac.zip",
+      "permanent": false
+    },
+    {
+      "source": "/Drip-Type-1.6.2-mac.zip.blockmap",
+      "destination": "https://github.com/Salt30/drip-type-releases/releases/download/v1.6.2/Drip-Type-1.6.2-mac.zip.blockmap",
+      "permanent": false
+    }
   ]
 }

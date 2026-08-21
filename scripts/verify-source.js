@@ -9,6 +9,7 @@ const proTools = require('../src/pro-tools');
 const subscription = require('../src/subscription');
 const {
   requestProjectOidcToken,
+  supersededReleaseUrls,
   resolveBlobAuthentication,
   resolveBlobStoreId,
   resolveBlobToken,
@@ -32,6 +33,7 @@ const subscriptionSource = read('src/subscription.js');
 const entitlements = read('build/entitlements.mac.plist');
 const releaseWorkflow = read('.github/workflows/release.yml');
 const blobPublisher = read('scripts/publish-update-blobs.js');
+const updateHostConfig = JSON.parse(read('updates-host/vercel.json'));
 const websiteBillingSource = read('website/api/_billing.js');
 const websiteBilling = require('../website/api/_billing');
 const checkoutSource = read('website/api/create-checkout.js');
@@ -97,6 +99,14 @@ const currentDownload = `Drip-Type-${packageJson.version}-mac.dmg`;
 if (!websiteMarkup.includes(`"softwareVersion":"${packageJson.version}"`) ||
     !websiteMarkup.includes(currentDownload) || !websiteSuccess.includes(currentDownload)) {
   fail('Website release metadata and download links must match the application version.');
+}
+const releaseMirrorPrefix = `https://github.com/Salt30/drip-type-releases/releases/download/v${packageJson.version}/`;
+for (const extension of ['dmg', 'dmg.blockmap', 'zip', 'zip.blockmap']) {
+  const name = `Drip-Type-${packageJson.version}-mac.${extension}`;
+  const redirect = updateHostConfig.redirects?.find(({ source }) => source === `/${name}`);
+  if (redirect?.destination !== `${releaseMirrorPrefix}${name}` || redirect?.permanent !== false) {
+    fail(`The public updater fallback is missing or incorrect for ${name}.`);
+  }
 }
 
 for (const marker of ['launchAtLogin', 'wasOpenedAtLogin', "handleTrusted('clipboard:read-text'"]) {
@@ -233,7 +243,8 @@ for (const marker of [
   '`releases/v${packageVersion}/${digest}/${name}`',
   'requestProjectOidcToken',
   'resolveBlobAuthentication',
-  'resolveBlobStoreId'
+  'resolveBlobStoreId',
+  'pruneSupersededReleases'
 ]) {
   if (!blobPublisher.includes(marker)) fail(`Blob publisher requirement is missing: ${marker}`);
 }
@@ -252,6 +263,16 @@ assert.throws(
     SECOND_BLOB_READ_WRITE_TOKEN: 'vercel_blob_rw_store_two',
   }),
   /multiple read-write token variables are configured/,
+);
+
+assert.deepEqual(
+  supersededReleaseUrls([
+    { pathname: `releases/v${packageJson.version}/current.dmg`, url: 'https://blob.invalid/current' },
+    { pathname: 'releases/v1.5.0/old.dmg', url: 'https://blob.invalid/old-dmg' },
+    { pathname: 'releases/v1.5.0/old.zip', url: 'https://blob.invalid/old-zip' },
+    { pathname: 'unrelated/file.bin', url: 'https://blob.invalid/unrelated' }
+  ]),
+  ['https://blob.invalid/old-dmg', 'https://blob.invalid/old-zip']
 );
 assert.throws(() => resolveBlobToken({}), /no Blob read-write token is configured/);
 assert.equal(resolveBlobStoreId({ BLOB_STORE_ID: ' store_main ' }), 'store_main');
@@ -482,7 +503,7 @@ for (const [htmlPath, jsPath] of pages) {
 
 const forbiddenExtensions = new Set(['.p12', '.pfx', '.cer', '.pem', '.key', '.mobileprovision']);
 const forbiddenNames = new Set(['.env', '.env.local', '.npmrc', 'project.json']);
-const excludedDirectories = new Set(['node_modules', 'dist', 'build-app', '.git']);
+const excludedDirectories = new Set(['node_modules', 'dist', 'build-app', '.git', '.vercel']);
 const secretPatterns = [
   ['Stripe live key', new RegExp(['[rs]k', 'live', '[A-Za-z0-9_]{16,}'].join('[_]'))],
   ['Stripe webhook secret', new RegExp(['whsec', '[A-Za-z0-9]{16,}'].join('[_]'))],
@@ -492,13 +513,13 @@ const secretPatterns = [
   ['Apple app-specific password', /\b[a-z]{4}(?:-[a-z]{4}){3}\b/]
 ];
 const textExtensions = new Set(['', '.cjs', '.css', '.html', '.js', '.json', '.md', '.mjs', '.plist', '.sh', '.txt', '.yml', '.yaml']);
-function scan(directory) {
+function scan(directory, baseDirectory = directory) {
   for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
     if (excludedDirectories.has(entry.name)) continue;
     const absolutePath = path.join(directory, entry.name);
-    if (entry.isDirectory()) scan(absolutePath);
+    if (entry.isDirectory()) scan(absolutePath, baseDirectory);
     else {
-      const relativePath = path.relative(root, absolutePath);
+      const relativePath = path.relative(baseDirectory, absolutePath);
       const extension = path.extname(entry.name).toLowerCase();
       if (forbiddenExtensions.has(extension) || forbiddenNames.has(entry.name)) {
         fail(`Credential material must not be stored in the repository: ${relativePath}`);
@@ -510,6 +531,21 @@ function scan(directory) {
       }
     }
   }
+}
+
+const credentialScanTestRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dt-credential-scan-test-'));
+try {
+  fs.mkdirSync(path.join(credentialScanTestRoot, '.vercel'));
+  fs.writeFileSync(path.join(credentialScanTestRoot, '.vercel', 'project.json'), '{"projectId":"prj_test"}\n');
+  assert.doesNotThrow(() => scan(credentialScanTestRoot));
+
+  fs.writeFileSync(path.join(credentialScanTestRoot, 'project.json'), '{"projectId":"prj_test"}\n');
+  assert.throws(
+    () => scan(credentialScanTestRoot),
+    /Credential material must not be stored in the repository: project\.json/
+  );
+} finally {
+  fs.rmSync(credentialScanTestRoot, { recursive: true, force: true });
 }
 scan(root);
 
