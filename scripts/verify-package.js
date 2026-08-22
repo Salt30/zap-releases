@@ -37,7 +37,9 @@ async function main() {
     }
   }
 
-  const files = asar.listPackage(asarPath);
+  // @electron/asar returns host-native separators, so normalize the package
+  // manifest before comparing it on Windows and POSIX runners.
+  const files = asar.listPackage(asarPath).map((file) => file.replaceAll('\\', '/'));
   const required = [
     '/build-app/main.js', '/build-app/preload.js', '/build-app/index.html',
     '/build-app/index.js', '/build-app/quick.html', '/build-app/quick.js',
