@@ -291,7 +291,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mapfile -t FILES < <(find release-artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.exe' -o -name '*.yml' -o -name '*.blockmap' -o -name 'SHA256SUMS-*.txt' -o -name 'sbom-*.spdx.json' \) | sort)
+          mapfile -t FILES < <(find release-artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.exe' -o -name 'latest*.yml' -o -name '*.blockmap' -o -name 'SHA256SUMS-*.txt' -o -name 'sbom-*.spdx.json' \) | sort)
           if gh release view "${RELEASE_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
             gh release upload "${RELEASE_TAG}" "${FILES[@]}" --repo "${GITHUB_REPOSITORY}" --clobber
           else
