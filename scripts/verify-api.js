@@ -6,6 +6,7 @@ const refreshEntitlement = require('../website/api/refresh-entitlement');
 const createPortal = require('../website/api/create-portal');
 const checkoutStatus = require('../website/api/checkout-status');
 const checkoutConfig = require('../website/api/checkout-config');
+const supportTicket = require('../website/api/support-ticket');
 
 function mockResponse() {
   return {
@@ -41,6 +42,13 @@ function postRequest(body, overrides = {}) {
     socket: {},
     ...overrides,
   };
+}
+
+function supportRequest(body, origin = 'https://tryzap.net') {
+  const request = postRequest(body);
+  request.headers.origin = origin;
+  request.headers['sec-fetch-site'] = 'same-origin';
+  return request;
 }
 
 async function expectStatus(handler, request, expectedStatus, expectedMessage) {
@@ -118,7 +126,69 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     /too large/,
   );
 
-  console.log('Billing API schema and request-boundary verification passed.');
+  const originalSiteUrl = process.env.PUBLIC_SITE_URL;
+  const originalResendKey = process.env.RESEND_API_KEY;
+  const originalFetch = global.fetch;
+  process.env.PUBLIC_SITE_URL = 'https://tryzap.net';
+  process.env.RESEND_API_KEY = `re_${'a'.repeat(32)}`;
+  const supportBody = {
+    name: 'Taylor Example',
+    email: 'taylor@example.com',
+    category: 'bug',
+    platform: 'windows',
+    appVersion: '1.7.0',
+    subject: 'Shortcut does not open Composer',
+    description: 'After changing the shortcut, Composer does not open until the app restarts.',
+    privacyAccepted: true,
+    companyWebsite: '',
+    startedAt: Date.now() - 5_000,
+    submissionId: '12345678-1234-4abc-8abc-1234567890ab',
+  };
+  try {
+    await expectStatus(
+      supportTicket,
+      supportRequest({ ...supportBody, unexpected: true }),
+      400,
+      /Invalid ticket request/,
+    );
+    await expectStatus(
+      supportTicket,
+      supportRequest(supportBody, 'https://attacker.example'),
+      403,
+      /origin was rejected/,
+    );
+
+    const deliveries = [];
+    global.fetch = async (url, options) => {
+      deliveries.push({ url: String(url), options });
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({ id: '49a3999c-0ce1-4ea6-ab68-afcd6dc2e794' }),
+      };
+    };
+    const response = mockResponse();
+    await supportTicket(supportRequest(supportBody), response);
+    assert.equal(response.statusCode, 200);
+    assert.deepEqual(response.body, { ok: true, ticketId: '12345678' });
+    assert.equal(deliveries.length, 1);
+    assert.equal(deliveries[0].url, 'https://api.resend.com/emails');
+    assert.equal(deliveries[0].options.method, 'POST');
+    assert.equal(deliveries[0].options.headers['Idempotency-Key'], `support-ticket/${supportBody.submissionId}`);
+    const delivered = JSON.parse(deliveries[0].options.body);
+    assert.deepEqual(delivered.to, ['support@tryzap.net']);
+    assert.equal(delivered.reply_to, supportBody.email);
+    assert.match(delivered.from, /tickets@tryzap\.net/);
+    assert.match(delivered.text, /Reply to this message to respond directly/);
+  } finally {
+    global.fetch = originalFetch;
+    if (originalSiteUrl === undefined) delete process.env.PUBLIC_SITE_URL;
+    else process.env.PUBLIC_SITE_URL = originalSiteUrl;
+    if (originalResendKey === undefined) delete process.env.RESEND_API_KEY;
+    else process.env.RESEND_API_KEY = originalResendKey;
+  }
+
+  console.log('Billing and support API schema, origin, and delivery-boundary verification passed.');
 })().catch((error) => {
   console.error(error);
   process.exitCode = 1;

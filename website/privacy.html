@@ -17,7 +17,7 @@
       <span class="eyebrow">Local-first by design</span>
       <h1>Privacy Policy</h1>
       <p>This policy explains what Drip Type processes on your device, what limited information reaches our services, why we use it, and the choices available to you.</p>
-      <div class="meta"><span>Effective August 22, 2026</span><span>Version 2.1</span></div>
+      <div class="meta"><span>Effective August 22, 2026</span><span>Version 2.2</span></div>
     </header>
 
     <section class="copy">
@@ -28,21 +28,21 @@
       <p>This policy applies to the Drip Type macOS and Windows applications, tryzap.net pages for Drip Type, subscription activation, software updates, and related support. It does not govern third-party websites, applications into which you choose to type, or Stripe-hosted pages governed by their own notices.</p>
 
       <h2>3. The local-first boundary</h2>
-      <p>Drip Type 1.7 does not send your composer drafts, templates, template values, batch rows, writing profiles, explicitly captured clipboard items, or Writing Lab text to Zap, Stripe, Vercel, OpenAI, or another remote writing service. Composer drafts remain in application memory. Templates, settings, profiles, and captured clipboard items are stored locally on your device. Clipboard text enters the private workspace only when you select <strong>Capture clipboard</strong>; Drip Type does not continuously monitor clipboard history.</p>
+      <p>Drip Type 1.7 does not send your composer drafts, templates, template values, batch rows, writing profiles, explicitly captured clipboard items, or Writing Lab text to Zap, Stripe, Vercel, OpenAI, or another remote writing service. Composer drafts remain in application memory. Templates, settings, profiles, and captured clipboard items are stored locally on your device. Clipboard text enters the private workspace only when you select <strong>Capture clipboard</strong>; Drip Type does not continuously monitor clipboard history. Information you deliberately enter in the website support form is support content and is sent to Zap as described below; it is not collected from the Drip Type writing workspace.</p>
       <p>Writing Lab transforms are deterministic and run on-device. Drip Type 1.7 does not use a third-party AI writing API.</p>
 
       <h2>4. Information we collect and why</h2>
       <div class="table-wrap"><table>
         <thead><tr><th>Category</th><th>Examples and source</th><th>Purpose</th></tr></thead>
         <tbody>
-          <tr><td>Contact and billing information</td><td>Name, email, billing address, country, and support correspondence supplied by you or returned by Stripe after checkout.</td><td>Process subscriptions, provide receipts and support, prevent fraud, and meet tax, accounting, and legal duties.</td></tr>
+          <tr><td>Contact, support, and billing information</td><td>Name, reply email, issue category, platform, optional app version, subject, issue description, billing address, country, and related correspondence supplied by you or returned by Stripe after checkout.</td><td>Process subscriptions, provide receipts, receive and respond to support tickets, reproduce and fix reported issues, prevent fraud, and meet tax, accounting, and legal duties.</td></tr>
           <tr><td>Commercial information</td><td>Plan, price, subscription status, purchase and renewal dates, promotion, invoice, customer, and checkout identifiers from Stripe.</td><td>Complete checkout, activate paid features, manage plans, provide the Customer Portal, and maintain transaction records.</td></tr>
           <tr><td>Device and license information</td><td>A randomly generated app device identifier, derived device hash, entitlement and refresh-credential hashes, app version, plan, and feature claims. We do not use a hardware serial number for activation.</td><td>Bind entitlements to authorized devices, enforce the three-device limit, refresh access, prevent abuse, and deliver compatible updates.</td></tr>
           <tr><td>Internet and service activity</td><td>IP address, request time, requested route, browser or user-agent information, response status, and security events generated when you visit the site or call billing and update services.</td><td>Deliver and secure the service, rate-limit abuse, diagnose failures, and maintain availability.</td></tr>
           <tr><td>Local app information</td><td>Drafts, templates, settings, profiles, batch rows, and captured clipboard text supplied in the app.</td><td>Provide the local feature you selected. This information stays on your device and is not collected by Zap's servers in Drip Type 1.7.</td></tr>
         </tbody>
       </table></div>
-      <p>We obtain information directly from you, automatically from the app or browser when it contacts our services, and from Stripe when you purchase or manage a subscription. We do not collect payment-card numbers; Stripe processes payment credentials on its hosted pages.</p>
+      <p>We obtain information directly from you, including when you submit the support form; automatically from the app or browser when it contacts our services; and from Stripe when you purchase or manage a subscription. We do not collect payment-card numbers; Stripe processes payment credentials on its hosted pages. The support form does not accept attachments, and we ask you not to include passwords, full payment-card numbers, private clipboard content, or other sensitive information.</p>
 
       <h2>5. How we use information</h2>
       <ul>
@@ -61,7 +61,8 @@
       <p>We disclose limited information only as needed to:</p>
       <ul>
         <li><strong>Stripe</strong>, which provides checkout, payment processing, subscriptions, invoices, fraud controls, and the Customer Portal.</li>
-        <li><strong>Vercel and GitHub</strong>, which host the website, serverless billing endpoints, operational logs, update metadata, and downloadable release files.</li>
+        <li><strong>Vercel and GitHub</strong>, which host the website, serverless billing and support endpoints, operational logs, update metadata, and downloadable release files.</li>
+        <li><strong>Resend</strong>, which delivers support-ticket email to Zap and processes the name, reply email, ticket details, and delivery metadata needed for that purpose.</li>
         <li><strong>Apple, Microsoft, and your operating system</strong>, which provide platform permissions or input services, Keychain or DPAPI-protected credential storage, release verification, and macOS notarization checks.</li>
         <li>Professional advisers, authorities, or other parties when reasonably necessary to comply with law, protect rights and safety, investigate fraud, or handle a merger, financing, acquisition, reorganization, or sale of assets subject to appropriate safeguards.</li>
       </ul>
@@ -69,10 +70,10 @@
 
       <h2>8. Retention and deletion</h2>
       <p>Local drafts disappear when their in-memory session ends. Local templates, profiles, preferences, device identifiers, and captured clipboard items remain until you delete them or remove the relevant application data. The subscription refresh credential is stored in macOS Keychain or encrypted using Windows Data Protection API (DPAPI) until it is replaced, access is revoked, or you remove the relevant application data.</p>
-      <p>Billing, subscription, device-hash, support, security, and transaction records are retained for as long as reasonably necessary to provide the service, resolve disputes, prevent fraud, enforce agreements, and meet legal, tax, and accounting requirements. Provider logs and payment records are also subject to the providers' retention practices. When information is no longer required, we delete or de-identify it where reasonably practicable.</p>
+      <p>Billing, subscription, device-hash, support-ticket, security, and transaction records are retained for as long as reasonably necessary to provide and improve support, reproduce and fix reported issues, resolve disputes, prevent fraud, enforce agreements, and meet legal, tax, and accounting requirements. Provider logs, delivered support messages, and payment records are also subject to the providers' retention practices. When information is no longer required, we delete or de-identify it where reasonably practicable.</p>
 
       <h2>9. Security</h2>
-      <p>We use measures designed for the information we process, including HTTPS, Stripe-hosted payment entry, signed and notarized macOS releases, checksummed Windows releases, short-lived Ed25519-signed entitlements, hashed device bindings, bounded activation attempts, restricted server credentials, and operating-system-protected storage for the refresh credential. No system is completely secure, so we cannot guarantee absolute security.</p>
+      <p>We use measures designed for the information we process, including HTTPS, strict support-form validation, bounded support and activation attempts, a hidden anti-bot field, Stripe-hosted payment entry, signed and notarized macOS releases, checksummed Windows releases, short-lived Ed25519-signed entitlements, hashed device bindings, restricted server credentials, and operating-system-protected storage for the refresh credential. No system is completely secure, so we cannot guarantee absolute security.</p>
 
       <h2>10. Your privacy rights</h2>
       <p>Depending on where you live and which law applies, you may have rights to know or access personal information, correct it, delete it, obtain a portable copy, restrict or object to processing, withdraw consent, or appeal a denied request. California residents may also have rights to know, delete, correct, opt out of sale or sharing, limit certain uses of sensitive personal information, and receive equal service and pricing when exercising their rights. Because we do not sell or share personal information for cross-context behavioral advertising, no sale/share opt-out is presently required for Drip Type.</p>

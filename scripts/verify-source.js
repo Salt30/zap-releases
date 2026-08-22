@@ -50,6 +50,10 @@ const websiteLegal = read('website/legal.html');
 const websitePrivacy = read('website/privacy.html');
 const websiteTerms = read('website/terms.html');
 const websiteRefunds = read('website/refunds.html');
+const websiteSupport = read('website/support.html');
+const websiteSupportClient = read('website/support.js');
+const websiteSupportApi = read('website/api/support-ticket.js');
+const websiteSitemap = read('website/sitemap.xml');
 
 if (!packageJson.private || packageJson.license !== 'UNLICENSED') {
   fail('The package must remain private and proprietary.');
@@ -222,9 +226,32 @@ if (!websiteMarkup.includes('name="google-site-verification"')) {
 for (const marker of ['/legal', 'renew monthly until canceled', 'By completing checkout', '/privacy', '/terms', '/refunds']) {
   if (!websiteMarkup.includes(marker)) fail(`Website legal disclosure is missing: ${marker}`);
 }
+for (const marker of ['/support', 'Support']) {
+  if (!websiteMarkup.includes(marker)) fail(`Website support entry point is missing: ${marker}`);
+}
+for (const marker of [
+  'id="support-form"', 'name="privacyAccepted"', 'name="companyWebsite"',
+  '/api/support-ticket', 'crypto.randomUUID()', '/privacy'
+]) {
+  if (!websiteSupport.includes(marker) && !websiteSupportClient.includes(marker)) {
+    fail(`Website support intake requirement is missing: ${marker}`);
+  }
+}
+for (const marker of [
+  'hasExactKeys', 'RATE_LIMIT', 'configuredOrigin', 'RESEND_API_KEY',
+  'Idempotency-Key', 'reply_to', 'support@tryzap.net'
+]) {
+  if (!websiteSupportApi.includes(marker)) fail(`Secure support delivery requirement is missing: ${marker}`);
+}
+if (websiteSupport.includes('support@tryzap.net') || websiteSupportClient.includes('support@tryzap.net')) {
+  fail('The public support form must not expose its server-side delivery address.');
+}
+if (!websiteSitemap.includes('https://tryzap.net/support')) {
+  fail('The support page is missing from the sitemap.');
+}
 for (const [name, source, markers] of [
   ['legal center', websiteLegal, ['VegaNext LLC', 'support@tryzap.net', 'Subscription summary', '/privacy', '/terms', '/refunds']],
-  ['privacy policy', websitePrivacy, ['Effective August 22, 2026', 'Information we collect and why', 'We do not sell personal information', 'Your privacy rights', 'Windows Data Protection API', '400 Continental Blvd']],
+  ['privacy policy', websitePrivacy, ['Effective August 22, 2026', 'Version 2.2', 'Information we collect and why', 'support form', 'Resend', 'We do not sell personal information', 'Your privacy rights', 'Windows Data Protection API', '400 Continental Blvd']],
   ['terms', websiteTerms, ['Effective August 22, 2026', 'Paid subscriptions and renewal', 'up to three devices', 'Governing law and disputes', 'These Terms do not require arbitration']],
   ['refund policy', websiteRefunds, ['Effective August 22, 2026', 'Cancel online at any time', '14 calendar days', 'Renewal charges and partial periods', 'support@tryzap.net']]
 ]) {
