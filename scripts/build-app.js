@@ -38,6 +38,7 @@ async function main() {
   for (const file of ['index.html', 'quick.html', 'onboarding.html']) {
     fs.copyFileSync(path.join(source, file), path.join(output, file));
   }
+  fs.copyFileSync(path.join(source, 'windows-host.ps1'), path.join(output, 'windows-host.ps1'));
   fs.copyFileSync(path.join(root, 'assets', 'brand', 'zap', 'logo', 'zap-icon.svg'), path.join(output, 'zap-icon.svg'));
   fs.copyFileSync(path.join(root, 'assets', 'brand', 'zap', 'logo', 'zap-wordmark-dark.svg'), path.join(output, 'zap-wordmark-dark.svg'));
   fs.copyFileSync(path.join(root, 'assets', 'brand', 'zap', 'logo', 'zap-wordmark-light.svg'), path.join(output, 'zap-wordmark-light.svg'));

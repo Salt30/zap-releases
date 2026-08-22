@@ -9,6 +9,7 @@ let index = 0;
 let demoTimer = null;
 let permissionTimer = null;
 let permissionsReady = false;
+let currentPlatform = 'darwin';
 
 function applyTheme(preference = 'system') {
   const resolved = preference === 'system'
@@ -46,14 +47,14 @@ async function refreshPermissionChecklist() {
   ];
   rows.forEach(([name, ready]) => {
     document.getElementById(`${name}-row`).classList.toggle('ready', ready);
-    document.getElementById(`${name}-state`).textContent = ready ? 'Allowed' : 'Required';
+    document.getElementById(`${name}-state`).textContent = currentPlatform === 'win32' && ready ? 'Ready' : ready ? 'Allowed' : 'Required';
     const button = document.getElementById(name === 'access' ? 'enable-access' : 'enable-automation');
-    button.textContent = ready ? 'Allowed' : 'Allow';
+    button.textContent = currentPlatform === 'win32' && ready ? 'Ready' : ready ? 'Allowed' : 'Allow';
     button.disabled = ready;
   });
   permissionsReady = permissions.accessibility && permissions.automation;
   document.getElementById('permission-status').textContent = permissionsReady
-    ? 'Checklist complete. Drip Type is ready.'
+    ? currentPlatform === 'win32' ? 'Windows is ready. Drip Type can type into the focused app.' : 'Checklist complete. Drip Type is ready.'
     : 'Complete both required items to continue.';
   document.getElementById('next').disabled = index === slides.length - 1 && !permissionsReady;
   return permissions;
@@ -105,6 +106,28 @@ document.getElementById('enable-automation').addEventListener('click', async () 
 });
 window.dripType.onTheme(({ theme }) => applyTheme(theme));
 
-render();
-values();
-window.dripType.getSettings().then((settings) => applyTheme(settings.theme));
+async function load() {
+  const [settings, info] = await Promise.all([
+    window.dripType.getSettings(),
+    window.dripType.getAppInfo()
+  ]);
+  currentPlatform = info.platform;
+  applyTheme(settings.theme);
+  if (currentPlatform === 'win32') {
+    document.documentElement.dataset.platform = 'win32';
+    document.getElementById('welcome-lead').textContent = 'Drip Type turns prepared text into natural keystrokes in any Windows app. Everything runs locally, and you stay in control.';
+    document.getElementById('welcome-hotkey').textContent = 'Alt+5';
+    document.getElementById('demo-hotkey').textContent = 'Alt+5';
+    document.getElementById('permission-eyebrow').textContent = 'Windows readiness';
+    document.getElementById('permission-heading').textContent = 'No extra permissions needed.';
+    document.getElementById('permission-lead').textContent = 'The native Windows input engine and global shortcuts are included and ready on this device.';
+    document.getElementById('access-title').textContent = 'Windows input engine';
+    document.getElementById('access-desc').textContent = 'Sends local Unicode keystrokes to the app you choose.';
+    document.getElementById('automation-title').textContent = 'Private local operation';
+    document.getElementById('automation-desc').textContent = 'Your composer text and typing plan stay on this device.';
+  }
+  render();
+  values();
+}
+
+load();

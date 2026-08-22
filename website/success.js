@@ -5,6 +5,11 @@
   const activate = document.getElementById("activate-app");
   const download = document.getElementById("download-app");
   const sessionId = new URLSearchParams(window.location.search).get("session_id") || "";
+  const windows = /Windows/i.test(navigator.userAgentData?.platform || navigator.platform || navigator.userAgent || "");
+  if (windows) {
+    download.href = "https://drip-type-updates.vercel.app/Drip-Type-1.7.0-windows.exe";
+    download.textContent = "Download for Windows";
+  }
 
   const fail = (message) => {
     status.textContent = "Verification needed";
@@ -27,7 +32,7 @@
       const plan = result.plan === "pro" ? "Pro" : "Core";
       status.textContent = "Payment confirmed";
       title.textContent = `${plan} is ready.`;
-      copy.textContent = "Open Drip Type on this Mac to activate your subscription. Your payment details stay with Stripe.";
+      copy.textContent = "Open Drip Type on this device to activate your subscription. Your payment details stay with Stripe.";
       activate.href = `driptype://activate?session_id=${encodeURIComponent(sessionId)}`;
       activate.hidden = false;
       download.hidden = false;

@@ -101,17 +101,17 @@ function listReleaseFiles() {
   if (!fs.existsSync(distDir)) fail(`missing dist directory: ${distDir}`);
 
   const files = fs.readdirSync(distDir)
-    .filter((name) => /\.(?:dmg|zip|blockmap)$/.test(name))
+    .filter((name) => /\.(?:dmg|zip|exe|blockmap)$/.test(name))
     .sort();
 
-  for (const extension of ['.dmg', '.zip', '.blockmap']) {
+  for (const extension of ['.dmg', '.zip', '.exe', '.blockmap']) {
     if (!files.some((name) => name.endsWith(extension))) {
       fail(`no ${extension} artifact found`);
     }
   }
 
   for (const name of files) {
-    if (!/^Drip-Type-[0-9]+\.[0-9]+\.[0-9]+-mac\.(?:dmg|zip)(?:\.blockmap)?$/.test(name)) {
+    if (!/^Drip-Type-[0-9]+\.[0-9]+\.[0-9]+-(?:mac\.(?:dmg|zip)|windows\.exe)(?:\.blockmap)?$/.test(name)) {
       fail(`unexpected artifact name: ${name}`);
     }
     if (!name.includes(`-${packageVersion}-`)) {

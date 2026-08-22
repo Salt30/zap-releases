@@ -13,6 +13,7 @@ const {
   screen,
   session,
   shell,
+  safeStorage,
   systemPreferences
 } = require('electron');
 const { autoUpdater } = require('electron-updater');
@@ -25,6 +26,7 @@ const path = require('path');
 const { pathToFileURL } = require('url');
 const { accessState, shouldRevokeEntitlement, verifyEntitlement } = require('./subscription');
 const { renderBatch, searchClipboard, transformWriting } = require('./pro-tools');
+const { buildCharacterSteps, renderAppleScript, validateTypingEvents } = require('./typing-engine');
 const {
   normalizeAccelerator,
   registerShortcutPair,
@@ -98,6 +100,8 @@ const DEFAULTS = {
   deviceId: null,
   trialStartedAt: null,
   entitlementToken: '',
+  encryptedRefreshCredential: '',
+  encryptedTrialStartedAt: '',
   paidAccessSeen: false,
   automationPermissionChecked: false,
   onboardingDone: false
@@ -134,14 +138,14 @@ let tray = null;
 let quickTarget = null;
 let dripTypeCancelled = false;
 let dripTypeRunning = false;
-let activeAppleScript = null;
+let activeTypingProcess = null;
 let updateCheckTimer = null;
 let lastNotifiedUpdateVersion = null;
 let pendingActivationUrl = null;
 let entitlementRefreshTimer = null;
 let billingState = null;
 let updateState = {
-  status: app.isPackaged && process.platform === 'darwin' ? 'idle' : 'development',
+  status: app.isPackaged && ['darwin', 'win32'].includes(process.platform) ? 'idle' : 'development',
   currentVersion: app.getVersion(),
   version: null,
   releaseName: null,
@@ -149,15 +153,6 @@ let updateState = {
   percent: 0,
   lastCheckedAt: null,
   message: 'Updates are checked automatically.'
-};
-
-const NEARBY = {
-  a: 'sqwz', b: 'vngh', c: 'xvdf', d: 'sfcxer', e: 'wrsd', f: 'dgcvrt',
-  g: 'fhvbty', h: 'gjbnyu', i: 'ujko', j: 'hknmui', k: 'jlmio', l: 'kop',
-  m: 'njk', n: 'bmhj', o: 'iklp', p: 'ol', q: 'wa', r: 'edft', s: 'awdxze',
-  t: 'rfgy', u: 'yhji', v: 'cbfg', w: 'qase', x: 'zsdc', y: 'tghu', z: 'xsa',
-  '1': '2q', '2': '13qw', '3': '24we', '4': '35er', '5': '46rt',
-  '6': '57ty', '7': '68yu', '8': '79ui', '9': '80io', '0': '9p'
 };
 
 function execFileAsync(file, args, options = {}) {
@@ -171,6 +166,34 @@ function execFileAsync(file, args, options = {}) {
       }
     });
   });
+}
+
+function platformResource(filename) {
+  if (!app.isPackaged) return path.join(__dirname, filename);
+  return path.join(process.resourcesPath, 'app.asar.unpacked', 'build-app', filename);
+}
+
+function windowsPowerShellArguments(action, extra = []) {
+  return [
+    '-NoLogo', '-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass',
+    '-File', platformResource('windows-host.ps1'), '-Action', action, ...extra
+  ];
+}
+
+function readProtectedStoreValue(key) {
+  if (!safeStorage.isEncryptionAvailable()) return '';
+  const encoded = String(store.get(key, '') || '');
+  if (!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)) return '';
+  try {
+    return safeStorage.decryptString(Buffer.from(encoded, 'base64'));
+  } catch (_) {
+    return '';
+  }
+}
+
+function writeProtectedStoreValue(key, value) {
+  if (!safeStorage.isEncryptionAvailable()) throw new Error('Secure operating-system storage is unavailable.');
+  store.set(key, safeStorage.encryptString(value).toString('base64'));
 }
 
 function ensureDeviceId() {
@@ -200,6 +223,9 @@ async function synchronizeTrialStartedAt() {
       ]);
       if (/^\d{13}$/.test(value)) protectedStart = Number(value);
     } catch (_) {}
+  } else if (process.platform === 'win32') {
+    const value = readProtectedStoreValue('encryptedTrialStartedAt');
+    if (/^\d{13}$/.test(value)) protectedStart = Number(value);
   }
 
   const storedStart = Number(store.get('trialStartedAt'));
@@ -207,12 +233,16 @@ async function synchronizeTrialStartedAt() {
   const trialStartedAt = candidates.length ? Math.min(...candidates) : Date.now();
   store.set('trialStartedAt', trialStartedAt);
 
-  if (process.platform === 'darwin' && protectedStart !== trialStartedAt) {
+  if (protectedStart !== trialStartedAt) {
     try {
+      if (process.platform === 'win32') {
+        writeProtectedStoreValue('encryptedTrialStartedAt', String(trialStartedAt));
+      } else if (process.platform === 'darwin') {
       await execFileAsync('/usr/bin/security', [
         'add-generic-password', '-U', '-a', APP_ID, '-s', TRIAL_KEYCHAIN_SERVICE,
         '-w', String(trialStartedAt)
       ]);
+      }
     } catch (_) {}
   }
   return trialStartedAt;
@@ -244,6 +274,10 @@ function publishBillingState(patch = {}) {
 }
 
 async function readRefreshCredential() {
+  if (process.platform === 'win32') {
+    const value = readProtectedStoreValue('encryptedRefreshCredential');
+    return /^sub_[A-Za-z0-9]+\.[A-Za-z0-9_-]{40,}$/.test(value) ? value : '';
+  }
   if (process.platform !== 'darwin') return '';
   try {
     const value = await execFileAsync('/usr/bin/security', [
@@ -256,15 +290,24 @@ async function readRefreshCredential() {
 }
 
 async function saveRefreshCredential(value) {
-  if (process.platform !== 'darwin' || !/^sub_[A-Za-z0-9]+\.[A-Za-z0-9_-]{40,}$/.test(value)) {
+  if (!/^sub_[A-Za-z0-9]+\.[A-Za-z0-9_-]{40,}$/.test(value)) {
     throw new Error('Invalid subscription credential');
   }
+  if (process.platform === 'win32') {
+    writeProtectedStoreValue('encryptedRefreshCredential', value);
+    return;
+  }
+  if (process.platform !== 'darwin') throw new Error('Secure subscription storage is unavailable.');
   await execFileAsync('/usr/bin/security', [
     'add-generic-password', '-U', '-a', APP_ID, '-s', KEYCHAIN_SERVICE, '-w', value
   ]);
 }
 
 async function deleteRefreshCredential() {
+  if (process.platform === 'win32') {
+    store.set('encryptedRefreshCredential', '');
+    return;
+  }
   if (process.platform !== 'darwin') return;
   try {
     await execFileAsync('/usr/bin/security', [
@@ -373,36 +416,6 @@ function numberSetting(key, fallback) {
   return Number.isFinite(value) ? value : fallback;
 }
 
-function typoChar(character) {
-  const pool = NEARBY[character.toLowerCase()];
-  if (!pool) return character;
-  const typo = pool[Math.floor(Math.random() * pool.length)];
-  return character === character.toUpperCase() ? typo.toUpperCase() : typo;
-}
-
-function humanMs(base) {
-  const gaussian = () => {
-    let u = 0;
-    let v = 0;
-    while (!u) u = Math.random();
-    while (!v) v = Math.random();
-    return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
-  };
-
-  let delay = base + gaussian() * base * 0.6;
-  if (Math.random() < 0.02) delay += 200 + Math.random() * 400;
-  return Math.max(15, Math.round(delay));
-}
-
-function escapeAppleScript(character) {
-  return character
-    .replace(/\\/g, '\\\\')
-    .replace(/"/g, '\\"')
-    .replace(/\r/g, '\\r')
-    .replace(/\n/g, '\\n')
-    .replace(/\t/g, '\\t');
-}
-
 function cleanMarkdown(text) {
   if (typeof text !== 'string' || !text) return '';
   return text
@@ -476,13 +489,13 @@ function publishUpdateState(next) {
 
 function safeUpdateError(error) {
   const message = String(error?.message || error || '');
-  if (/404|latest-mac\.yml|no published versions/i.test(message)) {
+  if (/404|latest(?:-mac)?\.yml|no published versions/i.test(message)) {
     return 'The secure update channel is not published yet. Try again later.';
   }
   if (/net::|ENOTFOUND|ECONN|network|offline/i.test(message)) {
     return 'Drip Type could not reach the update service. Check your connection and try again.';
   }
-  return 'The signed update could not be verified. Try again later.';
+  return 'The update could not be verified. Try again later.';
 }
 
 function plainReleaseNotes(notes) {
@@ -503,7 +516,7 @@ function notifyUpdateAvailable(info) {
   lastNotifiedUpdateVersion = info.version;
   const notification = new Notification({
     title: `Drip Type ${info.version} is available`,
-    body: 'Open Drip Type to review what’s new and download the signed update.',
+    body: 'Open Drip Type to review what’s new and download the verified update.',
     silent: true
   });
   notification.on('click', showUpdatesPage);
@@ -726,11 +739,10 @@ function deleteTemplate(id) {
 }
 
 function configureLoginItem() {
-  if (process.platform !== 'darwin' || !app.isPackaged) return;
-  app.setLoginItemSettings({
-    openAtLogin: store.get('launchAtLogin', DEFAULTS.launchAtLogin),
-    openAsHidden: true
-  });
+  if (!app.isPackaged || !['darwin', 'win32'].includes(process.platform)) return;
+  const settings = { openAtLogin: store.get('launchAtLogin', DEFAULTS.launchAtLogin) };
+  if (process.platform === 'darwin') settings.openAsHidden = true;
+  app.setLoginItemSettings(settings);
 }
 
 function publishTheme(theme = store.get('theme', DEFAULTS.theme)) {
@@ -754,9 +766,9 @@ async function isAutomationTrusted() {
 
 async function permissionChecklist() {
   const accessibility = isAccessibilityTrusted(false);
-  const automation = store.get('automationPermissionChecked', false)
+  const automation = process.platform !== 'darwin' || (store.get('automationPermissionChecked', false)
     ? await isAutomationTrusted()
-    : false;
+    : false);
   const shortcuts = [store.get('hotkeyStart'), store.get('hotkeyStop')]
     .filter(Boolean)
     .every((shortcut) => globalShortcut.isRegistered(shortcut));
@@ -766,7 +778,7 @@ async function permissionChecklist() {
 }
 
 function configureUpdater() {
-  if (!app.isPackaged || process.platform !== 'darwin') {
+  if (!app.isPackaged || !['darwin', 'win32'].includes(process.platform)) {
     publishUpdateState({ status: 'development' });
     return;
   }
@@ -779,7 +791,7 @@ function configureUpdater() {
   autoUpdater.on('checking-for-update', () => publishUpdateState({
     status: 'checking',
     percent: 0,
-    message: 'Checking the signed release channel…'
+    message: 'Checking the verified release channel…'
   }));
   autoUpdater.on('update-available', (info) => {
     publishUpdateState({
@@ -801,7 +813,7 @@ function configureUpdater() {
       releaseNotes: null,
       percent: 0,
       lastCheckedAt: new Date().toISOString(),
-      message: 'You have the latest signed version.'
+      message: 'You have the latest verified version.'
     });
   });
   autoUpdater.on('download-progress', (progress) => {
@@ -832,6 +844,16 @@ function configureUpdater() {
 }
 
 async function getFrontmostApplication() {
+  if (process.platform === 'win32') {
+    try {
+      const result = await execFileAsync('powershell.exe', windowsPowerShellArguments('Target'), { timeout: 5000 });
+      const target = JSON.parse(result);
+      if (!target || typeof target.name !== 'string' || !/^\d{1,20}$/.test(target.windowHandle || '')) return null;
+      return { name: target.name.slice(0, 120) || 'previous app', windowHandle: target.windowHandle };
+    } catch (_) {
+      return null;
+    }
+  }
   if (process.platform !== 'darwin') return null;
   const script = [
     'tell application "System Events"',
@@ -856,59 +878,28 @@ async function getFrontmostApplication() {
 }
 
 async function restoreApplication(target) {
-  if (process.platform !== 'darwin' || !target?.bundleId) return;
-  if (!/^[A-Za-z0-9.-]+$/.test(target.bundleId)) return;
-  try {
-    await execFileAsync('/usr/bin/open', ['-b', target.bundleId], { timeout: 5000 });
-    await new Promise((resolve) => setTimeout(resolve, 250));
-  } catch (_) {}
+  if (process.platform === 'win32') {
+    if (!/^\d{1,20}$/.test(target?.windowHandle || '')) return;
+    try {
+      await execFileAsync('powershell.exe', windowsPowerShellArguments('Restore', [
+        '-WindowHandle', target.windowHandle
+      ]), { timeout: 5000 });
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    } catch (_) {}
+    return;
+  }
+  if (process.platform === 'darwin' && target?.bundleId && /^[A-Za-z0-9.-]+$/.test(target.bundleId)) {
+    try {
+      await execFileAsync('/usr/bin/open', ['-b', target.bundleId], { timeout: 5000 });
+      await new Promise((resolve) => setTimeout(resolve, 250));
+    } catch (_) {}
+  }
 }
 
-function buildCharacterSteps(text, speed, typoRate, pauseChance, burstChance) {
-  return [...text].map((character, index) => {
-    const commands = [];
-
-    if (Math.random() < pauseChance && index > 0) {
-      commands.push(`delay ${(1 + Math.random() * 2.5).toFixed(4)}`);
-    }
-
-    const characterSpeed = Math.random() < burstChance ? speed * 0.5 : speed;
-    const delay = humanMs(characterSpeed) / 1000;
-
-    if (/[a-zA-Z]/.test(character) && Math.random() < typoRate) {
-      const wrong = typoChar(character);
-      commands.push(`keystroke "${escapeAppleScript(wrong)}"`);
-      commands.push(`delay ${(0.3 + Math.random() * 0.5).toFixed(4)}`);
-      commands.push('key code 51');
-      commands.push(`delay ${(0.08 + Math.random() * 0.12).toFixed(4)}`);
-      if (wrong !== character) commands.push(`delay ${(0.05 + Math.random() * 0.1).toFixed(4)}`);
-      commands.push(`keystroke "${escapeAppleScript(character)}"`);
-      commands.push(`delay ${delay.toFixed(4)}`);
-    } else if (character === '\n') {
-      commands.push('key code 36');
-      commands.push(`delay ${(delay + 0.3 + Math.random() * 0.5).toFixed(4)}`);
-    } else if (character === '\t') {
-      commands.push('key code 48');
-      commands.push(`delay ${delay.toFixed(4)}`);
-    } else if ('.!?'.includes(character)) {
-      commands.push(`keystroke "${escapeAppleScript(character)}"`);
-      commands.push(`delay ${(delay + 0.4 + Math.random() * 0.8).toFixed(4)}`);
-    } else if (character === ',') {
-      commands.push(`keystroke "${escapeAppleScript(character)}"`);
-      commands.push(`delay ${(delay + 0.1 + Math.random() * 0.3).toFixed(4)}`);
-    } else {
-      commands.push(`keystroke "${escapeAppleScript(character)}"`);
-      commands.push(`delay ${delay.toFixed(4)}`);
-    }
-
-    return commands;
-  });
-}
-
-function runAppleScript(scriptPath) {
+function runTypingProcess(file, args) {
   return new Promise((resolve, reject) => {
-    activeAppleScript = execFile('/usr/bin/osascript', [scriptPath], { timeout: 120000 }, (error) => {
-      activeAppleScript = null;
+    activeTypingProcess = execFile(file, args, { timeout: 120000, windowsHide: true }, (error) => {
+      activeTypingProcess = null;
       if (error && !dripTypeCancelled) reject(error);
       else resolve();
     });
@@ -917,9 +908,9 @@ function runAppleScript(scriptPath) {
 
 function cancelDripType() {
   dripTypeCancelled = true;
-  if (activeAppleScript) {
-    try { activeAppleScript.kill('SIGTERM'); } catch (_) {}
-    activeAppleScript = null;
+  if (activeTypingProcess) {
+    try { activeTypingProcess.kill(); } catch (_) {}
+    activeTypingProcess = null;
   }
   broadcastState({ status: 'cancelled', message: 'Typing stopped.' });
 }
@@ -930,9 +921,9 @@ async function dripType(input, options = {}) {
   if ([...text].length > MAX_TEXT_LENGTH) return { error: 'Text is limited to 100,000 characters per run.' };
   if (dripTypeRunning) return { error: 'Drip Type is already running.' };
 
-  if (process.platform !== 'darwin') {
+  if (!['darwin', 'win32'].includes(process.platform)) {
     clipboard.writeText(text);
-    return { fallback: true, message: 'Automatic typing requires macOS. The text was copied instead.' };
+    return { fallback: true, message: 'Automatic typing is unavailable on this operating system. The text was copied instead.' };
   }
 
   if (!isAccessibilityTrusted(false)) {
@@ -980,18 +971,28 @@ async function dripType(input, options = {}) {
     for (let offset = 0; offset < steps.length; offset += chunkSize) {
       if (dripTypeCancelled) return { cancelled: true };
 
-      const chunk = steps.slice(offset, offset + chunkSize);
-      const script = `tell application "System Events"\n${chunk.flat().join('\n')}\nend tell`;
-      const scriptPath = path.join(runDirectory, `chunk-${offset}.scpt`);
-      fs.writeFileSync(scriptPath, script, { mode: 0o600, flag: 'wx' });
+      const events = steps.slice(offset, offset + chunkSize).flat();
+      if (!validateTypingEvents(events)) throw new Error('Invalid typing plan.');
+      const planPath = path.join(runDirectory, `chunk-${offset}.json`);
 
       try {
-        await runAppleScript(scriptPath);
+        if (process.platform === 'darwin') {
+          const scriptPath = path.join(runDirectory, `chunk-${offset}.scpt`);
+          fs.writeFileSync(scriptPath, renderAppleScript(events), { mode: 0o600, flag: 'wx' });
+          try {
+            await runTypingProcess('/usr/bin/osascript', [scriptPath]);
+          } finally {
+            try { fs.unlinkSync(scriptPath); } catch (_) {}
+          }
+        } else {
+          fs.writeFileSync(planPath, JSON.stringify(events), { encoding: 'utf8', mode: 0o600, flag: 'wx' });
+          await runTypingProcess('powershell.exe', windowsPowerShellArguments('Type', ['-PlanPath', planPath]));
+        }
       } finally {
-        try { fs.unlinkSync(scriptPath); } catch (_) {}
+        try { fs.unlinkSync(planPath); } catch (_) {}
       }
 
-      const completed = Math.min(offset + chunk.length, steps.length);
+      const completed = Math.min(offset + chunkSize, steps.length);
       broadcastState({
         status: 'typing',
         progress: Math.round((completed / steps.length) * 100),
@@ -1006,12 +1007,14 @@ async function dripType(input, options = {}) {
   } catch (error) {
     const message = /timed out|ETIMEDOUT/i.test(String(error?.message || ''))
       ? 'Typing stopped because the destination did not respond in time.'
-      : 'Typing could not be completed. Check macOS permissions and try again.';
+      : process.platform === 'darwin'
+        ? 'Typing could not be completed. Check macOS permissions and try again.'
+        : 'Typing could not be completed. Confirm the destination app is focused and try again.';
     broadcastState({ status: 'error', message });
     return { error: message };
   } finally {
     dripTypeRunning = false;
-    activeAppleScript = null;
+    activeTypingProcess = null;
     if (runDirectory) {
       try { fs.rmSync(runDirectory, { recursive: true, force: true }); } catch (_) {}
     }
@@ -1379,7 +1382,7 @@ handleTrusted('automation:request', ['index.html', 'onboarding.html'], async () 
   }
   return permissionChecklist();
 });
-handleTrusted('app:get-info', ['index.html'], () => ({
+handleTrusted('app:get-info', ['index.html', 'onboarding.html'], () => ({
   name: app.getName(),
   version: app.getVersion(),
   platform: process.platform,
@@ -1411,7 +1414,7 @@ handleTrusted('billing:portal', ['index.html'], async () => {
 });
 handleTrusted('updater:get-state', ['index.html'], () => ({ ...updateState }));
 handleTrusted('updater:check', ['index.html'], async () => {
-  if (!app.isPackaged || process.platform !== 'darwin') return { status: 'development' };
+  if (!app.isPackaged || !['darwin', 'win32'].includes(process.platform)) return { status: 'development' };
   try {
     await autoUpdater.checkForUpdates();
     return { ...updateState };
@@ -1426,7 +1429,7 @@ handleTrusted('updater:download', ['index.html'], async () => {
   try {
     await autoUpdater.downloadUpdate();
   } catch (_) {
-    publishUpdateState({ status: 'error', message: 'The signed update could not be downloaded.' });
+    publishUpdateState({ status: 'error', message: 'The verified update could not be downloaded.' });
   }
   return { ...updateState };
 });
@@ -1477,7 +1480,8 @@ app.whenReady().then(async () => {
     pendingActivationUrl = null;
     handleActivationUrl(url);
   }
-  const openedAtLogin = process.platform === 'darwin' && app.getLoginItemSettings().wasOpenedAtLogin;
+  const openedAtLogin = ['darwin', 'win32'].includes(process.platform)
+    && app.getLoginItemSettings().wasOpenedAtLogin;
   if (!store.get('onboardingDone')) createOnboardingWindow();
   else if (!openedAtLogin) createMainWindow();
 });
@@ -1493,5 +1497,5 @@ app.on('will-quit', () => {
   globalShortcut.unregisterAll();
 });
 app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') app.quit();
+  if (!['darwin', 'win32'].includes(process.platform)) app.quit();
 });

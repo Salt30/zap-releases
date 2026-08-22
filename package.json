@@ -1,7 +1,7 @@
 {
   "name": "drip-type",
-  "version": "1.6.2",
-  "description": "Private, configurable typing for macOS — Drip Type by Zap.",
+  "version": "1.7.0",
+  "description": "Private, configurable typing for macOS and Windows — Drip Type by Zap.",
   "main": "src/main.js",
   "author": "VegaNext LLC",
   "license": "UNLICENSED",
@@ -9,19 +9,22 @@
   "scripts": {
     "start": "electron .",
     "build:app": "node scripts/build-app.js",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/index.js && node --check src/quick.js && node --check src/shortcut-utils.js && node --check src/text-tools.js && node --check src/pro-tools.js && node --check src/subscription.js && node --check src/onboarding.js && node --check scripts/build-app.js && node --check scripts/after-pack.js && node --check scripts/publish-update-blobs.js && node --check scripts/test-shortcuts.js && node --check scripts/verify-api.js && node --check scripts/verify-source.js && node --check scripts/verify-package.js",
-    "test:source": "node scripts/test-shortcuts.js && node scripts/verify-source.js && node scripts/verify-api.js",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/index.js && node --check src/quick.js && node --check src/shortcut-utils.js && node --check src/typing-engine.js && node --check src/text-tools.js && node --check src/pro-tools.js && node --check src/subscription.js && node --check src/onboarding.js && node --check scripts/build-app.js && node --check scripts/after-pack.js && node --check scripts/publish-update-blobs.js && node --check scripts/test-shortcuts.js && node --check scripts/test-typing-engine.js && node --check scripts/verify-api.js && node --check scripts/verify-source.js && node --check scripts/verify-package.js",
+    "test:source": "node scripts/test-shortcuts.js && node scripts/test-typing-engine.js && node scripts/verify-source.js && node scripts/verify-api.js",
     "test:shortcuts:mac": "electron scripts/smoke-shortcuts-electron.js",
     "verify": "npm run check && npm run test:source && npm run build:app",
     "verify:package": "node scripts/verify-package.js",
     "pack:mac": "npm run build:app && electron-builder --mac --dir --universal -c.mac.forceCodeSigning=false",
     "dist:mac": "npm run build:app && electron-builder --mac dmg zip --universal --publish never",
+    "pack:win": "npm run build:app && electron-builder --win --dir --x64",
+    "dist:win": "npm run build:app && electron-builder --win nsis --x64 --publish never",
     "release:mac": "bash scripts/release-mac.sh"
   },
   "keywords": [
     "electron",
     "typing",
     "macos",
+    "windows",
     "accessibility",
     "productivity"
   ],
@@ -39,8 +42,8 @@
   "build": {
     "appId": "com.salt30.driptype",
     "productName": "Drip Type",
-    "artifactName": "Drip-Type-${version}-mac.${ext}",
     "asar": true,
+    "asarUnpack": ["build-app/*.ps1"],
     "compression": "maximum",
     "extraMetadata": {
       "main": "build-app/main.js"
@@ -64,12 +67,19 @@
       }
     ],
     "releaseInfo": {
-      "releaseName": "Drip Type by Zap 1.6.2",
-      "releaseNotes": "Typing settings are now presented as direct controls without preset buttons. The website now states the system-wide workflow clearly, uses the production Zap logo reliably, and no longer publishes a downloadable brand-kit archive."
+      "releaseName": "Drip Type by Zap 1.7.0",
+      "releaseNotes": "Drip Type now runs on Windows with native system-wide Unicode typing, Alt+5 global Composer access, secure Windows entitlement storage, Windows installers, and automatic updates. macOS behavior remains unchanged."
     },
+    "protocols": [
+      {
+        "name": "Drip Type activation",
+        "schemes": ["driptype"]
+      }
+    ],
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "assets/icon.png",
+      "artifactName": "Drip-Type-${version}-mac.${ext}",
       "target": [
         {
           "target": "dmg",
@@ -97,6 +107,28 @@
         "NSAppleEventsUsageDescription": "Drip Type uses macOS System Events to type text into the application you choose.",
         "NSAccessibilityUsageDescription": "Drip Type needs Accessibility access to type text into other applications."
       }
+    },
+    "win": {
+      "icon": "assets/icon.png",
+      "artifactName": "Drip-Type-${version}-windows.${ext}",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": ["x64"]
+        }
+      ],
+      "requestedExecutionLevel": "asInvoker",
+      "legalTrademarks": "Zap"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": true,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Drip Type",
+      "deleteAppDataOnUninstall": false
     },
     "dmg": {
       "title": "Drip Type ${version}",

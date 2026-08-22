@@ -2,12 +2,11 @@ const path = require('node:path');
 const { flipFuses, FuseVersion, FuseV1Options } = require('@electron/fuses');
 
 module.exports = async function hardenPackagedApp(context) {
-  if (context.electronPlatformName !== 'darwin') return;
+  if (!['darwin', 'win32'].includes(context.electronPlatformName)) return;
 
-  const appPath = path.join(
-    context.appOutDir,
-    `${context.packager.appInfo.productFilename}.app`
-  );
+  const appPath = context.electronPlatformName === 'darwin'
+    ? path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.app`)
+    : path.join(context.appOutDir, `${context.packager.appInfo.productFilename}.exe`);
 
   await flipFuses(appPath, {
     version: FuseVersion.V1,

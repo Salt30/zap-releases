@@ -43,7 +43,7 @@ function normaliseKey(token) {
 
 function normalizeAccelerator(value) {
   const tokens = tokeniseAccelerator(value);
-  if (!tokens.length) return { error: 'Press a shortcut that includes Option, Command, or Control.' };
+  if (!tokens.length) return { error: 'Press a shortcut that includes Option/Alt, Command, or Control.' };
 
   const modifiers = new Set();
   let key = null;
@@ -60,7 +60,7 @@ function normalizeAccelerator(value) {
 
   if (!key) return { error: 'Finish the shortcut with a letter, number, arrow, navigation key, or F1–F24.' };
   if (![...modifiers].some((modifier) => ['CommandOrControl', 'Command', 'Control', 'Alt'].includes(modifier))) {
-    return { error: 'Include Option, Command, or Control so normal typing is never intercepted.' };
+    return { error: 'Include Option/Alt, Command, or Control so normal typing is never intercepted.' };
   }
 
   const ordered = MODIFIER_ORDER.filter((modifier) => modifiers.has(modifier));
@@ -95,9 +95,14 @@ function acceleratorFromKeyboardEvent(event = {}) {
   return normalizeAccelerator([...modifiers, key].join('+'));
 }
 
-function formatAccelerator(value) {
+function formatAccelerator(value, platform = 'darwin') {
   const normalized = normalizeAccelerator(value);
   if (normalized.error) return String(value || '');
+  if (platform === 'win32') {
+    return normalized.accelerator.split('+').map((token) => ({
+      CommandOrControl: 'Ctrl', Command: 'Win', Control: 'Ctrl', Alt: 'Alt', Shift: 'Shift'
+    }[token] || token)).join('+');
+  }
   return normalized.accelerator.split('+').map((token) => ({
     CommandOrControl: '⌘', Command: '⌘', Control: '⌃', Alt: '⌥', Shift: '⇧'
   }[token] || token)).join('');
@@ -113,7 +118,7 @@ function registerShortcutPair(registry, pair, actions) {
   for (const shortcut of shortcuts) {
     try {
       if (!registry.register(shortcut.key, shortcut.action)) {
-        failures.push(`${shortcut.label} (${shortcut.key}) is already used by macOS or another app.`);
+        failures.push(`${shortcut.label} (${shortcut.key}) is already used by the operating system or another app.`);
       }
     } catch (_) {
       failures.push(`${shortcut.label} (${shortcut.key}) is not a supported shortcut.`);

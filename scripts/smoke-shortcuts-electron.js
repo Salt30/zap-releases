@@ -21,7 +21,7 @@ app.whenReady().then(() => {
   assert.equal(globalShortcut.isRegistered(first.hotkeyStop), false);
   assert.equal(globalShortcut.isRegistered(second.hotkeyStart), true);
   assert.equal(globalShortcut.isRegistered(second.hotkeyStop), true);
-  console.log('Native macOS shortcut registration and replacement passed.');
+  console.log(`Native ${process.platform} shortcut registration and replacement passed.`);
 }).catch((error) => {
   console.error(error);
   process.exitCode = 1;

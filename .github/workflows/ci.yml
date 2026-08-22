@@ -1,4 +1,4 @@
-name: macOS quality gate
+name: Desktop quality gate
 
 on:
   push:
@@ -62,3 +62,41 @@ jobs:
           done
           kill "$APP_PID"
           wait "$APP_PID" || true
+
+  windows:
+    name: Verify Windows source and packaged app
+    runs-on: windows-2025
+    timeout-minutes: 25
+    steps:
+      - name: Check out source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Verify source and production bundle
+        run: npm run verify
+
+      - name: Package unsigned CI app
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+        run: npm run pack:win
+
+      - name: Verify packaged app integrity
+        run: npm run verify:package -- "dist/win-unpacked/Drip Type.exe"
+
+      - name: Smoke-test packaged app launch
+        shell: pwsh
+        run: |
+          $process = Start-Process -FilePath "dist/win-unpacked/Drip Type.exe" -PassThru
+          Start-Sleep -Seconds 8
+          if ($process.HasExited) { throw "Packaged app exited early with code $($process.ExitCode)." }
+          Stop-Process -Id $process.Id -Force

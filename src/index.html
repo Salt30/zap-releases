@@ -354,7 +354,7 @@
     <aside class="sidebar">
       <div class="brand">
         <img class="brand-mark" src="zap-icon.svg" alt="">
-        <div><div class="brand-name">Drip Type <span style="color:var(--subtle);font-weight:500">by Zap</span></div><div class="brand-version" id="brand-version">Version 1.6.2</div></div>
+        <div><div class="brand-name">Drip Type <span style="color:var(--subtle);font-weight:500">by Zap</span></div><div class="brand-version" id="brand-version">Version 1.7.0</div></div>
       </div>
 
       <nav class="nav" aria-label="Main navigation">
@@ -425,7 +425,7 @@
         <div class="card template-editor">
           <input class="template-input" id="template-name" maxlength="60" placeholder="Template name" aria-label="Template name">
           <textarea class="template-body" id="template-body" maxlength="20000" placeholder="Hi {{name}},&#10;&#10;Following up about {{topic}}…" aria-label="Template body"></textarea>
-          <div class="template-help">Templates and filled values stay on this Mac. Filled values are never saved to the template.</div>
+          <div class="template-help">Templates and filled values stay on this device. Filled values are never saved to the template.</div>
           <div class="template-actions"><button class="button primary" id="save-template">Save template</button><button class="button secondary" id="cancel-template" hidden>Cancel edit</button><button class="button secondary" id="install-library">Install Pro library</button><span class="save-note" id="template-note"></span></div>
         </div>
         <div class="template-list" id="template-list"></div>
@@ -434,7 +434,7 @@
       <section class="page" id="page-studio">
         <div class="eyebrow">Pro Studio</div>
         <h1>Personalize and polish, entirely on-device.</h1>
-        <p class="lead">Generate one message per CSV or tab-separated row, or apply transparent writing transforms. No text leaves this Mac.</p>
+        <p class="lead">Generate one message per CSV or tab-separated row, or apply transparent writing transforms. No text leaves this device.</p>
         <div class="pro-lock" data-pro-lock><strong>Unlock Pro Studio</strong><p>Batch personalization and the local Writing Lab are included with Pro.</p><button class="button primary" data-upgrade>Choose Pro</button></div>
         <div class="pro-grid pro-only" data-pro-content aria-disabled="true">
           <div class="card pro-card stack"><h2>Batch personalization</h2><p>Select a template, then paste CSV/TSV whose headers match the {{fields}}.</p><select class="select" id="batch-template"></select><textarea class="pro-textarea" id="batch-data" placeholder="name,topic&#10;Maya,launch plan&#10;Devon,renewal"></textarea><button class="button primary" id="batch-run">Generate locally</button><div class="pro-note" id="batch-note"></div></div>
@@ -458,7 +458,7 @@
       <section class="page" id="page-typing">
         <div class="eyebrow">Typing</div>
         <h1>Make the rhythm yours.</h1>
-        <p class="lead">Tune each behavior directly. Changes are saved locally on this Mac.</p>
+        <p class="lead">Tune each behavior directly. Changes are saved locally on this device.</p>
         <div class="section-list">
           <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Typing speed</div><div class="settings-description">Average pace before natural character variation.</div></div><output class="value" id="wpm-out">45 WPM</output></div><input id="wpm" type="range" min="15" max="120" step="5"></div>
           <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Start delay</div><div class="settings-description">Time to focus a destination after pressing Start.</div></div><output class="value" id="delay-out">3 seconds</output></div><input id="delay" type="range" min="1" max="15" step="1"></div>
@@ -471,7 +471,7 @@
       <section class="page" id="page-shortcuts">
         <div class="eyebrow">Shortcuts</div>
         <h1>Stay in the flow.</h1>
-        <p class="lead">Click a shortcut, then press the combination you want. Drip Type checks that macOS can register it before replacing the working shortcut.</p>
+        <p class="lead">Click a shortcut, then press the combination you want. Drip Type checks that your operating system can register it before replacing the working shortcut.</p>
         <div class="card">
           <div class="shortcut-card"><div><div class="shortcut-name">Open Drip Composer</div><div class="shortcut-description">Show the translucent composer above the current app without opening settings. Default: ⌥5.</div></div><input class="shortcut-input" id="start-key" value="⌥5" readonly aria-label="Open Drip Composer shortcut; press a key combination to change it"></div>
           <div class="shortcut-card"><div><div class="shortcut-name">Stop typing</div><div class="shortcut-description">Immediately cancels the current typing session. Default: ⌥0.</div></div><input class="shortcut-input" id="stop-key" value="⌥0" readonly aria-label="Stop typing shortcut; press a key combination to change it"></div>
@@ -482,14 +482,14 @@
       <section class="page" id="page-billing">
         <div class="eyebrow">Billing</div>
         <h1>Your Drip Type access.</h1>
-        <p class="lead">Manage the subscription connected to this Mac. Payment details are handled securely by Stripe and never stored in Drip Type.</p>
+        <p class="lead">Manage the subscription connected to this device. Payment details are handled securely by Stripe and never stored in Drip Type.</p>
         <div class="section-list">
           <div class="card billing-hero">
             <div class="billing-top">
               <div>
                 <div class="billing-status" id="billing-status" data-state="trial">Checking access</div>
                 <div class="billing-plan" id="billing-plan">Drip Type Core</div>
-                <div class="billing-copy" id="billing-copy">Confirming the access available on this Mac…</div>
+                <div class="billing-copy" id="billing-copy">Confirming the access available on this device…</div>
                 <div class="billing-expiry" id="billing-expiry"></div>
               </div>
             </div>
@@ -502,7 +502,7 @@
           </div>
           <div class="billing-facts" aria-label="Subscription security">
             <div class="billing-fact"><span>01</span><strong>Stripe-hosted checkout</strong><p>Card and payment details never enter the app.</p></div>
-            <div class="billing-fact"><span>02</span><strong>Keychain protected</strong><p>The private activation credential stays in macOS Keychain.</p></div>
+            <div class="billing-fact"><span>02</span><strong id="billing-security-title">Keychain protected</strong><p id="billing-security-copy">The private activation credential stays in macOS Keychain.</p></div>
             <div class="billing-fact"><span>03</span><strong>Cancel anytime</strong><p>Invoices, payment methods, and cancellation live in Stripe’s portal.</p></div>
           </div>
         </div>
@@ -511,17 +511,17 @@
       <section class="page" id="page-setup">
         <div class="eyebrow">Setup</div>
         <h1>Ready for every app.</h1>
-        <p class="lead">Drip Type needs two macOS permissions to send keystrokes. Your text and settings stay on this device.</p>
+        <p class="lead" id="setup-lead">Drip Type needs two macOS permissions to send keystrokes. Your text and settings stay on this device.</p>
         <div class="section-list">
           <div class="card setup-card">
             <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v2"/></svg></div>
-            <div class="setup-copy"><div class="setup-title">Accessibility access</div><div class="setup-description" id="setup-permission-copy">Required to type into other applications.</div></div>
+            <div class="setup-copy"><div class="setup-title" id="accessibility-label">Accessibility access</div><div class="setup-description" id="setup-permission-copy">Required to type into other applications.</div></div>
             <span class="check-state" id="accessibility-state">Required</span>
             <button class="button secondary" id="request-access">Open permission prompt</button>
           </div>
           <div class="card setup-card">
             <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 7h10v10H7z"/><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"/></svg></div>
-            <div class="setup-copy"><div class="setup-title">Automation access</div><div class="setup-description" id="automation-copy">Required so Drip Type can use macOS System Events.</div></div>
+            <div class="setup-copy"><div class="setup-title" id="automation-label">Automation access</div><div class="setup-description" id="automation-copy">Required so Drip Type can use macOS System Events.</div></div>
             <span class="check-state" id="automation-state">Required</span>
             <button class="button secondary" id="request-automation">Allow automation</button>
           </div>
@@ -548,7 +548,7 @@
           </div>
           <div class="card setup-card">
             <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"/></svg></div>
-            <div class="setup-copy"><div class="setup-title">Appearance</div><div class="setup-description">Match macOS automatically or choose a permanent theme.</div></div>
+            <div class="setup-copy"><div class="setup-title">Appearance</div><div class="setup-description" id="appearance-copy">Match macOS automatically or choose a permanent theme.</div></div>
             <div class="theme-picker" role="group" aria-label="Appearance">
               <button class="theme-option" data-theme-value="system">System</button>
               <button class="theme-option" data-theme-value="light">Light</button>
@@ -557,11 +557,11 @@
           </div>
           <div class="card setup-card update-card" id="update-card" data-update-status="idle">
             <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v5c0 4.4 2.7 8.3 7 10 4.3-1.7 7-5.6 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg></div>
-            <div class="setup-copy"><div class="setup-title">Secure updates</div><div class="setup-description" id="update-copy">Updates are signed, verified, and installed without replacing your settings.</div><div class="update-release" id="update-release" hidden><strong id="update-release-name">What’s new</strong><p id="update-release-copy"></p></div></div>
+            <div class="setup-copy"><div class="setup-title">Secure updates</div><div class="setup-description" id="update-copy">Updates are verified and installed without replacing your settings.</div><div class="update-release" id="update-release" hidden><strong id="update-release-name">What’s new</strong><p id="update-release-copy"></p></div></div>
             <progress class="update-progress" id="update-progress" value="0" max="100" hidden></progress>
             <button class="button secondary" id="update-action">Check for updates</button>
           </div>
-          <dl class="card about-meta"><dt>Version</dt><dd id="about-version">1.0.0</dd><dt>Storage</dt><dd>Local settings only</dd><dt>Typing engine</dt><dd>macOS System Events</dd><dt>Bundle ID</dt><dd id="about-id">com.salt30.driptype</dd></dl>
+          <dl class="card about-meta"><dt>Version</dt><dd id="about-version">1.0.0</dd><dt>Storage</dt><dd>Local settings only</dd><dt>Typing engine</dt><dd id="typing-engine">macOS System Events</dd><dt>Bundle ID</dt><dd id="about-id">com.salt30.driptype</dd></dl>
         </div>
       </section>
     </main>

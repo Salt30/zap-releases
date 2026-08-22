@@ -19,6 +19,7 @@ let billingState = { allowed: true, status: 'checking', plan: 'core' };
 let profiles = [];
 let activeProfileId = null;
 let savedShortcuts = { hotkeyStart: 'Alt+5', hotkeyStop: 'Alt+0' };
+let currentPlatform = 'darwin';
 
 function hasFeature(feature) {
   return Array.isArray(billingState.features) && billingState.features.includes(feature);
@@ -56,7 +57,7 @@ function renderLaunchAtLogin(enabled) {
   $('launch-login').setAttribute('aria-checked', String(launchAtLogin));
   $('launch-login-label').textContent = launchAtLogin ? 'On' : 'Off';
   $('launch-login-copy').textContent = launchAtLogin
-    ? 'Starts quietly in the menu bar so the global composer shortcut is always available.'
+    ? `Starts quietly in the ${currentPlatform === 'win32' ? 'system tray' : 'menu bar'} so the global composer shortcut is always available.`
     : 'Drip Type must be opened manually before its global shortcuts can work.';
 }
 
@@ -186,7 +187,7 @@ function renderBilling(state = {}) {
   $('billing-status').textContent = active ? 'Subscription active' : trial ? 'Free trial active' : 'Subscription required';
   $('billing-plan').textContent = active ? `Drip Type ${planName}` : trial ? 'Drip Type Core trial' : 'Continue with Core';
   $('billing-copy').textContent = billingState.message || (active
-    ? 'This Mac is activated and ready to use.'
+    ? 'This device is activated and ready to use.'
     : trial
       ? 'All Core features are available during your trial.'
       : 'Choose Core to keep using Drip Composer and natural typing.');
@@ -326,12 +327,12 @@ async function flushBehavior() {
 
 function renderShortcutInput(input, accelerator) {
   input.dataset.accelerator = accelerator;
-  input.value = formatAccelerator(accelerator);
+  input.value = formatAccelerator(accelerator, currentPlatform);
 }
 
 function renderCurrentShortcuts(shortcuts = savedShortcuts) {
-  const start = formatAccelerator(shortcuts.hotkeyStart);
-  const stop = formatAccelerator(shortcuts.hotkeyStop);
+  const start = formatAccelerator(shortcuts.hotkeyStart, currentPlatform);
+  const stop = formatAccelerator(shortcuts.hotkeyStop, currentPlatform);
   $('quick-shortcut').textContent = start;
   $('setup-shortcut-copy').textContent = `${start} opens Composer and ${stop} stops typing.`;
 }
@@ -381,12 +382,13 @@ async function refreshPermission(prompt = false) {
     ? await window.dripType.requestAccessibility()
     : await window.dripType.getAccessibility();
   $('permission-card').classList.toggle('ready', trusted);
-  $('permission-title').textContent = trusted ? 'Accessibility enabled' : 'Accessibility needed';
-  $('permission-copy').textContent = trusted ? 'Drip Type is ready.' : 'Click to enable typing access.';
+  const windows = currentPlatform === 'win32';
+  $('permission-title').textContent = windows ? 'Windows typing ready' : trusted ? 'Accessibility enabled' : 'Accessibility needed';
+  $('permission-copy').textContent = windows ? 'Drip Type is ready in every editable app.' : trusted ? 'Drip Type is ready.' : 'Click to enable typing access.';
   $('setup-permission-copy').textContent = trusted
-    ? 'Enabled. Drip Type can type into other applications.'
+    ? windows ? 'Ready. Windows can send local input to the focused app.' : 'Enabled. Drip Type can type into other applications.'
     : 'Required to type into other applications.';
-  $('request-access').textContent = trusted ? 'Permission enabled' : 'Open permission prompt';
+  $('request-access').textContent = windows ? 'Ready' : trusted ? 'Permission enabled' : 'Open permission prompt';
   $('request-access').disabled = trusted;
   return trusted;
 }
@@ -396,16 +398,17 @@ async function refreshPermissionChecklist() {
   const accessibilityState = $('accessibility-state');
   const automationState = $('automation-state');
   const shortcutState = $('shortcut-state');
-  accessibilityState.textContent = checklist.accessibility ? 'Allowed' : 'Required';
+  const windows = currentPlatform === 'win32';
+  accessibilityState.textContent = windows ? 'Ready' : checklist.accessibility ? 'Allowed' : 'Required';
   accessibilityState.classList.toggle('ready', checklist.accessibility);
-  automationState.textContent = checklist.automation ? 'Allowed' : 'Required';
+  automationState.textContent = windows ? 'Ready' : checklist.automation ? 'Allowed' : 'Required';
   automationState.classList.toggle('ready', checklist.automation);
   shortcutState.textContent = checklist.shortcuts ? 'Active' : 'Needs attention';
   shortcutState.classList.toggle('ready', checklist.shortcuts);
   $('automation-copy').textContent = checklist.automation
-    ? 'Allowed. System Events is ready for secure local typing.'
+    ? windows ? 'Ready. The native Windows input engine stays on this device.' : 'Allowed. System Events is ready for secure local typing.'
     : 'Required so Drip Type can use macOS System Events.';
-  $('request-automation').textContent = checklist.automation ? 'Permission enabled' : 'Allow automation';
+  $('request-automation').textContent = windows ? 'Ready' : checklist.automation ? 'Permission enabled' : 'Allow automation';
   $('request-automation').disabled = checklist.automation;
   return checklist;
 }
@@ -428,11 +431,11 @@ function renderUpdate(state) {
   progress.value = Number(updateState.percent || 0);
 
   if (updateState.status === 'checking') {
-    copy.textContent = 'Checking the signed release channel…';
+    copy.textContent = 'Checking the verified release channel…';
     button.textContent = 'Checking…';
     button.disabled = true;
   } else if (updateState.status === 'available') {
-    copy.textContent = `Version${version} is signed and ready to download.`;
+    copy.textContent = `Version${version} is verified and ready to download.`;
     button.textContent = 'Download update';
   } else if (updateState.status === 'downloading') {
     copy.textContent = `Downloading the verified update · ${Math.round(updateState.percent || 0)}%`;
@@ -443,17 +446,17 @@ function renderUpdate(state) {
     copy.textContent = `Version${version} is verified and ready to install.`;
     button.textContent = 'Restart to update';
   } else if (updateState.status === 'current') {
-    copy.textContent = 'You have the latest signed version.';
+    copy.textContent = 'You have the latest verified version.';
     button.textContent = 'Check again';
   } else if (updateState.status === 'error') {
     copy.textContent = updateState.message || 'The secure update check could not be completed.';
     button.textContent = 'Try again';
   } else if (updateState.status === 'development') {
-    copy.textContent = 'Secure updates activate in signed release builds.';
+    copy.textContent = 'Secure updates activate in packaged release builds.';
     button.textContent = 'Release builds only';
     button.disabled = true;
   } else {
-    copy.textContent = 'Updates are signed, verified, and installed without replacing your settings.';
+    copy.textContent = 'Updates are verified and installed without replacing your settings.';
     button.textContent = 'Check for updates';
   }
 }
@@ -481,7 +484,7 @@ captureShortcut($('stop-key'));
 $('reset-shortcuts').addEventListener('click', () => {
   renderShortcutInput($('start-key'), 'Alt+5');
   renderShortcutInput($('stop-key'), 'Alt+0');
-  shortcutMessage('Defaults restored in the editor. Save to apply ⌥5 and ⌥0.');
+  shortcutMessage(`Defaults restored in the editor. Save to apply ${formatAccelerator('Alt+5', currentPlatform)} and ${formatAccelerator('Alt+0', currentPlatform)}.`);
 });
 $('text').addEventListener('input', refreshTextMeta);
 $('permission-card').addEventListener('click', () => refreshPermission(true));
@@ -594,7 +597,7 @@ $('save-shortcuts').addEventListener('click', async () => {
   renderCurrentShortcuts();
   shortcutMessage(result.shortcutFailures?.length
     ? result.shortcutFailures.join(' ')
-    : `${formatAccelerator(savedShortcuts.hotkeyStart)} opens Composer; ${formatAccelerator(savedShortcuts.hotkeyStop)} stops typing.`,
+    : `${formatAccelerator(savedShortcuts.hotkeyStart, currentPlatform)} opens Composer; ${formatAccelerator(savedShortcuts.hotkeyStop, currentPlatform)} stops typing.`,
   Boolean(result.shortcutFailures?.length));
   $('save-shortcuts').disabled = false;
   await refreshPermissionChecklist();
@@ -621,6 +624,7 @@ async function load() {
     window.dripType.getBillingState(),
     window.dripType.listProfiles()
   ]);
+  currentPlatform = info.platform;
   controls.wpm.value = settings.dripWPM;
   controls.delay.value = settings.dripDelay;
   controls.typos.value = settings.typoRate;
@@ -635,6 +639,16 @@ async function load() {
   $('brand-version').textContent = `Version ${info.version}`;
   $('about-version').textContent = info.version;
   $('about-id').textContent = info.appId;
+  document.documentElement.dataset.platform = currentPlatform;
+  if (currentPlatform === 'win32') {
+    $('setup-lead').textContent = 'Drip Type uses the native Windows input engine to send keystrokes. Your text and settings stay on this device.';
+    $('accessibility-label').textContent = 'Windows input engine';
+    $('automation-label').textContent = 'Private local typing';
+    $('appearance-copy').textContent = 'Match Windows automatically or choose a permanent theme.';
+    $('typing-engine').textContent = 'Windows SendInput';
+    $('billing-security-title').textContent = 'Windows protected';
+    $('billing-security-copy').textContent = 'The private activation credential is encrypted with Windows DPAPI.';
+  }
   refreshValues();
   refreshPermission(false);
   refreshPermissionChecklist();

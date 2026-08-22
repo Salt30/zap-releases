@@ -22,6 +22,8 @@ const fail = (message) => { throw new Error(message); };
 const packageJson = JSON.parse(read('package.json'));
 const packageLock = JSON.parse(read('package-lock.json'));
 const mainSource = read('src/main.js');
+const typingEngineSource = read('src/typing-engine.js');
+const windowsHostSource = read('src/windows-host.ps1');
 const shortcutSource = read('src/shortcut-utils.js');
 const shortcutSmokeSource = read('scripts/smoke-shortcuts-electron.js');
 const preloadSource = read('src/preload.js');
@@ -43,6 +45,7 @@ const portalSource = read('website/api/create-portal.js');
 const checkoutStatusSource = read('website/api/checkout-status.js');
 const websiteMarkup = read('website/index.html');
 const websiteSuccess = read('website/success.html');
+const websiteDownloads = read('website/downloads.js');
 const websiteLegal = read('website/legal.html');
 const websitePrivacy = read('website/privacy.html');
 const websiteTerms = read('website/terms.html');
@@ -73,6 +76,15 @@ if (!packageJson.build?.asar || packageJson.build?.compression !== 'maximum') {
 if (!packageJson.build?.mac?.forceCodeSigning || !packageJson.build?.mac?.hardenedRuntime) {
   fail('macOS signing and Hardened Runtime must remain mandatory.');
 }
+if (packageJson.build?.win?.target?.[0]?.target !== 'nsis' ||
+    !packageJson.build?.win?.target?.[0]?.arch?.includes('x64') ||
+    packageJson.build?.win?.artifactName !== 'Drip-Type-${version}-windows.${ext}') {
+  fail('Windows x64 NSIS packaging must remain enabled with the stable artifact name.');
+}
+if (!packageJson.build?.protocols?.some(({ schemes }) => schemes?.includes('driptype')) ||
+    !packageJson.build?.asarUnpack?.includes('build-app/*.ps1')) {
+  fail('Cross-platform activation or the unpacked Windows typing host is missing.');
+}
 if (!entitlements.includes('com.apple.security.cs.allow-jit')) {
   fail('Electron requires the JIT entitlement when Hardened Runtime is enabled.');
 }
@@ -86,7 +98,7 @@ if (packageJson.build.files.some((entry) => entry.includes('src'))) {
 }
 const updateProvider = packageJson.build?.publish?.[0];
 if (updateProvider?.provider !== 'generic' || updateProvider?.url !== 'https://drip-type-updates.vercel.app/') {
-  fail('The signed updater must use the dedicated public update service.');
+  fail('The verified updater must use the dedicated public update service.');
 }
 if (!packageJson.build?.releaseInfo?.releaseName?.includes(packageJson.version) ||
     !packageJson.build?.releaseInfo?.releaseNotes) {
@@ -96,13 +108,22 @@ if (!indexMarkup.includes(`Version ${packageJson.version}`)) {
   fail('Native application fallback version must match the package version.');
 }
 const currentDownload = `Drip-Type-${packageJson.version}-mac.dmg`;
+const currentWindowsDownload = `Drip-Type-${packageJson.version}-windows.exe`;
 if (!websiteMarkup.includes(`"softwareVersion":"${packageJson.version}"`) ||
-    !websiteMarkup.includes(currentDownload) || !websiteSuccess.includes(currentDownload)) {
+    !websiteMarkup.includes(currentDownload) || !websiteMarkup.includes(currentWindowsDownload) ||
+    !websiteSuccess.includes(currentDownload) || !websiteDownloads.includes(currentWindowsDownload)) {
   fail('Website release metadata and download links must match the application version.');
 }
 const releaseMirrorPrefix = `https://github.com/Salt30/drip-type-releases/releases/download/v${packageJson.version}/`;
 for (const extension of ['dmg', 'dmg.blockmap', 'zip', 'zip.blockmap']) {
   const name = `Drip-Type-${packageJson.version}-mac.${extension}`;
+  const redirect = updateHostConfig.redirects?.find(({ source }) => source === `/${name}`);
+  if (redirect?.destination !== `${releaseMirrorPrefix}${name}` || redirect?.permanent !== false) {
+    fail(`The public updater fallback is missing or incorrect for ${name}.`);
+  }
+}
+for (const extension of ['exe', 'exe.blockmap']) {
+  const name = `Drip-Type-${packageJson.version}-windows.${extension}`;
   const redirect = updateHostConfig.redirects?.find(({ source }) => source === `/${name}`);
   if (redirect?.destination !== `${releaseMirrorPrefix}${name}` || redirect?.permanent !== false) {
     fail(`The public updater fallback is missing or incorrect for ${name}.`);
@@ -136,6 +157,13 @@ for (const marker of [
 for (const marker of ['autoDownload = false', '6 * 60 * 60 * 1000', 'notifyUpdateAvailable']) {
   if (!mainSource.includes(marker)) fail(`In-app update requirement is missing: ${marker}`);
 }
+for (const marker of ['buildCharacterSteps', 'renderAppleScript', 'validateTypingEvents']) {
+  if (!typingEngineSource.includes(marker)) fail(`Shared typing engine requirement is missing: ${marker}`);
+}
+for (const marker of ['SendInput', 'KEYEVENTF_UNICODE', "ValidateSet('Target', 'Restore', 'Type')", 'SetForegroundWindow']) {
+  if (!windowsHostSource.includes(marker)) fail(`Native Windows typing requirement is missing: ${marker}`);
+}
+if (windowsHostSource.includes('Invoke-Expression')) fail('The Windows typing host must never execute user text.');
 for (const marker of ['app.enableSandbox()', ".replace(/\\r\\n?/g, '\\n')", 'Rejected untrusted IPC sender.']) {
   if (!mainSource.includes(marker)) fail(`Application hardening requirement is missing: ${marker}`);
 }
@@ -150,7 +178,9 @@ for (const marker of [
   "window.webContents.once('did-finish-load', navigate)",
   'setAsDefaultProtocolClient(BILLING_SCHEME)',
   'TRIAL_KEYCHAIN_SERVICE',
-  "'/usr/bin/security'"
+  "'/usr/bin/security'",
+  'safeStorage.encryptString',
+  'encryptedRefreshCredential'
 ]) {
   if (!mainSource.includes(marker)) fail(`Subscription security requirement is missing: ${marker}`);
 }
@@ -166,12 +196,12 @@ for (const [name, source] of [
 ]) {
   if (!source.includes('hasExactKeys')) fail(`Website ${name} API must reject unexpected fields.`);
 }
-for (const marker of ['Pro is live in version 1.6', 'data-checkout-plan="pro"', '>$25<', '/brand/zap/zap-icon-192.png']) {
+for (const marker of [`Pro is live in version ${packageJson.version.replace(/\.0$/, '')}`, 'data-checkout-plan="pro"', '>$25<', '/brand/zap/zap-icon-192.png']) {
   if (!websiteMarkup.includes(marker)) fail(`Website Pro launch requirement is missing: ${marker}`);
 }
 for (const marker of [
   'Typing speed', 'Start delay', 'Corrected typos', 'Thinking pauses', 'Speed bursts',
-  'One shortcut. Every Mac app.', 'What ships today', 'Signed + notarized'
+  'One shortcut. Every app.', 'What ships today', 'Download for Windows', 'Verified releases'
 ]) {
   if (!websiteMarkup.includes(marker)) fail(`Website verified-product showcase is missing: ${marker}`);
 }
@@ -194,9 +224,9 @@ for (const marker of ['/legal', 'renew monthly until canceled', 'By completing c
 }
 for (const [name, source, markers] of [
   ['legal center', websiteLegal, ['VegaNext LLC', 'support@tryzap.net', 'Subscription summary', '/privacy', '/terms', '/refunds']],
-  ['privacy policy', websitePrivacy, ['Effective August 16, 2026', 'Information we collect and why', 'We do not sell personal information', 'Your privacy rights', '400 Continental Blvd']],
-  ['terms', websiteTerms, ['Effective August 16, 2026', 'Paid subscriptions and renewal', 'up to three Macs', 'Governing law and disputes', 'These Terms do not require arbitration']],
-  ['refund policy', websiteRefunds, ['Effective August 16, 2026', 'Cancel online at any time', '14 calendar days', 'Renewal charges and partial periods', 'support@tryzap.net']]
+  ['privacy policy', websitePrivacy, ['Effective August 22, 2026', 'Information we collect and why', 'We do not sell personal information', 'Your privacy rights', 'Windows Data Protection API', '400 Continental Blvd']],
+  ['terms', websiteTerms, ['Effective August 22, 2026', 'Paid subscriptions and renewal', 'up to three devices', 'Governing law and disputes', 'These Terms do not require arbitration']],
+  ['refund policy', websiteRefunds, ['Effective August 22, 2026', 'Cancel online at any time', '14 calendar days', 'Renewal charges and partial periods', 'support@tryzap.net']]
 ]) {
   for (const marker of markers) {
     if (!source.includes(marker)) fail(`Website ${name} requirement is missing: ${marker}`);
@@ -226,11 +256,14 @@ if (releaseWorkflow.includes('git fetch') ||
   fail('Release validation must use the credential-free checkout and support an isolated retry branch.');
 }
 for (const marker of [
-  'vercel@58.9.1 env pull',
-  'node --env-file="$RUNNER_TEMP/drip-type-updates.env" scripts/publish-update-blobs.js',
-  'cp dist/latest-mac.yml update-site/'
+  'runs-on: windows-2025',
+  'npm run dist:win',
+  'dist/win-unpacked/Drip Type.exe',
+  'dist/latest.yml',
+  'Drip-Type-*-windows.exe.blockmap',
+  'needs: [mac, windows]'
 ]) {
-  if (!releaseWorkflow.includes(marker)) fail(`Release Blob publishing requirement is missing: ${marker}`);
+  if (!releaseWorkflow.includes(marker)) fail(`Native Windows release verification is missing: ${marker}`);
 }
 if (releaseWorkflow.includes('cp dist/latest-mac.yml dist/*.dmg')) {
   fail('Large installers must not be copied into the Vercel deployment.');
@@ -323,7 +356,9 @@ try {
     `Drip-Type-${packageJson.version}-mac.dmg`,
     `Drip-Type-${packageJson.version}-mac.dmg.blockmap`,
     `Drip-Type-${packageJson.version}-mac.zip`,
-    `Drip-Type-${packageJson.version}-mac.zip.blockmap`
+    `Drip-Type-${packageJson.version}-mac.zip.blockmap`,
+    `Drip-Type-${packageJson.version}-windows.exe`,
+    `Drip-Type-${packageJson.version}-windows.exe.blockmap`
   ]) {
     fs.writeFileSync(path.join(blobTestDist, name), `fixture:${name}`);
   }
@@ -338,7 +373,7 @@ try {
     stdio: 'pipe'
   });
   const generatedConfig = JSON.parse(fs.readFileSync(path.join(blobTestSite, 'vercel.json'), 'utf8'));
-  assert.equal(generatedConfig.redirects.length, 4);
+  assert.equal(generatedConfig.redirects.length, 6);
   assert(generatedConfig.redirects.every(({ destination }) =>
     destination.startsWith(`https://dry-run.invalid/releases/v${packageJson.version}/`)));
 } finally {
