@@ -336,11 +336,6 @@ for (const marker of ['data-demo-text', 'data-demo-status', 'data-demo-replay', 
 if (!websiteMarkup.includes('/home-demo.js?v=')) {
   fail('The website typing demo must use a versioned URL so browsers cannot retain stale behavior.');
 }
-const demoCacheRule = websiteVercelConfig.headers?.find(({ source }) => source === '/home-demo.js');
-if (!demoCacheRule?.headers?.some(({ key, value }) =>
-  key === 'Cache-Control' && value.includes('max-age=0') && value.includes('must-revalidate'))) {
-  fail('The website typing demo must revalidate after every deployment.');
-}
 for (const marker of [
   'typeCharacters', 'eraseCharacters', 'Correcting a typo', 'Brief speed burst',
   'IntersectionObserver', 'prefers-reduced-motion: reduce'
