@@ -34,7 +34,6 @@
 <meta name="twitter:image" content="https://tryzap.net/brand/zap/zap-og-card.png"/>
 <meta name="twitter:image:alt" content="Drip Type by Zap for Mac and Windows"/>
 <link rel="icon" href="/brand/zap/zap-favicon.svg" type="image/svg+xml"/>
-<link rel="icon" href="/favicon.ico" sizes="any"/>
 <link rel="apple-touch-icon" href="/brand/zap/apple-touch-icon.png" sizes="180x180" type="image/png"/>
 <script type="application/ld+json">{"@context":"https://schema.org","@graph":[{"@type":"WebSite","@id":"https://tryzap.net/#website","url":"https://tryzap.net/","name":"Drip Type by Zap","description":"Private, local-first writing and typing software for macOS and Windows.","inLanguage":"en-US"},{"@type":"Organization","@id":"https://tryzap.net/#organization","name":"Zap","url":"https://tryzap.net/","logo":{"@type":"ImageObject","url":"https://tryzap.net/brand/zap/zap-icon-512.png"}},{"@type":"SoftwareApplication","@id":"https://tryzap.net/#software","name":"Drip Type","alternateName":"Drip Type by Zap","url":"https://tryzap.net/","operatingSystem":"macOS, Windows 10, Windows 11","applicationCategory":"BusinessApplication","applicationSubCategory":"Writing and productivity software","softwareVersion":"1.7.0","description":"A private, local-first Mac and Windows writing and typing utility with advanced on-device Pro workflows.","image":"https://tryzap.net/brand/zap/zap-og-card.png","author":{"@id":"https://tryzap.net/#organization"},"isAccessibleForFree":false,"offers":[{"@type":"Offer","name":"Core","price":"9.99","priceCurrency":"USD","url":"https://tryzap.net/#pricing"},{"@type":"Offer","name":"Pro","price":"25.00","priceCurrency":"USD","url":"https://tryzap.net/#pricing"}],"featureList":["Global translucent composer","Configurable typing controls","Reusable local templates","Batch personalization","Multiple writing profiles","Private searchable clipboard workspace","On-device Writing Lab transforms","Automatic updates"]},{"@type":"FAQPage","@id":"https://tryzap.net/#faq","mainEntity":[{"@type":"Question","name":"Does Drip Type work in every app?","acceptedAnswer":{"@type":"Answer","text":"Drip Type works system-wide in editable fields across Mac and Windows apps. Password and operating-system-protected secure fields stay protected."}},{"@type":"Question","name":"Does my writing leave my device?","acceptedAnswer":{"@type":"Answer","text":"Core and Pro writing features stay on your device. Drip Type 1.7 does not use a third-party AI writing API."}},{"@type":"Question","name":"Why does macOS need permissions?","acceptedAnswer":{"@type":"Answer","text":"macOS requires Accessibility and Automation permission. Windows uses its native input engine without those macOS permissions."}},{"@type":"Question","name":"Can I cancel whenever I want?","acceptedAnswer":{"@type":"Answer","text":"Yes. Core and Pro subscriptions can be managed or canceled through Stripe's Customer Portal."}}]}]}</script>
 </head>
@@ -58,10 +57,15 @@
 <a href="#security">Privacy</a>
 <a href="#pricing">Pricing</a>
 <a href="/support">Support</a>
+<a href="/account">Account</a>
 </nav>
+<button class="mobile-menu-button" id="mobile-menu-button" type="button" aria-expanded="false" aria-controls="mobile-menu" aria-label="Open navigation menu"><span></span><span></span><span></span></button>
 <a class="nav-cta" data-auto-download href="https://drip-type-updates.vercel.app/Drip-Type-1.7.0-mac.dmg">Download v1.7 for Mac <span aria-hidden="true">↓</span>
 </a>
 </div>
+<nav class="mobile-menu" id="mobile-menu" aria-label="Mobile navigation" hidden>
+<a href="#features">Product</a><a href="#how">How it works</a><a href="#security">Privacy</a><a href="#pricing">Pricing</a><a href="/support">Support</a><a href="/account">Account</a>
+</nav>
 </header>
 <main>
 <section class="hero" id="top">
@@ -369,6 +373,7 @@
 <a href="#how">How it works</a>
 <a href="#pricing">Pricing</a>
 <a href="/support">Support</a>
+<a href="/account">Account</a>
 </div>
 <div>
 <strong>Trust</strong>
@@ -391,42 +396,25 @@
 </style>
 <style>
 .brand-mark{display:block;object-fit:cover;padding:0}
+.mobile-menu-button,.mobile-menu{display:none}
+.mobile-menu-button{border:1px solid var(--line);border-radius:8px;background:#ffffff0b;color:var(--ink);place-items:center;width:44px;height:44px;margin-left:auto;padding:0;cursor:pointer}
+.mobile-menu-button span{background:currentColor;border-radius:99px;width:17px;height:1px;display:block;transition:transform .18s,opacity .18s}
+.mobile-menu-button span+span{margin-top:4px}
+.mobile-menu-button[aria-expanded=true] span:first-child{transform:translateY(5px) rotate(45deg)}
+.mobile-menu-button[aria-expanded=true] span:nth-child(2){opacity:0}
+.mobile-menu-button[aria-expanded=true] span:last-child{transform:translateY(-5px) rotate(-45deg)}
+.mobile-menu{background:#0d0e15f7;border-bottom:1px solid var(--line);padding:12px 14px 18px;grid-template-columns:1fr 1fr;gap:7px}
+.mobile-menu a{border:1px solid #ffffff13;border-radius:8px;color:#d4d3cf;background:#ffffff06;min-height:44px;padding:0 13px;align-items:center;font-size:11px;font-weight:620;display:flex}
+.mobile-menu a:focus-visible,.mobile-menu-button:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
 .everywhere-strip{border-top:1px solid var(--line);border-bottom:1px solid var(--line);justify-content:space-between;align-items:center;min-height:90px;margin-top:42px;display:flex;position:relative}
 .everywhere-strip strong{color:#e4e3de;letter-spacing:-.025em;font-size:clamp(20px,2.6vw,32px);font-weight:570}
 .everywhere-strip>span{color:#777a81;align-items:center;gap:4px;font-size:10px;display:flex}
-@media (max-width:680px){.everywhere-strip{align-items:flex-start;flex-direction:column;justify-content:center;gap:14px;margin-top:16px;padding-block:24px}}
+@media (max-width:680px){.mobile-menu-button{display:grid}.mobile-menu:not([hidden]){display:grid}.nav-cta{margin-left:9px}.everywhere-strip{align-items:flex-start;flex-direction:column;justify-content:center;gap:14px;margin-top:16px;padding-block:24px}}
+@media (max-width:430px){.nav-cta{display:none}.mobile-menu-button{margin-left:auto}}
 </style>
-<script>
-(() => {
-  const demo = document.getElementById('demo');
-  const tryInteraction = document.getElementById('try-interaction');
-  const controls = Object.fromEntries([...document.querySelectorAll('[data-rhythm-control]')].map((input) => [input.dataset.rhythmControl, input]));
-  const outputs = Object.fromEntries([...document.querySelectorAll('[data-rhythm-output]')].map((output) => [output.dataset.rhythmOutput, output]));
-  if (!demo || Object.keys(controls).length !== 5) return;
-  const render = () => {
-    const values = Object.fromEntries(Object.entries(controls).map(([key, input]) => [key, Number(input.value)]));
-    outputs.wpm.textContent = `${values.wpm} WPM`;
-    outputs.delay.textContent = `${values.delay}s`;
-    for (const key of ['typos', 'pauses', 'bursts']) outputs[key].textContent = `${values[key]}%`;
-    for (const input of Object.values(controls)) {
-      const progress = ((Number(input.value) - Number(input.min)) / (Number(input.max) - Number(input.min))) * 100;
-      input.style.setProperty('--fill', `${progress}%`);
-    }
-    demo.style.setProperty('--beat', `${Math.max(.55, Math.min(1.55, 70 / values.wpm)).toFixed(2)}s`);
-  };
-  Object.values(controls).forEach((input) => input.addEventListener('input', render));
-  tryInteraction?.addEventListener('click', (event) => {
-    event.preventDefault();
-    demo?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    demo.classList.remove('demo-attention');
-    void demo.offsetWidth;
-    demo.classList.add('demo-attention');
-    window.setTimeout(() => controls.wpm.focus({ preventScroll: true }), 360);
-  });
-  render();
-})();
-</script>
+<script src="/home-demo.js" defer></script>
 <script src="/downloads.js" defer></script>
+<script src="/navigation.js" defer></script>
 <script src="/checkout.js" defer>
 </script>
 </body>

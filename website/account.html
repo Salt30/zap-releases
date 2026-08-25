@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Your Zap account — Drip Type</title>
+  <meta name="description" content="Sign in to purchase, activate, and manage Drip Type without duplicate subscriptions.">
+  <meta name="robots" content="noindex,follow">
+  <link rel="icon" href="/brand/zap/zap-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/account.css">
+  <link rel="stylesheet" href="/account-additions.css">
+</head>
+<body>
+  <header class="site-header">
+    <a class="brand" href="/" aria-label="Drip Type home">
+      <img src="/brand/zap/zap-icon-192.png" alt="" width="34" height="34">
+      <span><strong>Drip Type</strong><small>by Zap</small></span>
+    </a>
+    <a class="quiet-link" href="/support">Support</a>
+  </header>
+
+  <main>
+    <section class="intro">
+      <span class="eyebrow">One account. One subscription.</span>
+      <h1>Your access follows you.</h1>
+      <p>Buy on the website, connect Drip Type, and manage billing from the same verified account. If you already subscribe, we open billing management instead of starting another charge.</p>
+      <div class="trust-row" aria-label="Account protections">
+        <span><i></i> Verified email</span>
+        <span><i></i> Stripe-hosted payment</span>
+        <span><i></i> Up to 3 devices</span>
+      </div>
+    </section>
+
+    <section class="account-shell" aria-live="polite">
+      <div class="loading" id="account-loading">
+        <span class="spinner" aria-hidden="true"></span>
+        <p>Loading your secure account…</p>
+      </div>
+
+      <div class="auth-card" id="auth-card" hidden>
+        <div class="auth-heading">
+          <span class="card-kicker">Zap account</span>
+          <h2 id="auth-title">Welcome back.</h2>
+          <p id="auth-copy">Sign in before checkout so your purchase appears in Drip Type.</p>
+        </div>
+        <div class="tabs" role="tablist" aria-label="Account action">
+          <button type="button" class="active" id="sign-in-tab" role="tab" aria-selected="true">Sign in</button>
+          <button type="button" id="sign-up-tab" role="tab" aria-selected="false">Create account</button>
+        </div>
+
+        <form id="auth-form" novalidate>
+          <label>Email
+            <input id="email" name="email" type="email" autocomplete="email" maxlength="254" required placeholder="you@example.com">
+          </label>
+          <label>Password
+            <span class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" minlength="6" maxlength="128" required placeholder="6+ characters"><button id="toggle-password" type="button" aria-label="Show password">Show</button></span>
+          </label>
+          <div class="strength" id="strength" hidden>
+            <div><span>Password strength</span><output id="strength-label">Too short</output></div>
+            <meter id="strength-meter" min="0" max="4" value="0">0 out of 4</meter>
+            <p>Use at least 6 characters. Longer passwords with mixed words, numbers, and symbols are safer.</p>
+          </div>
+          <div id="clerk-captcha" data-cl-theme="dark"></div>
+          <p class="form-error" id="auth-error" role="alert"></p>
+          <button class="primary" id="auth-submit" type="submit">Sign in</button>
+          <button class="text-button forgot-button" id="forgot-password" type="button">Forgot password?</button>
+          <p class="notice">By continuing, you agree to the <a href="/terms">Terms</a> and acknowledge the <a href="/privacy">Privacy Policy</a>. Passwords are handled by our identity provider and are not sent to Zap's billing API.</p>
+        </form>
+
+        <form id="verify-form" hidden novalidate>
+          <label>Verification code
+            <input id="verification-code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required placeholder="Enter the email code">
+          </label>
+          <p class="form-error" id="verify-error" role="alert"></p>
+          <button class="primary" type="submit">Verify email</button>
+          <button class="text-button" id="restart-auth" type="button">Use a different email</button>
+        </form>
+
+        <form id="reset-form" hidden novalidate>
+          <div id="reset-code-step">
+            <label>Email reset code
+              <input id="reset-code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required placeholder="Enter the email code">
+            </label>
+            <p class="form-hint">We sent a one-time code to the email shown above.</p>
+          </div>
+          <div id="reset-password-step" hidden>
+            <label>New password
+              <span class="password-wrap"><input id="reset-password" type="password" autocomplete="new-password" minlength="6" maxlength="128" required placeholder="6+ characters"><button id="toggle-reset-password" type="button" aria-label="Show new password">Show</button></span>
+            </label>
+            <div class="strength" id="reset-strength">
+              <div><span>Password strength</span><output id="reset-strength-label">Too short</output></div>
+              <meter id="reset-strength-meter" min="0" max="4" value="0">0 out of 4</meter>
+              <p>Use at least 6 characters. Longer passwords with mixed words, numbers, and symbols are safer.</p>
+            </div>
+          </div>
+          <p class="form-error" id="reset-error" role="alert"></p>
+          <button class="primary" id="reset-submit" type="submit">Verify reset code</button>
+          <button class="text-button" id="cancel-reset" type="button">Back to sign in</button>
+        </form>
+      </div>
+
+      <div class="dashboard" id="dashboard" hidden>
+        <div class="dashboard-head">
+          <div><span class="card-kicker">Signed in</span><h2 id="account-email"></h2></div>
+          <button class="text-button" id="sign-out" type="button">Sign out</button>
+        </div>
+        <div class="subscription-card">
+          <span class="status-dot" id="subscription-dot"></span>
+          <div><span class="card-kicker">Subscription</span><h3 id="subscription-title">Checking access…</h3><p id="subscription-copy"></p></div>
+        </div>
+        <div class="connect-card" id="connect-card" hidden>
+          <span class="connect-icon" aria-hidden="true">↗</span>
+          <div><h3>Connect this Drip Type app</h3><p>The connection link expires after five minutes and only works for the device that requested it.</p></div>
+          <button class="primary" id="connect-app" type="button">Connect app</button>
+        </div>
+        <div class="plan-actions" id="plan-actions" hidden>
+          <p id="plan-message">Choose a plan. Stripe shows the exact renewal price before you confirm.</p>
+          <div><button class="primary" type="button" data-account-plan="core">Start Core — $9.99/mo</button><button class="secondary" type="button" data-account-plan="pro">Start Pro — $25/mo</button></div>
+        </div>
+        <div class="manage-actions" id="manage-actions" hidden>
+          <button class="primary" id="manage-billing" type="button">Manage billing</button>
+          <p>Cancel, change plans, update payment details, and view invoices in Stripe's Customer Portal.</p>
+        </div>
+        <p class="form-error" id="dashboard-error" role="alert"></p>
+      </div>
+
+      <div class="unavailable" id="account-unavailable" hidden>
+        <h2>Accounts are not live yet.</h2>
+        <p>The secure account service still needs its production configuration. No payment will be started until it is ready.</p>
+        <a class="secondary link-button" href="/support">Contact support</a>
+      </div>
+    </section>
+  </main>
+  <footer><span>© 2026 Zap</span><span><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/refunds">Refunds</a></span></footer>
+  <script src="/account.js" defer></script>
+</body>
+</html>

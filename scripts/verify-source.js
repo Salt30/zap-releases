@@ -53,7 +53,14 @@ const websiteRefunds = read('website/refunds.html');
 const websiteSupport = read('website/support.html');
 const websiteSupportClient = read('website/support.js');
 const websiteSupportApi = read('website/api/support-ticket.js');
+const websiteAccount = read('website/account.html');
+const websiteAccountClient = read('website/account.js');
+const websiteAccountAuth = read('website/api/_auth.js');
+const websiteNavigation = read('website/navigation.js');
+const websiteNotFound = read('website/404.html');
+const websiteStripeWebhook = read('website/api/stripe-webhook.js');
 const websiteSitemap = read('website/sitemap.xml');
+const websiteVercelConfig = JSON.parse(read('website/vercel.json'));
 
 if (!packageJson.private || packageJson.license !== 'UNLICENSED') {
   fail('The package must remain private and proprietary.');
@@ -209,6 +216,51 @@ for (const marker of [
 ]) {
   if (!websiteMarkup.includes(marker)) fail(`Website verified-product showcase is missing: ${marker}`);
 }
+for (const marker of ['mobile-menu-button', 'aria-expanded="false"', '/navigation.js']) {
+  if (!websiteMarkup.includes(marker)) fail(`Accessible mobile navigation is missing: ${marker}`);
+}
+const websiteCsp = websiteVercelConfig.headers?.flatMap(({ headers }) => headers || [])
+  .find(({ key }) => key === 'Content-Security-Policy')?.value || '';
+const jsonLdBody = websiteMarkup.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/)?.[1] || '';
+const jsonLdHash = `sha256-${crypto.createHash('sha256').update(jsonLdBody).digest('base64')}`;
+if (websiteCsp.includes("script-src 'self' 'unsafe-inline'") || !websiteCsp.includes(`'${jsonLdHash}'`)) {
+  fail('Website CSP must block inline executable scripts while allowing only the exact structured-data hash.');
+}
+if (/<script(?![^>]*type="application\/ld\+json")(?![^>]*\bsrc=)[^>]*>/i.test(websiteMarkup)) {
+  fail('Website homepage contains an inline executable script.');
+}
+for (const marker of ['Escape', 'restoreFocus', 'matchMedia']) {
+  if (!websiteNavigation.includes(marker)) fail(`Mobile navigation behavior is incomplete: ${marker}`);
+}
+for (const marker of ['ERROR 404', 'noindex,nofollow', '/support', '/account']) {
+  if (!websiteNotFound.includes(marker)) fail(`Custom 404 requirement is missing: ${marker}`);
+}
+const websiteDirectory = path.join(root, 'website');
+const websiteHtmlFiles = fs.readdirSync(websiteDirectory).filter((name) => name.endsWith('.html'));
+for (const htmlName of websiteHtmlFiles) {
+  const html = read(`website/${htmlName}`);
+  const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
+  for (const match of html.matchAll(/(?:href|src)="([^"]+)"/g)) {
+    const reference = match[1];
+    if (reference.startsWith('#')) {
+      if (reference.length > 1 && !ids.has(reference.slice(1))) {
+        fail(`Website ${htmlName} has a broken same-page link: ${reference}`);
+      }
+      continue;
+    }
+    if (!reference.startsWith('/') || reference.startsWith('//') || reference.startsWith('/api/')) continue;
+    const pathname = reference.split(/[?#]/u, 1)[0];
+    const relative = pathname.slice(1);
+    const candidates = pathname === '/'
+      ? ['index.html']
+      : path.extname(relative)
+        ? [relative]
+        : [`${relative}.html`, path.join(relative, 'index.html')];
+    if (!candidates.some((candidate) => fs.existsSync(path.join(websiteDirectory, candidate)))) {
+      fail(`Website ${htmlName} links to a missing local resource: ${reference}`);
+    }
+  }
+}
 if (websiteMarkup.includes('Pause instantly')) {
   fail('Website must not claim a pause/resume control that the application does not provide.');
 }
@@ -238,6 +290,24 @@ for (const marker of [
   }
 }
 for (const marker of [
+  'reset_password_email_code', 'attemptFirstFactor', 'resetPassword',
+  'reset-strength-meter', 'minlength="6"'
+]) {
+  if (!websiteAccount.includes(marker) && !websiteAccountClient.includes(marker)) {
+    fail(`Account password recovery requirement is missing: ${marker}`);
+  }
+}
+for (const marker of [
+  'STRIPE_WEBHOOK_SECRET', 'stripe-signature', 'createHmac("sha256"',
+  'SIGNATURE_TOLERANCE_SECONDS', 'bodyParser: false', 'customer.subscription.deleted',
+  'clerk_user_id', 'stripeEventCreated'
+]) {
+  if (!websiteStripeWebhook.includes(marker)) fail(`Stripe webhook security requirement is missing: ${marker}`);
+}
+for (const marker of ['metadata[clerk_user_id]', 'subscription_data[metadata][clerk_user_id]']) {
+  if (!checkoutSource.includes(marker)) fail(`Checkout account-link metadata is missing: ${marker}`);
+}
+for (const marker of [
   'hasExactKeys', 'RATE_LIMIT', 'configuredOrigin', 'RESEND_API_KEY',
   'Idempotency-Key', 'reply_to', 'support@tryzap.net'
 ]) {
@@ -251,13 +321,36 @@ if (!websiteSitemap.includes('https://tryzap.net/support')) {
 }
 for (const [name, source, markers] of [
   ['legal center', websiteLegal, ['VegaNext LLC', 'support@tryzap.net', 'Subscription summary', '/privacy', '/terms', '/refunds']],
-  ['privacy policy', websitePrivacy, ['Effective August 22, 2026', 'Version 2.2', 'Information we collect and why', 'support form', 'Resend', 'We do not sell personal information', 'Your privacy rights', 'Windows Data Protection API', '400 Continental Blvd']],
+  ['privacy policy', websitePrivacy, ['Effective August 22, 2026', 'Version 2.3', 'Information we collect and why', 'support form', 'Resend', 'Clerk', 'We do not sell personal information', 'Your privacy rights', 'Windows Data Protection API', '400 Continental Blvd']],
   ['terms', websiteTerms, ['Effective August 22, 2026', 'Paid subscriptions and renewal', 'up to three devices', 'Governing law and disputes', 'These Terms do not require arbitration']],
   ['refund policy', websiteRefunds, ['Effective August 22, 2026', 'Cancel online at any time', '14 calendar days', 'Renewal charges and partial periods', 'support@tryzap.net']]
 ]) {
   for (const marker of markers) {
     if (!source.includes(marker)) fail(`Website ${name} requirement is missing: ${marker}`);
   }
+}
+for (const marker of [
+  'id="auth-form"', 'type="email"', 'type="password"', 'minlength="6"',
+  'id="strength-meter"', 'id="connect-app"', '/privacy', '/terms'
+]) {
+  if (!websiteAccount.includes(marker)) fail(`Website account requirement is missing: ${marker}`);
+}
+for (const marker of [
+  'prepareEmailAddressVerification', 'attemptEmailAddressVerification',
+  '/api/account-status', '/api/create-checkout', '/api/create-app-activation',
+  'Clerk.session.getToken()'
+]) {
+  if (!websiteAccountClient.includes(marker)) fail(`Website account flow is missing: ${marker}`);
+}
+for (const marker of ['authenticateRequest', 'authorizedParties', 'verification?.status !== "verified"']) {
+  if (!websiteAccountAuth.includes(marker)) fail(`Website account authentication boundary is missing: ${marker}`);
+}
+for (const marker of [
+  'customer: customer.id', 'client_reference_id: account.userId',
+  'Idempotency-Key', 'accountSubscription(account)', 'createPortalSession(customer.id)',
+  'openCheckoutForCustomer(customer.id)', 'expires_at'
+]) {
+  if (!checkoutSource.includes(marker)) fail(`Account-bound checkout protection is missing: ${marker}`);
 }
 for (const marker of [
   "handleTrusted('pro:batch-render'", "handleTrusted('pro:transform'",

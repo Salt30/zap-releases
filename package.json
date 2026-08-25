@@ -9,7 +9,7 @@
   "scripts": {
     "start": "electron .",
     "build:app": "node scripts/build-app.js",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/index.js && node --check src/quick.js && node --check src/shortcut-utils.js && node --check src/typing-engine.js && node --check src/text-tools.js && node --check src/pro-tools.js && node --check src/subscription.js && node --check src/onboarding.js && node --check website/api/support-ticket.js && node --check website/support.js && node --check scripts/build-app.js && node --check scripts/after-pack.js && node --check scripts/publish-update-blobs.js && node --check scripts/test-shortcuts.js && node --check scripts/test-typing-engine.js && node --check scripts/verify-api.js && node --check scripts/verify-source.js && node --check scripts/verify-package.js",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/index.js && node --check src/quick.js && node --check src/shortcut-utils.js && node --check src/typing-engine.js && node --check src/text-tools.js && node --check src/pro-tools.js && node --check src/subscription.js && node --check src/onboarding.js && node --check website/account.js && node --check website/home-demo.js && node --check website/navigation.js && node --check website/checkout.js && node --check website/support.js && node --check website/api/_auth.js && node --check website/api/_billing.js && node --check website/api/account-config.js && node --check website/api/account-status.js && node --check website/api/claim-account-entitlement.js && node --check website/api/create-account-portal.js && node --check website/api/create-app-activation.js && node --check website/api/create-checkout.js && node --check website/api/stripe-webhook.js && node --check website/api/support-ticket.js && node --check scripts/build-app.js && node --check scripts/after-pack.js && node --check scripts/publish-update-blobs.js && node --check scripts/test-shortcuts.js && node --check scripts/test-typing-engine.js && node --check scripts/verify-api.js && node --check scripts/verify-source.js && node --check scripts/verify-package.js",
     "test:source": "node scripts/test-shortcuts.js && node scripts/test-typing-engine.js && node scripts/verify-source.js && node scripts/verify-api.js",
     "test:shortcuts:mac": "electron scripts/smoke-shortcuts-electron.js",
     "verify": "npm run check && npm run test:source && npm run build:app",
@@ -29,6 +29,7 @@
     "productivity"
   ],
   "dependencies": {
+    "@clerk/backend": "3.16.10",
     "electron-store": "8.2.0",
     "electron-updater": "6.8.9"
   },
@@ -43,7 +44,9 @@
     "appId": "com.salt30.driptype",
     "productName": "Drip Type",
     "asar": true,
-    "asarUnpack": ["build-app/*.ps1"],
+    "asarUnpack": [
+      "build-app/*.ps1"
+    ],
     "compression": "maximum",
     "extraMetadata": {
       "main": "build-app/main.js"
@@ -58,7 +61,9 @@
       "package.json",
       "!**/*.map"
     ],
-    "electronLanguages": ["en"],
+    "electronLanguages": [
+      "en"
+    ],
     "afterPack": "scripts/after-pack.js",
     "publish": [
       {
@@ -73,7 +78,9 @@
     "protocols": [
       {
         "name": "Drip Type activation",
-        "schemes": ["driptype"]
+        "schemes": [
+          "driptype"
+        ]
       }
     ],
     "mac": {
@@ -83,11 +90,15 @@
       "target": [
         {
           "target": "dmg",
-          "arch": ["universal"]
+          "arch": [
+            "universal"
+          ]
         },
         {
           "target": "zip",
-          "arch": ["universal"]
+          "arch": [
+            "universal"
+          ]
         }
       ],
       "forceCodeSigning": true,
@@ -100,7 +111,9 @@
         "CFBundleURLTypes": [
           {
             "CFBundleURLName": "Drip Type activation",
-            "CFBundleURLSchemes": ["driptype"]
+            "CFBundleURLSchemes": [
+              "driptype"
+            ]
           }
         ],
         "LSApplicationCategoryType": "public.app-category.productivity",
@@ -114,7 +127,9 @@
       "target": [
         {
           "target": "nsis",
-          "arch": ["x64"]
+          "arch": [
+            "x64"
+          ]
         }
       ],
       "requestedExecutionLevel": "asInvoker",
@@ -135,10 +150,21 @@
       "icon": "assets/icon.png",
       "backgroundColor": "#0d0f13",
       "iconSize": 128,
-      "window": { "width": 540, "height": 380 },
+      "window": {
+        "width": 540,
+        "height": 380
+      },
       "contents": [
-        { "x": 140, "y": 185 },
-        { "x": 400, "y": 185, "type": "link", "path": "/Applications" }
+        {
+          "x": 140,
+          "y": 185
+        },
+        {
+          "x": 400,
+          "y": 185,
+          "type": "link",
+          "path": "/Applications"
+        }
       ]
     }
   }

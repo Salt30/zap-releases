@@ -399,12 +399,37 @@ async function activateCheckoutSession(sessionId) {
   return state;
 }
 
+async function activateAccountToken(activationToken) {
+  if (typeof activationToken !== 'string' || activationToken.length > 2048 ||
+      !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(activationToken)) {
+    throw new Error('Invalid account connection link');
+  }
+  const result = await billingRequest('/api/claim-account-entitlement', {
+    activationToken,
+    deviceId: ensureDeviceId()
+  });
+  await saveRefreshCredential(result.refreshToken);
+  const state = acceptEntitlement(result);
+  navigateMainWindow({ page: 'billing' });
+  if (Notification.isSupported()) {
+    new Notification({ title: 'Zap account connected', body: state.message, silent: true }).show();
+  }
+  return state;
+}
+
 function handleActivationUrl(value) {
   try {
     const url = new URL(value);
-    if (url.protocol !== `${BILLING_SCHEME}:` || url.hostname !== 'activate') return;
-    const sessionId = url.searchParams.get('session_id') || '';
-    activateCheckoutSession(sessionId).catch((error) => {
+    if (url.protocol !== `${BILLING_SCHEME}:`) return;
+    let activation;
+    if (url.hostname === 'activate') {
+      activation = activateCheckoutSession(url.searchParams.get('session_id') || '');
+    } else if (url.hostname === 'account') {
+      activation = activateAccountToken(url.searchParams.get('token') || '');
+    } else {
+      return;
+    }
+    activation.catch((error) => {
       publishBillingState({ status: 'error', message: error.message || 'Activation failed.' });
       navigateMainWindow({ page: 'billing' });
     });
@@ -1391,7 +1416,7 @@ handleTrusted('app:get-info', ['index.html', 'onboarding.html'], () => ({
 handleTrusted('billing:get-state', ['index.html'], () => currentBillingState());
 handleTrusted('billing:refresh', ['index.html'], () => refreshEntitlement());
 handleTrusted('billing:subscribe', ['index.html'], async () => {
-  await shell.openExternal(`${BILLING_ORIGIN}/#pricing`);
+  await shell.openExternal(`${BILLING_ORIGIN}/account?connect_device=${encodeURIComponent(ensureDeviceId())}`);
   return currentBillingState();
 });
 handleTrusted('billing:portal', ['index.html'], async () => {

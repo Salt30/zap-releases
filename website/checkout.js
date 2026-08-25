@@ -35,30 +35,10 @@
   };
 
   buttons.forEach((button) => {
-    button.addEventListener("click", async () => {
+    button.addEventListener("click", () => {
       if (button.disabled) return;
       setError(button);
-      const original = button.textContent;
-      button.disabled = true;
-      button.textContent = "Opening secure checkout…";
-
-      try {
-        const response = await fetch("/api/create-checkout", {
-          method: "POST",
-          headers: {
-            Accept: "application/json",
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ plan: button.dataset.checkoutPlan }),
-        });
-        const result = await response.json();
-        if (!response.ok || !result.url) throw new Error(result.error || "Checkout failed.");
-        window.location.assign(result.url);
-      } catch (error) {
-        setError(button, error.message || "Checkout could not be opened. Please try again.");
-        button.disabled = false;
-        button.textContent = original;
-      }
+      window.location.assign(`/account?plan=${encodeURIComponent(button.dataset.checkoutPlan)}`);
     });
   });
 

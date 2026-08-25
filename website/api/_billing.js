@@ -1,16 +1,26 @@
 const {
   createHash,
   createPrivateKey,
+  createPublicKey,
   randomBytes,
   sign,
   timingSafeEqual,
+  verify,
 } = require("node:crypto");
 
 const ACTIVE_SUBSCRIPTION_STATES = new Set(["active", "trialing"]);
+const BLOCKING_SUBSCRIPTION_STATES = new Set([
+  "active",
+  "trialing",
+  "past_due",
+  "unpaid",
+  "paused",
+  "incomplete",
+]);
 const ALLOWED_PLANS = new Set(["core", "pro"]);
 const MAX_DEVICES = 3;
 const ENTITLEMENT_TTL_SECONDS = 72 * 60 * 60;
-const STRIPE_API_VERSION = "2026-06-24.dahlia";
+const STRIPE_API_VERSION = "2026-07-29.dahlia";
 const RATE_WINDOW_MS = 60_000;
 const RATE_LIMIT = 30;
 const MAX_JSON_BODY_BYTES = 4096;
@@ -73,6 +83,14 @@ function validCheckoutSessionId(value) {
 
 function validRefreshToken(value) {
   return /^sub_[A-Za-z0-9]+\.[A-Za-z0-9_-]{40,}$/.test(String(value || ""));
+}
+
+function validCustomerId(value) {
+  return /^cus_[A-Za-z0-9]+$/.test(String(value || ""));
+}
+
+function validSubscriptionId(value) {
+  return /^sub_[A-Za-z0-9]+$/.test(String(value || ""));
 }
 
 function isPlainObject(value) {
@@ -231,11 +249,141 @@ async function checkoutSession(sessionId) {
   return stripeRequest(`/v1/checkout/sessions/${encodeURIComponent(sessionId)}?expand[]=subscription`);
 }
 
+async function openCheckoutForCustomer(customerId) {
+  if (!validCustomerId(customerId)) throw new Error("Invalid customer");
+  const query = new URLSearchParams({ customer: customerId, status: "open", limit: "10" });
+  const result = await stripeRequest(`/v1/checkout/sessions?${query}`);
+  const now = Math.floor(Date.now() / 1000);
+  return (Array.isArray(result?.data) ? result.data : []).find((session) => (
+    session?.mode === "subscription" &&
+    /^https:\/\/checkout\.stripe\.com\//.test(session?.url || "") &&
+    Number(session?.expires_at || 0) > now
+  )) || null;
+}
+
 async function subscriptionById(subscriptionId) {
-  if (!/^sub_[A-Za-z0-9]+$/.test(String(subscriptionId || ""))) {
+  if (!validSubscriptionId(subscriptionId)) {
     throw new Error("Invalid subscription");
   }
   return stripeRequest(`/v1/subscriptions/${encodeURIComponent(subscriptionId)}`);
+}
+
+async function subscriptionsForCustomer(customerId) {
+  if (!validCustomerId(customerId)) throw new Error("Invalid customer");
+  const query = new URLSearchParams({ customer: customerId, status: "all", limit: "100" });
+  const result = await stripeRequest(`/v1/subscriptions?${query}`);
+  return Array.isArray(result?.data) ? result.data : [];
+}
+
+function blockingSubscriptions(subscriptions) {
+  return subscriptions.filter((item) => BLOCKING_SUBSCRIPTION_STATES.has(item?.status));
+}
+
+async function customersForEmail(email) {
+  const query = new URLSearchParams({ email, limit: "10" });
+  const result = await stripeRequest(`/v1/customers?${query}`);
+  return Array.isArray(result?.data) ? result.data.filter((item) => !item.deleted) : [];
+}
+
+async function customerById(customerId) {
+  if (!validCustomerId(customerId)) throw new Error("Invalid customer");
+  const customer = await stripeRequest(`/v1/customers/${encodeURIComponent(customerId)}`);
+  if (customer?.deleted) throw new Error("Invalid customer");
+  return customer;
+}
+
+async function linkCustomerToAccount(customer, account) {
+  if (!validCustomerId(customer?.id) || !/^user_[A-Za-z0-9]+$/.test(String(account?.userId || ""))) {
+    throw new Error("Invalid account customer link");
+  }
+  if (
+    customer.metadata?.clerk_user_id === account.userId &&
+    customer.metadata?.zap_account === accountKey(account.userId)
+  ) return customer;
+  return stripeRequest(`/v1/customers/${encodeURIComponent(customer.id)}`, {
+    method: "POST",
+    body: new URLSearchParams({
+      "metadata[clerk_user_id]": account.userId,
+      "metadata[zap_account]": accountKey(account.userId),
+    }),
+    headers: { "Idempotency-Key": `zap_customer_link_${accountKey(account.userId)}` },
+  });
+}
+
+function accountKey(userId) {
+  return createHash("sha256").update(String(userId)).digest("base64url").slice(0, 32);
+}
+
+async function ensureAccountCustomer(account) {
+  const savedId = String(account.user?.privateMetadata?.stripeCustomerId || "");
+  if (validCustomerId(savedId)) {
+    try {
+      return await linkCustomerToAccount(await customerById(savedId), account);
+    } catch (error) {
+      if (error.status !== 404) throw error;
+    }
+  }
+
+  const matches = await customersForEmail(account.email);
+  const inspected = await Promise.all(matches.map(async (customer) => ({
+    customer,
+    subscriptions: await subscriptionsForCustomer(customer.id),
+  })));
+  const withPaidAccess = inspected.filter((entry) => blockingSubscriptions(entry.subscriptions).length);
+  if (withPaidAccess.length > 1) {
+    const error = new Error("Multiple subscriptions need support review");
+    error.code = "duplicate_subscriptions";
+    throw error;
+  }
+
+  let customer = withPaidAccess[0]?.customer || inspected[0]?.customer;
+  if (!customer) {
+    const body = new URLSearchParams({
+      email: account.email,
+      "metadata[clerk_user_id]": account.userId,
+      "metadata[zap_account]": accountKey(account.userId),
+    });
+    customer = await stripeRequest("/v1/customers", {
+      method: "POST",
+      body,
+      headers: { "Idempotency-Key": `zap_customer_${accountKey(account.userId)}` },
+    });
+  }
+  if (!validCustomerId(customer?.id)) throw new Error("Invalid customer");
+  customer = await linkCustomerToAccount(customer, account);
+  await account.client.users.updateUserMetadata(account.userId, {
+    privateMetadata: { stripeCustomerId: customer.id },
+  });
+  return customer;
+}
+
+async function accountSubscription(account) {
+  const customer = await ensureAccountCustomer(account);
+  const subscriptions = await subscriptionsForCustomer(customer.id);
+  const blocking = blockingSubscriptions(subscriptions)
+    .sort((left, right) => Number(right.created || 0) - Number(left.created || 0));
+  if (blocking.length > 1) {
+    const error = new Error("Multiple subscriptions need support review");
+    error.code = "duplicate_subscriptions";
+    throw error;
+  }
+  return { customer, subscription: blocking[0] || null };
+}
+
+async function createPortalSession(customerId, returnPath = "/account") {
+  if (!validCustomerId(customerId)) throw new Error("Invalid customer");
+  const safePath = /^\/[A-Za-z0-9/_?=&.-]*$/.test(returnPath) ? returnPath : "/account";
+  const portal = await stripeRequest("/v1/billing_portal/sessions", {
+    method: "POST",
+    body: new URLSearchParams({
+      customer: customerId,
+      return_url: `${configuredSiteOrigin()}${safePath}`,
+    }),
+  });
+  if (!/^https:\/\/billing\.stripe\.com\//.test(portal?.url || "")) {
+    throw new Error("Invalid portal URL");
+  }
+  return portal;
 }
 
 function planForSubscription(subscription, sessionPlan = "") {
@@ -282,6 +430,77 @@ function privateSigningKey() {
     throw new Error("Entitlement signing key is not configured");
   }
   return createPrivateKey({ key: Buffer.from(encoded, "base64"), format: "der", type: "pkcs8" });
+}
+
+function signedAppActivation(account, subscription, plan, deviceId) {
+  const now = Math.floor(Date.now() / 1000);
+  const header = base64url(JSON.stringify({ alg: "EdDSA", kid: "drip-type-v1", typ: "JWT" }));
+  const payloadObject = {
+    v: 1,
+    purpose: "app_activation",
+    iss: "https://tryzap.net",
+    aud: "com.salt30.driptype",
+    account: accountKey(account.userId),
+    subscription: subscription.id,
+    plan,
+    device: deviceHash(deviceId),
+    nonce: randomBytes(16).toString("base64url"),
+    iat: now,
+    exp: now + 5 * 60,
+  };
+  const payload = base64url(JSON.stringify(payloadObject));
+  const signingInput = `${header}.${payload}`;
+  const signature = sign(null, Buffer.from(signingInput), privateSigningKey()).toString("base64url");
+  return `${signingInput}.${signature}`;
+}
+
+async function subscriptionForAppActivation(token, deviceId) {
+  if (typeof token !== "string" || token.length > 2048 || !validDeviceId(deviceId)) {
+    throw new Error("Invalid activation credential");
+  }
+  const parts = token.split(".");
+  if (parts.length !== 3 || parts.some((part) => !/^[A-Za-z0-9_-]+$/.test(part))) {
+    throw new Error("Invalid activation credential");
+  }
+  const signingInput = `${parts[0]}.${parts[1]}`;
+  let header;
+  let payload;
+  try {
+    header = JSON.parse(Buffer.from(parts[0], "base64url").toString("utf8"));
+    payload = JSON.parse(Buffer.from(parts[1], "base64url").toString("utf8"));
+  } catch {
+    throw new Error("Invalid activation credential");
+  }
+  const signature = Buffer.from(parts[2], "base64url");
+  const signatureValid = verify(
+    null,
+    Buffer.from(signingInput),
+    createPublicKey(privateSigningKey()),
+    signature,
+  );
+  const now = Math.floor(Date.now() / 1000);
+  if (
+    !signatureValid ||
+    header?.alg !== "EdDSA" ||
+    payload?.purpose !== "app_activation" ||
+    payload?.iss !== "https://tryzap.net" ||
+    payload?.aud !== "com.salt30.driptype" ||
+    payload?.device !== deviceHash(deviceId) ||
+    !validSubscriptionId(payload?.subscription) ||
+    !ALLOWED_PLANS.has(payload?.plan) ||
+    !Number.isSafeInteger(payload?.iat) ||
+    !Number.isSafeInteger(payload?.exp) ||
+    payload.exp <= now ||
+    payload.iat > now + 30 ||
+    payload.exp - payload.iat > 5 * 60
+  ) {
+    throw new Error("Invalid activation credential");
+  }
+  const subscription = await subscriptionById(payload.subscription);
+  assertSubscriptionActive(subscription);
+  const plan = planForSubscription(subscription);
+  if (plan !== payload.plan) throw new Error("Subscription plan mismatch");
+  return { subscription, plan };
 }
 
 function signedEntitlement(subscription, plan, deviceId) {
@@ -358,6 +577,9 @@ async function subscriptionForRefresh(refreshToken, deviceId) {
 
 function publicError(error) {
   const message = String(error?.message || "");
+  if (error?.code === "duplicate_subscriptions") {
+    return { status: 409, message: "We found more than one subscription for this email. Contact support before purchasing again." };
+  }
   if (/Device limit reached/.test(message)) return { status: 409, message };
   if (/not active/.test(message)) return { status: 402, message: "Subscription is not active" };
   if (/Invalid|rejected|not complete|mismatch|not approved/.test(message)) {
@@ -367,19 +589,31 @@ function publicError(error) {
 }
 
 Object.assign(apiNotFound, {
+  accountKey,
+  accountSubscription,
+  blockingSubscriptions,
   checkoutSession,
   configuredSiteOrigin,
+  createPortalSession,
+  ensureAccountCustomer,
   hasExactKeys,
   isJsonRequest,
   parseBody,
   publicError,
+  planForSubscription,
   limitRequest,
+  linkCustomerToAccount,
+  openCheckoutForCustomer,
   requirePost,
   saveRefreshCredential,
   secureResponse,
   signedEntitlement,
+  signedAppActivation,
   stripeRequest,
+  subscriptionForAppActivation,
   subscriptionForRefresh,
+  subscriptionsForCustomer,
+  validCustomerId,
   validCheckoutSessionId,
   validDeviceId,
   validRefreshToken,

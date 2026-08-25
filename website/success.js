@@ -32,7 +32,7 @@
       const plan = result.plan === "pro" ? "Pro" : "Core";
       status.textContent = "Payment confirmed";
       title.textContent = `${plan} is ready.`;
-      copy.textContent = "Open Drip Type on this device to activate your subscription. Your payment details stay with Stripe.";
+      copy.textContent = "Open Drip Type on this device to activate the subscription attached to your verified Zap account. Your payment details stay with Stripe.";
       activate.href = `driptype://activate?session_id=${encodeURIComponent(sessionId)}`;
       activate.hidden = false;
       download.hidden = false;

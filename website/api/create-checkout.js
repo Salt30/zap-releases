@@ -1,4 +1,5 @@
-const { randomBytes, randomUUID } = require("node:crypto");
+const { createHash, randomBytes } = require("node:crypto");
+const auth = require("./_auth");
 const billing = require("./_billing");
 
 const PLANS = Object.freeze({
@@ -48,25 +49,7 @@ function getSiteOrigin(request) {
 }
 
 module.exports = async function createCheckout(request, response) {
-  response.setHeader("Cache-Control", "no-store");
-  response.setHeader("Content-Type", "application/json; charset=utf-8");
-  response.setHeader("X-Content-Type-Options", "nosniff");
-
-  if (request.method !== "POST") {
-    response.setHeader("Allow", "POST");
-    return response.status(405).json({ error: "Method not allowed" });
-  }
-  if (!billing.isJsonRequest(request)) {
-    return response.status(415).json({ error: "Content-Type must be application/json." });
-  }
-  const rawLength = request.headers?.["content-length"];
-  const declaredLength = rawLength === undefined ? 0 : Number(rawLength);
-  if (!Number.isSafeInteger(declaredLength) || declaredLength < 0) {
-    return response.status(400).json({ error: "Invalid Content-Length." });
-  }
-  if (declaredLength > 1024) {
-    return response.status(413).json({ error: "Request too large." });
-  }
+  if (!billing.requirePost(request, response)) return;
   if (isRateLimited(request)) {
     response.setHeader("Retry-After", "60");
     return response.status(429).json({ error: "Too many attempts. Please wait and try again." });
@@ -103,51 +86,68 @@ module.exports = async function createCheckout(request, response) {
     if ((requestOrigin && requestOrigin !== origin) || !["same-origin", "none"].includes(fetchSite)) {
       return response.status(403).json({ error: "Request origin was rejected." });
     }
+    const account = await auth.requireUser(request, response);
+    if (!account) return;
+    const { customer, subscription } = await billing.accountSubscription(account);
+    if (subscription) {
+      if (subscription.status === "incomplete") {
+        return response.status(409).json({
+          error: "A checkout is already in progress for this account. Finish it or try again after it expires.",
+        });
+      }
+      const portal = await billing.createPortalSession(customer.id);
+      return response.status(200).json({
+        kind: "portal",
+        url: portal.url,
+        message: "This account already has a subscription. Opening billing management instead of charging again.",
+      });
+    }
+    const existingCheckout = await billing.openCheckoutForCustomer(customer.id);
+    if (existingCheckout) {
+      return response.status(200).json({
+        kind: "checkout",
+        url: existingCheckout.url,
+        message: "Returning to the checkout already open for this account instead of creating another.",
+      });
+    }
+    const checkoutCreatedAt = Math.floor(Date.now() / 1000);
     const form = new URLSearchParams({
       mode: "subscription",
       success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${origin}/#pricing`,
+      cancel_url: `${origin}/account?plan=${encodeURIComponent(planId)}`,
+      customer: customer.id,
+      client_reference_id: account.userId,
       "line_items[0][price]": priceId,
       "line_items[0][quantity]": "1",
       allow_promotion_codes: "true",
       billing_address_collection: "auto",
+      "customer_update[address]": "auto",
+      "customer_update[name]": "auto",
       integration_identifier: integrationIdentifier(),
+      expires_at: String(checkoutCreatedAt + 30 * 60),
+      "metadata[clerk_user_id]": account.userId,
       "metadata[plan]": planId,
+      "metadata[zap_account]": billing.accountKey(account.userId),
+      "subscription_data[metadata][clerk_user_id]": account.userId,
       "subscription_data[metadata][plan]": planId,
+      "subscription_data[metadata][zap_account]": billing.accountKey(account.userId),
     });
-
-    const stripeResponse = await fetch(
-      "https://api.stripe.com/v1/checkout/sessions",
-      {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${process.env.STRIPE_SECRET_KEY}`,
-          "Content-Type": "application/x-www-form-urlencoded",
-          "Stripe-Version": "2026-06-24.dahlia",
-          "Idempotency-Key": randomUUID(),
-        },
-        body: form,
-        signal: AbortSignal.timeout(12_000),
-      },
-    );
-
-    const session = await stripeResponse.json();
-    if (!stripeResponse.ok || !session.url) {
-      console.error("Stripe checkout error", {
-        status: stripeResponse.status,
-        type: session?.error?.type,
-        code: session?.error?.code,
-      });
-      return response.status(502).json({
-        error: "Secure checkout could not be started. Please try again.",
-      });
+    const bucket = Math.floor(Date.now() / (10 * 60 * 1000));
+    const idempotency = createHash("sha256")
+      .update(`${account.userId}:${bucket}`)
+      .digest("hex");
+    const session = await billing.stripeRequest("/v1/checkout/sessions", {
+      method: "POST",
+      body: form,
+      headers: { "Idempotency-Key": `zap_checkout_${idempotency}` },
+    });
+    if (!/^https:\/\/checkout\.stripe\.com\//.test(session?.url || "")) {
+      throw new Error("Invalid checkout URL");
     }
-
-    return response.status(200).json({ url: session.url });
+    return response.status(200).json({ kind: "checkout", url: session.url });
   } catch (error) {
-    console.error("Checkout endpoint error", { message: error.message });
-    return response.status(500).json({
-      error: "Secure checkout could not be started. Please try again.",
-    });
+    console.error("Checkout endpoint error", { code: error.code || "checkout_failed" });
+    const safe = billing.publicError(error);
+    return response.status(safe.status).json({ error: safe.message });
   }
 };

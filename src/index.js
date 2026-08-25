@@ -197,7 +197,7 @@ function renderBilling(state = {}) {
     ? active ? `Access verified through ${expiry}. It refreshes automatically.` : `Trial ends ${expiry}.`
     : '';
   $('billing-manage').disabled = !active;
-  $('billing-subscribe').textContent = active ? (billingState.plan === 'pro' ? 'View plans' : 'Upgrade to Pro') : 'Choose a plan';
+  $('billing-subscribe').textContent = active ? (billingState.plan === 'pro' ? 'View account' : 'Upgrade or view account') : 'Connect Zap account';
   renderProAccess();
   refreshTextMeta();
 }

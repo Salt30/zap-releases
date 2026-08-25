@@ -1,4 +1,5 @@
 const billing = require("./_billing");
+const auth = require("./_auth");
 
 module.exports = function checkoutConfig(request, response) {
   response.setHeader("Cache-Control", "no-store");
@@ -17,8 +18,8 @@ module.exports = function checkoutConfig(request, response) {
   const hasProPrice = /^price_[A-Za-z0-9]+$/.test(process.env.STRIPE_PRO_PRICE_ID || "");
   response.status(200).json({
     plans: {
-      core: hasSecret && hasSigningKey && hasCorePrice && process.env.STRIPE_CORE_CHECKOUT_ENABLED === "true",
-      pro: hasSecret && hasSigningKey && hasProPrice && process.env.STRIPE_PRO_CHECKOUT_ENABLED === "true",
+      core: auth.configured() && hasSecret && hasSigningKey && hasCorePrice && process.env.STRIPE_CORE_CHECKOUT_ENABLED === "true",
+      pro: auth.configured() && hasSecret && hasSigningKey && hasProPrice && process.env.STRIPE_PRO_CHECKOUT_ENABLED === "true",
     },
   });
 };
