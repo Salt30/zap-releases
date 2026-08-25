@@ -23,7 +23,7 @@
       script.async = true;
       script.crossOrigin = "anonymous";
       script.dataset.clerkPublishableKey = publishableKey;
-      script.src = `https://${frontendDomain(publishableKey)}/npm/@clerk/clerk-js@6/dist/clerk.browser.js`;
+      script.src = `https://${frontendDomain(publishableKey)}/npm/@clerk/clerk-js@6.30.1/dist/clerk.browser.js`;
       script.onload = resolve;
       script.onerror = () => reject(new Error("The account service could not be loaded."));
       document.head.appendChild(script);

@@ -82,8 +82,8 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
   await expectStatus(
     claimEntitlement,
     postRequest({ sessionId, deviceId, plan: 'pro' }),
-    400,
-    /Invalid activation request/,
+    410,
+    /retired/,
   );
   await expectStatus(
     refreshEntitlement,
@@ -105,8 +105,8 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
       headers: { 'x-forwarded-for': '203.0.113.211' },
       socket: {},
     },
-    400,
-    /Invalid checkout session/,
+    410,
+    /retired/,
   );
   await expectStatus(
     checkoutConfig,
@@ -162,8 +162,8 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
         'x-forwarded-for': '203.0.113.213',
       },
     }),
-    413,
-    /too large/,
+    410,
+    /retired/,
   );
 
   const originalSiteUrl = process.env.PUBLIC_SITE_URL;
@@ -178,6 +178,7 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
   const originalCoreEnabled = process.env.STRIPE_CORE_CHECKOUT_ENABLED;
   const originalSigningKey = process.env.ENTITLEMENT_PRIVATE_KEY;
   const originalWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+  const originalSupportDataKey = process.env.SUPPORT_DATA_KEY;
   const originalClerkClient = auth.clerkClient;
   const originalRequireAdmin = auth.requireAdmin;
   const originalCreateTicket = ticketStore.createTicket;
@@ -209,6 +210,32 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
       supportRequest(supportBody, 'https://attacker.example'),
       403,
       /origin was rejected/,
+    );
+    await expectStatus(
+      supportTicket,
+      supportRequest({ ...supportBody, description: 'The error contains password=super-secret-value and should never be stored.' }),
+      400,
+      /Remove passwords/,
+    );
+
+    process.env.SUPPORT_DATA_KEY = Buffer.alloc(32, 7).toString('base64url');
+    const encryptedTicketFixture = {
+      ...supportBody,
+      status: 'open',
+      audit: [{ action: 'created', at: new Date().toISOString(), actor: 'support-form' }],
+      createdAt: new Date().toISOString(),
+      submittedAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    const encryptedTicket = ticketStore.encodeTicket(encryptedTicketFixture);
+    assert.doesNotMatch(encryptedTicket, /taylor@example\.com/);
+    assert.equal(
+      ticketStore.decodeTicket(encryptedTicket, supportBody.submissionId).email,
+      supportBody.email,
+    );
+    assert.throws(
+      () => ticketStore.decodeTicket(encryptedTicket, '87654321-1234-4abc-8abc-1234567890ab'),
+      /decryption_failed/,
     );
 
     const storedTickets = [];
@@ -406,6 +433,7 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
       ['STRIPE_CORE_CHECKOUT_ENABLED', originalCoreEnabled],
       ['ENTITLEMENT_PRIVATE_KEY', originalSigningKey],
       ['STRIPE_WEBHOOK_SECRET', originalWebhookSecret],
+      ['SUPPORT_DATA_KEY', originalSupportDataKey],
     ]) {
       if (value === undefined) delete process.env[name];
       else process.env[name] = value;

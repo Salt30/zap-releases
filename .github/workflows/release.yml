@@ -235,8 +235,17 @@ jobs:
 
       - name: Build Windows installer and update metadata
         env:
-          CSC_IDENTITY_AUTO_DISCOVERY: "false"
-        run: npm run dist:win
+          CSC_LINK: ${{ secrets.WINDOWS_CSC_LINK }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CSC_KEY_PASSWORD }}
+          WINDOWS_PUBLISHER_NAME: ${{ secrets.WINDOWS_PUBLISHER_NAME }}
+        shell: pwsh
+        run: |
+          if ([string]::IsNullOrWhiteSpace($env:CSC_LINK) -or
+              [string]::IsNullOrWhiteSpace($env:CSC_KEY_PASSWORD) -or
+              [string]::IsNullOrWhiteSpace($env:WINDOWS_PUBLISHER_NAME)) {
+            throw 'Windows signing secrets are required. Unsigned releases are blocked.'
+          }
+          npm run dist:win
 
       - name: Verify hardened packaged app
         run: npm run verify:package -- "dist/win-unpacked/Drip Type.exe"
@@ -256,6 +265,17 @@ jobs:
           $installer = Get-Item "dist/Drip-Type-*-windows.exe"
           $blockmap = Get-Item "dist/Drip-Type-*-windows.exe.blockmap"
           if ($installer.Length -eq 0 -or $blockmap.Length -eq 0) { throw 'Windows artifact is empty.' }
+          $executables = @($installer, (Get-Item "dist/win-unpacked/Drip Type.exe"))
+          foreach ($executable in $executables) {
+            $signature = Get-AuthenticodeSignature -FilePath $executable.FullName
+            if ($signature.Status -ne 'Valid' -or -not $signature.SignerCertificate) {
+              throw "Invalid Authenticode signature on $($executable.Name): $($signature.Status)"
+            }
+            $publisher = $signature.SignerCertificate.GetNameInfo([System.Security.Cryptography.X509Certificates.X509NameType]::SimpleName, $false)
+            if ($publisher -ne $env:WINDOWS_PUBLISHER_NAME) {
+              throw "Unexpected Windows publisher on $($executable.Name)."
+            }
+          }
           Get-FileHash $installer.FullName -Algorithm SHA256 | ForEach-Object { "$($_.Hash.ToLower())  $($installer.Name)" } | Set-Content "dist/SHA256SUMS-windows.txt"
           npm sbom --sbom-format spdx | Set-Content "dist/sbom-windows.spdx.json"
 

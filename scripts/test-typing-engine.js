@@ -28,9 +28,10 @@ assert.match(script, /key code 51/);
 assert.match(script, /delay 0\.1250/);
 
 const windowsHost = fs.readFileSync(path.join(__dirname, '..', 'src', 'windows-host.ps1'), 'utf8');
-for (const marker of ['SendInput', 'KEYEVENTF_UNICODE', "ValidateSet('Target', 'Restore', 'Type')", 'ConvertFrom-Json']) {
+for (const marker of ['SendInput', 'KEYEVENTF_UNICODE', "ValidateSet('Target', 'Restore', 'Type')", 'ConvertFrom-Json', '[Console]::In.ReadToEnd()']) {
   assert.ok(windowsHost.includes(marker), `Windows typing host is missing ${marker}`);
 }
 assert.ok(!windowsHost.includes('Invoke-Expression'), 'Windows host must never execute user text as PowerShell.');
+assert.ok(!windowsHost.includes('PlanPath'), 'Windows typing plans must not be written to disk.');
 
 console.log('Cross-platform typing plan and Windows host checks passed.');

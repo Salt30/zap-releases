@@ -116,6 +116,38 @@ function validEmail(value) {
   return /^[A-Z0-9.!#$%&'*+/=?^_{}|~-]+@[A-Z0-9-]+(?:\.[A-Z0-9-]+)+$/iu.test(value);
 }
 
+function luhnValid(value) {
+  const digits = String(value).replace(/\D/gu, "");
+  if (digits.length < 13 || digits.length > 19 || /^(\d)\1+$/u.test(digits)) return false;
+  let sum = 0;
+  let double = false;
+  for (let index = digits.length - 1; index >= 0; index -= 1) {
+    let digit = Number(digits[index]);
+    if (double) {
+      digit *= 2;
+      if (digit > 9) digit -= 9;
+    }
+    sum += digit;
+    double = !double;
+  }
+  return sum % 10 === 0;
+}
+
+function containsSensitiveData(value) {
+  const text = String(value || "");
+  if (
+    /-----BEGIN [A-Z ]*PRIVATE KEY-----/u.test(text) ||
+    /\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9_-]{12,}\b/u.test(text) ||
+    /\bwhsec_[A-Za-z0-9_-]{12,}\b/u.test(text) ||
+    /\bvercel_blob_rw_[A-Za-z0-9_-]{12,}\b/u.test(text) ||
+    /\b(?:ghp|github_pat)_[A-Za-z0-9_]{20,}\b/u.test(text) ||
+    /\bAKIA[0-9A-Z]{16}\b/u.test(text) ||
+    /\b\d{3}-\d{2}-\d{4}\b/u.test(text) ||
+    /\b(?:password|passwd|passcode|secret)\s*[:=]\s*\S{4,}/iu.test(text)
+  ) return true;
+  return (text.match(/(?:\d[ -]?){13,19}/gu) || []).some(luhnValid);
+}
+
 module.exports = async function supportTicket(request, response) {
   setHeaders(response);
   if (request.method !== "POST") {
@@ -195,6 +227,11 @@ module.exports = async function supportTicket(request, response) {
   ) {
     return response.status(400).json({ error: "Please complete every required field" });
   }
+  if (containsSensitiveData(`${subject}\n${description}`)) {
+    return response.status(400).json({
+      error: "Remove passwords, payment-card numbers, private keys, or access tokens before submitting this ticket.",
+    });
+  }
 
   const ticket = {
     submissionId,
@@ -219,4 +256,4 @@ module.exports = async function supportTicket(request, response) {
   }
 };
 
-Object.assign(module.exports, { CATEGORIES, PLATFORMS });
+Object.assign(module.exports, { CATEGORIES, PLATFORMS, containsSensitiveData, luhnValid });

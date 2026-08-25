@@ -77,10 +77,6 @@ function validDeviceId(value) {
   );
 }
 
-function validCheckoutSessionId(value) {
-  return /^cs_live_[A-Za-z0-9_]{20,}$/.test(String(value || ""));
-}
-
 function validRefreshToken(value) {
   return /^sub_[A-Za-z0-9]+\.[A-Za-z0-9_-]{40,}$/.test(String(value || ""));
 }
@@ -244,11 +240,6 @@ async function stripeRequest(path, options = {}) {
   return result;
 }
 
-async function checkoutSession(sessionId) {
-  if (!validCheckoutSessionId(sessionId)) throw new Error("Invalid checkout session");
-  return stripeRequest(`/v1/checkout/sessions/${encodeURIComponent(sessionId)}?expand[]=subscription`);
-}
-
 async function openCheckoutForCustomer(customerId) {
   if (!validCustomerId(customerId)) throw new Error("Invalid customer");
   const query = new URLSearchParams({ customer: customerId, status: "open", limit: "10" });
@@ -403,25 +394,6 @@ function assertSubscriptionActive(subscription) {
   if (!ACTIVE_SUBSCRIPTION_STATES.has(subscription?.status)) {
     throw new Error("Subscription is not active");
   }
-}
-
-async function verifiedCheckout(sessionId) {
-  const session = await checkoutSession(sessionId);
-  const sessionPlan = String(session?.metadata?.plan || "").toLowerCase();
-  if (
-    session?.mode !== "subscription" ||
-    session?.status !== "complete" ||
-    !["paid", "no_payment_required"].includes(session?.payment_status) ||
-    !ALLOWED_PLANS.has(sessionPlan)
-  ) {
-    throw new Error("Checkout is not complete");
-  }
-  const subscription = typeof session.subscription === "object"
-    ? session.subscription
-    : await subscriptionById(session.subscription);
-  assertSubscriptionActive(subscription);
-  const plan = planForSubscription(subscription, sessionPlan);
-  return { session, subscription, plan };
 }
 
 function privateSigningKey() {
@@ -592,7 +564,6 @@ Object.assign(apiNotFound, {
   accountKey,
   accountSubscription,
   blockingSubscriptions,
-  checkoutSession,
   configuredSiteOrigin,
   createPortalSession,
   ensureAccountCustomer,
@@ -614,10 +585,8 @@ Object.assign(apiNotFound, {
   subscriptionForRefresh,
   subscriptionsForCustomer,
   validCustomerId,
-  validCheckoutSessionId,
   validDeviceId,
   validRefreshToken,
-  verifiedCheckout,
   verifyRequestOrigin,
 });
 

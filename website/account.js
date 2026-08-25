@@ -35,7 +35,7 @@
       script.async = true;
       script.crossOrigin = "anonymous";
       script.dataset.clerkPublishableKey = publishableKey;
-      script.src = `https://${frontendDomain(publishableKey)}/npm/@clerk/clerk-js@6/dist/clerk.browser.js`;
+      script.src = `https://${frontendDomain(publishableKey)}/npm/@clerk/clerk-js@6.30.1/dist/clerk.browser.js`;
       script.onload = resolve;
       script.onerror = () => reject(new Error("The account service could not be loaded."));
       document.head.appendChild(script);
@@ -60,11 +60,11 @@
   }
 
   function passwordScore(value) {
-    if (value.length < 6) return 0;
+    if (value.length < 15) return 0;
     let score = 1;
-    if (value.length >= 10) score += 1;
+    if (value.length >= 16) score += 1;
     if (/[a-z]/.test(value) && /[A-Z]/.test(value) && /\d/.test(value)) score += 1;
-    if (value.length >= 14 || /[^A-Za-z0-9]/.test(value)) score += 1;
+    if (value.length >= 20 || /[^A-Za-z0-9]/.test(value)) score += 1;
     if (/^(password|qwerty|123456|letmein|abcdef|driptype)/i.test(value) || /(.)\1{4}/.test(value)) score = Math.min(score, 1);
     return Math.min(4, score);
   }
@@ -171,8 +171,8 @@
     const emailAddress = $("email").value.trim().toLowerCase();
     const password = $("password").value;
     $("auth-error").textContent = "";
-    if (!emailAddress || password.length < 6) {
-      $("auth-error").textContent = "Enter a valid email and a password with at least 6 characters.";
+    if (!emailAddress || password.length < 15) {
+      $("auth-error").textContent = "Enter a valid email and a password with at least 15 characters.";
       return;
     }
     const button = $("auth-submit");
@@ -277,7 +277,7 @@
         renderResetStep();
       } else {
         const password = $("reset-password").value;
-        if (password.length < 6) throw new Error("Use a password with at least 6 characters.");
+        if (password.length < 15) throw new Error("Use a password with at least 15 characters.");
         pendingPasswordReset = await pendingPasswordReset.resetPassword({ password });
         if (pendingPasswordReset.status !== "complete") {
           throw new Error("Additional verification is required before the password can be changed.");

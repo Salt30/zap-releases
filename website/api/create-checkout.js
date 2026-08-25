@@ -113,7 +113,7 @@ module.exports = async function createCheckout(request, response) {
     const checkoutCreatedAt = Math.floor(Date.now() / 1000);
     const form = new URLSearchParams({
       mode: "subscription",
-      success_url: `${origin}/success?session_id={CHECKOUT_SESSION_ID}`,
+      success_url: `${origin}/account?purchase=complete`,
       cancel_url: `${origin}/account?plan=${encodeURIComponent(planId)}`,
       customer: customer.id,
       client_reference_id: account.userId,

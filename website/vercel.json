@@ -7,7 +7,11 @@
     { "source": "/api/account-status", "destination": "/api/account?action=status" },
     { "source": "/api/create-account-portal", "destination": "/api/account?action=portal" },
     { "source": "/api/create-app-activation", "destination": "/api/account?action=activation" },
-    { "source": "/api/admin-tickets", "destination": "/api/account?action=tickets" }
+    { "source": "/api/admin-tickets", "destination": "/api/account?action=tickets" },
+    { "source": "/api/purge-support-tickets", "destination": "/api/account?action=purge" }
+  ],
+  "crons": [
+    { "path": "/api/purge-support-tickets", "schedule": "17 4 * * *" }
   ],
   "headers": [
     {

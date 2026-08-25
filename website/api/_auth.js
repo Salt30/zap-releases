@@ -77,15 +77,23 @@ function adminEmails() {
     .filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)));
 }
 
+function adminUserIds() {
+  return new Set(String(process.env.ADMIN_USER_IDS || "")
+    .split(",")
+    .map((userId) => userId.trim())
+    .filter((userId) => /^user_[A-Za-z0-9]+$/u.test(userId)));
+}
+
 async function requireAdmin(request, response) {
   const account = await requireUser(request, response);
   if (!account) return null;
-  const allowed = adminEmails();
-  if (!allowed.size) {
+  const allowedEmails = adminEmails();
+  const allowedUserIds = adminUserIds();
+  if (!allowedEmails.size || !allowedUserIds.size) {
     response.status(503).json({ error: "The support console is temporarily unavailable." });
     return null;
   }
-  if (!allowed.has(account.email)) {
+  if (!allowedEmails.has(account.email) || !allowedUserIds.has(account.userId)) {
     response.status(403).json({ error: "This account is not authorized for the support console." });
     return null;
   }
@@ -96,6 +104,7 @@ module.exports = {
   AUTHORIZED_PARTIES,
   authenticatedUser,
   adminEmails,
+  adminUserIds,
   clerkClient,
   configured,
   requireAdmin,

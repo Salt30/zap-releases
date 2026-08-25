@@ -216,12 +216,22 @@ for (const marker of ['autoDownload = false', '6 * 60 * 60 * 1000', 'notifyUpdat
 for (const marker of ['buildCharacterSteps', 'renderAppleScript', 'validateTypingEvents']) {
   if (!typingEngineSource.includes(marker)) fail(`Shared typing engine requirement is missing: ${marker}`);
 }
-for (const marker of ['SendInput', 'KEYEVENTF_UNICODE', "ValidateSet('Target', 'Restore', 'Type')", 'SetForegroundWindow']) {
+for (const marker of ['SendInput', 'KEYEVENTF_UNICODE', "ValidateSet('Target', 'Restore', 'Type')", 'SetForegroundWindow', '[Console]::In.ReadToEnd()']) {
   if (!windowsHostSource.includes(marker)) fail(`Native Windows typing requirement is missing: ${marker}`);
 }
 if (windowsHostSource.includes('Invoke-Expression')) fail('The Windows typing host must never execute user text.');
+if (windowsHostSource.includes('PlanPath') || mainSource.includes("mkdtempSync(path.join(os.tmpdir(), 'drip-type-')")) {
+  fail('Typing content must stream through protected process input instead of temporary files.');
+}
 for (const marker of ['app.enableSandbox()', ".replace(/\\r\\n?/g, '\\n')", 'Rejected untrusted IPC sender.']) {
   if (!mainSource.includes(marker)) fail(`Application hardening requirement is missing: ${marker}`);
+}
+for (const marker of ['encryptedUserVault', 'safeStorage.encryptString', 'publicSettings()', "child.stdin.end(input, 'utf8')"]) {
+  if (!mainSource.includes(marker)) fail(`Local privacy hardening requirement is missing: ${marker}`);
+}
+if (mainSource.includes('store.store') || mainSource.includes("store.set('clipboardWorkspace'") ||
+    mainSource.includes("store.set('templates'") || mainSource.includes("store.set('profiles'")) {
+  fail('Private local data or the complete settings store must not be exposed in plaintext.');
 }
 for (const marker of [
   "handleTrusted('billing:get-state'",
@@ -245,12 +255,16 @@ for (const marker of ['"template_library"', '"batch"', '"writing_lab"', 'STRIPE_
 }
 for (const [name, source] of [
   ['checkout', checkoutSource],
-  ['claim', claimSource],
   ['refresh', refreshSource],
-  ['portal', portalSource],
-  ['checkout status', checkoutStatusSource]
+  ['portal', portalSource]
 ]) {
   if (!source.includes('hasExactKeys')) fail(`Website ${name} API must reject unexpected fields.`);
+}
+if (!claimSource.includes('has been retired') || !checkoutStatusSource.includes('has been retired')) {
+  fail('Legacy checkout-session activation and public status lookup must remain retired.');
+}
+if (checkoutSource.includes('{CHECKOUT_SESSION_ID}') || !checkoutSource.includes('/account?purchase=complete')) {
+  fail('Checkout success must return to the signed-in account without exposing a session identifier.');
 }
 for (const marker of [`Pro is live in version ${packageJson.version.replace(/\.0$/, '')}`, 'data-checkout-plan="pro"', '>$25<', '/brand/zap/zap-icon-192.png']) {
   if (!websiteMarkup.includes(marker)) fail(`Website Pro launch requirement is missing: ${marker}`);
@@ -336,7 +350,7 @@ for (const marker of [
 }
 for (const marker of [
   'reset_password_email_code', 'attemptFirstFactor', 'resetPassword',
-  'reset-strength-meter', 'minlength="6"'
+  'reset-strength-meter', 'minlength="15"'
 ]) {
   if (!websiteAccount.includes(marker) && !websiteAccountClient.includes(marker)) {
     fail(`Account password recovery requirement is missing: ${marker}`);
@@ -358,7 +372,10 @@ for (const marker of ['hasExactKeys', 'RATE_LIMIT', 'configuredOrigin', 'ticketS
 for (const marker of ['access: "private"', 'allowOverwrite: false', 'ifMatch:', 'support-tickets/']) {
   if (!websiteTicketStore.includes(marker)) fail(`Private support storage requirement is missing: ${marker}`);
 }
-for (const marker of ['ADMIN_EMAILS', 'requireAdmin', 'verification?.status !== "verified"']) {
+for (const marker of ['aes-256-gcm', 'SUPPORT_DATA_KEY', 'RETENTION_MS', 'result.hasMore', 'purgeExpiredTickets']) {
+  if (!websiteTicketStore.includes(marker)) fail(`Encrypted support retention requirement is missing: ${marker}`);
+}
+for (const marker of ['ADMIN_EMAILS', 'ADMIN_USER_IDS', 'requireAdmin', 'verification?.status !== "verified"']) {
   if (!websiteAccountAuth.includes(marker)) fail(`Admin authentication requirement is missing: ${marker}`);
 }
 for (const marker of ['Private admin', 'id="ticket-list"', 'id="ticket-update"', '/api/admin-tickets']) {
@@ -378,17 +395,17 @@ if (!websiteSitemap.includes('https://tryzap.net/support')) {
   fail('The support page is missing from the sitemap.');
 }
 for (const [name, source, markers] of [
-  ['legal center', websiteLegal, ['VegaNext LLC', 'support@tryzap.net', 'Subscription summary', '/privacy', '/terms', '/refunds']],
-  ['privacy policy', websitePrivacy, ['Effective August 25, 2026', 'Version 2.4', 'Information we collect and why', 'support form', 'private Vercel Blob store', 'Clerk', 'We do not sell personal information', 'Your privacy rights', 'Windows Data Protection API', '400 Continental Blvd']],
+  ['legal center', websiteLegal, ['VegaNext LLC', 'Private support form', 'Subscription summary', '/privacy', '/terms', '/refunds']],
+  ['privacy policy', websitePrivacy, ['Effective August 25, 2026', 'Version 2.5', 'Information we collect and why', 'support form', 'private Vercel Blob store', 'Clerk', 'We do not sell personal information', 'Your privacy rights', 'Windows Data Protection API', 'AES-256-GCM', '90 days', '400 Continental Blvd']],
   ['terms', websiteTerms, ['Effective August 22, 2026', 'Paid subscriptions and renewal', 'up to three devices', 'Governing law and disputes', 'These Terms do not require arbitration']],
-  ['refund policy', websiteRefunds, ['Effective August 22, 2026', 'Cancel online at any time', '14 calendar days', 'Renewal charges and partial periods', 'support@tryzap.net']]
+  ['refund policy', websiteRefunds, ['Effective August 22, 2026', 'Cancel online at any time', '14 calendar days', 'Renewal charges and partial periods', 'private support form']]
 ]) {
   for (const marker of markers) {
     if (!source.includes(marker)) fail(`Website ${name} requirement is missing: ${marker}`);
   }
 }
 for (const marker of [
-  'id="auth-form"', 'type="email"', 'type="password"', 'minlength="6"',
+  'id="auth-form"', 'type="email"', 'type="password"', 'minlength="15"',
   'id="strength-meter"', 'id="connect-app"', '/privacy', '/terms'
 ]) {
   if (!websiteAccount.includes(marker)) fail(`Website account requirement is missing: ${marker}`);
@@ -436,12 +453,21 @@ if (releaseWorkflow.includes('git fetch') ||
 for (const marker of [
   'runs-on: windows-2025',
   'npm run dist:win',
+  'WINDOWS_CSC_LINK',
+  'WINDOWS_CSC_KEY_PASSWORD',
+  'WINDOWS_PUBLISHER_NAME',
+  'Unsigned releases are blocked',
+  'Get-AuthenticodeSignature',
   'dist/win-unpacked/Drip Type.exe',
   'dist/latest.yml',
   'Drip-Type-*-windows.exe.blockmap',
   'needs: [mac, windows]'
 ]) {
   if (!releaseWorkflow.includes(marker)) fail(`Native Windows release verification is missing: ${marker}`);
+}
+if (releaseWorkflow.includes('CSC_IDENTITY_AUTO_DISCOVERY: "false"') ||
+    packageJson.build?.win?.publisherName !== '${env.WINDOWS_PUBLISHER_NAME}') {
+  fail('Windows releases must require and verify an expected Authenticode publisher.');
 }
 if (releaseWorkflow.includes('cp dist/latest-mac.yml dist/*.dmg')) {
   fail('Large installers must not be copied into the Vercel deployment.');

@@ -20,8 +20,6 @@ const { autoUpdater } = require('electron-updater');
 const Store = require('electron-store');
 const { execFile } = require('child_process');
 const { randomUUID } = require('crypto');
-const fs = require('fs');
-const os = require('os');
 const path = require('path');
 const { pathToFileURL } = require('url');
 const { accessState, shouldRevokeEntitlement, verifyEntitlement } = require('./subscription');
@@ -39,6 +37,8 @@ const BILLING_ORIGIN = 'https://tryzap.net';
 const BILLING_SCHEME = 'driptype';
 const KEYCHAIN_SERVICE = 'com.salt30.driptype.subscription';
 const TRIAL_KEYCHAIN_SERVICE = 'com.salt30.driptype.trial';
+const USER_VAULT_KEY = 'encryptedUserVault';
+const MAX_USER_VAULT_BYTES = 12 * 1024 * 1024;
 const MAX_TEXT_LENGTH = 100000;
 const MAX_CORE_TEMPLATE_COUNT = 50;
 const MAX_PRO_TEMPLATE_COUNT = 250;
@@ -93,10 +93,8 @@ const DEFAULTS = {
   shortcutDefaultsMigratedToOption5: false,
   launchAtLogin: true,
   theme: 'system',
-  templates: DEFAULT_TEMPLATES,
-  profiles: [DEFAULT_PROFILE],
   activeProfileId: DEFAULT_PROFILE.id,
-  clipboardWorkspace: [],
+  encryptedUserVault: '',
   deviceId: null,
   trialStartedAt: null,
   entitlementToken: '',
@@ -194,6 +192,64 @@ function readProtectedStoreValue(key) {
 function writeProtectedStoreValue(key, value) {
   if (!safeStorage.isEncryptionAvailable()) throw new Error('Secure operating-system storage is unavailable.');
   store.set(key, safeStorage.encryptString(value).toString('base64'));
+}
+
+function defaultUserVault() {
+  return {
+    version: 1,
+    templates: DEFAULT_TEMPLATES.map((template) => ({ ...template })),
+    profiles: [{ ...DEFAULT_PROFILE }],
+    clipboardWorkspace: []
+  };
+}
+
+function readUserVault() {
+  const decrypted = readProtectedStoreValue(USER_VAULT_KEY);
+  if (!decrypted || Buffer.byteLength(decrypted, 'utf8') > MAX_USER_VAULT_BYTES) return null;
+  try {
+    const vault = JSON.parse(decrypted);
+    if (!vault || typeof vault !== 'object' || Array.isArray(vault) || vault.version !== 1) return null;
+    if (!Array.isArray(vault.templates) || !Array.isArray(vault.profiles) || !Array.isArray(vault.clipboardWorkspace)) {
+      return null;
+    }
+    return vault;
+  } catch (_) {
+    return null;
+  }
+}
+
+function currentUserVault() {
+  return readUserVault() || defaultUserVault();
+}
+
+function writeUserVault(vault) {
+  const serialized = JSON.stringify(vault);
+  if (Buffer.byteLength(serialized, 'utf8') > MAX_USER_VAULT_BYTES) {
+    throw new Error('Private local data exceeds the secure storage limit.');
+  }
+  writeProtectedStoreValue(USER_VAULT_KEY, serialized);
+}
+
+function migrateUserVault() {
+  if (!safeStorage.isEncryptionAvailable()) return false;
+  const encrypted = String(store.get(USER_VAULT_KEY, '') || '');
+  if (encrypted) {
+    if (!readUserVault()) return false;
+  } else {
+    const legacyTemplates = store.get('templates');
+    const legacyProfiles = store.get('profiles');
+    const legacyClipboard = store.get('clipboardWorkspace');
+    writeUserVault({
+      version: 1,
+      templates: Array.isArray(legacyTemplates) ? legacyTemplates : DEFAULT_TEMPLATES,
+      profiles: Array.isArray(legacyProfiles) ? legacyProfiles : [DEFAULT_PROFILE],
+      clipboardWorkspace: Array.isArray(legacyClipboard) ? legacyClipboard : []
+    });
+  }
+  store.delete('templates');
+  store.delete('profiles');
+  store.delete('clipboardWorkspace');
+  return true;
 }
 
 function ensureDeviceId() {
@@ -382,23 +438,6 @@ async function refreshEntitlement({ silent = false } = {}) {
   }
 }
 
-async function activateCheckoutSession(sessionId) {
-  if (!/^cs_live_[A-Za-z0-9_]{20,}$/.test(String(sessionId || ''))) {
-    throw new Error('Invalid activation link');
-  }
-  const result = await billingRequest('/api/claim-entitlement', {
-    sessionId,
-    deviceId: ensureDeviceId()
-  });
-  await saveRefreshCredential(result.refreshToken);
-  const state = acceptEntitlement(result);
-  navigateMainWindow({ page: 'billing' });
-  if (Notification.isSupported()) {
-    new Notification({ title: 'Drip Type activated', body: state.message, silent: true }).show();
-  }
-  return state;
-}
-
 async function activateAccountToken(activationToken) {
   if (typeof activationToken !== 'string' || activationToken.length > 2048 ||
       !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(activationToken)) {
@@ -422,9 +461,7 @@ function handleActivationUrl(value) {
     const url = new URL(value);
     if (url.protocol !== `${BILLING_SCHEME}:`) return;
     let activation;
-    if (url.hostname === 'activate') {
-      activation = activateCheckoutSession(url.searchParams.get('session_id') || '');
-    } else if (url.hostname === 'account') {
+    if (url.hostname === 'account') {
       activation = activateAccountToken(url.searchParams.get('token') || '');
     } else {
       return;
@@ -439,6 +476,22 @@ function handleActivationUrl(value) {
 function numberSetting(key, fallback) {
   const value = Number(store.get(key));
   return Number.isFinite(value) ? value : fallback;
+}
+
+function publicSettings() {
+  return {
+    dripWPM: numberSetting('dripWPM', DEFAULTS.dripWPM),
+    dripDelay: numberSetting('dripDelay', DEFAULTS.dripDelay),
+    typoRate: numberSetting('typoRate', DEFAULTS.typoRate),
+    dripPauseChance: numberSetting('dripPauseChance', DEFAULTS.dripPauseChance),
+    dripBurstChance: numberSetting('dripBurstChance', DEFAULTS.dripBurstChance),
+    hotkeyStart: String(store.get('hotkeyStart', DEFAULTS.hotkeyStart)),
+    hotkeyStop: String(store.get('hotkeyStop', DEFAULTS.hotkeyStop)),
+    launchAtLogin: Boolean(store.get('launchAtLogin', DEFAULTS.launchAtLogin)),
+    theme: ['system', 'dark', 'light'].includes(store.get('theme'))
+      ? store.get('theme')
+      : DEFAULTS.theme
+  };
 }
 
 function cleanMarkdown(text) {
@@ -622,7 +675,7 @@ function sanitizeTemplate(template, existingId = null) {
 }
 
 function listTemplates() {
-  const templates = store.get('templates', DEFAULT_TEMPLATES);
+  const templates = currentUserVault().templates;
   if (!Array.isArray(templates)) return DEFAULT_TEMPLATES.map((template) => ({ ...template }));
   return templates.slice(0, hasFeature('template_library') ? MAX_PRO_TEMPLATE_COUNT : MAX_CORE_TEMPLATE_COUNT)
     .map((template) => sanitizeTemplate(template, template?.id))
@@ -641,7 +694,11 @@ function saveTemplate(input) {
   if (!template) return { error: 'Add a template name and body.', templates };
   if (index >= 0) templates[index] = template;
   else templates.unshift(template);
-  store.set('templates', templates);
+  try {
+    writeUserVault({ ...currentUserVault(), templates });
+  } catch (_) {
+    return { error: 'Templates could not be saved securely.', templates: listTemplates() };
+  }
   return { template, templates };
 }
 
@@ -652,7 +709,11 @@ function installProTemplateLibrary() {
   const existing = new Set(templates.map((template) => template.id));
   const additions = PRO_TEMPLATE_LIBRARY.filter((template) => !existing.has(template.id));
   const merged = [...additions, ...templates].slice(0, MAX_PRO_TEMPLATE_COUNT).map((template) => sanitizeTemplate(template, template.id));
-  store.set('templates', merged);
+  try {
+    writeUserVault({ ...currentUserVault(), templates: merged });
+  } catch (_) {
+    return { error: 'The template library could not be saved securely.', templates: listTemplates() };
+  }
   return { success: true, installed: additions.length, templates: merged };
 }
 
@@ -671,7 +732,7 @@ function sanitizeProfile(input, existingId = null) {
 }
 
 function listProfiles() {
-  const values = store.get('profiles', [DEFAULT_PROFILE]);
+  const values = currentUserVault().profiles;
   const profiles = (Array.isArray(values) ? values : [DEFAULT_PROFILE]).slice(0, MAX_PROFILE_COUNT)
     .map((profile) => sanitizeProfile(profile, profile?.id)).filter(Boolean);
   return profiles.length ? profiles : [{ ...DEFAULT_PROFILE }];
@@ -686,7 +747,11 @@ function saveProfile(input) {
   const profile = sanitizeProfile(input, index >= 0 ? profiles[index].id : null);
   if (!profile) return { error: 'Add a profile name.', profiles };
   if (index >= 0) profiles[index] = profile; else profiles.unshift(profile);
-  store.set('profiles', profiles);
+  try {
+    writeUserVault({ ...currentUserVault(), profiles });
+  } catch (_) {
+    return { error: 'Profiles could not be saved securely.', profiles: listProfiles() };
+  }
   return { profile, profiles };
 }
 
@@ -707,7 +772,11 @@ function deleteProfile(id) {
   if (profiles.length === 1) return { error: 'Keep at least one profile.', profiles };
   const filtered = profiles.filter((profile) => profile.id !== id);
   if (filtered.length === profiles.length) return { error: 'Profile not found.', profiles };
-  store.set('profiles', filtered);
+  try {
+    writeUserVault({ ...currentUserVault(), profiles: filtered });
+  } catch (_) {
+    return { error: 'Profiles could not be updated securely.', profiles: listProfiles() };
+  }
   if (store.get('activeProfileId') === id) store.set('activeProfileId', filtered[0].id);
   return { success: true, activeProfileId: store.get('activeProfileId'), profiles: filtered };
 }
@@ -725,7 +794,8 @@ function sanitizeClipboardItem(item) {
 }
 
 function listClipboardItems(query = '') {
-  const items = (Array.isArray(store.get('clipboardWorkspace')) ? store.get('clipboardWorkspace') : [])
+  const storedItems = currentUserVault().clipboardWorkspace;
+  const items = (Array.isArray(storedItems) ? storedItems : [])
     .slice(0, MAX_CLIPBOARD_COUNT).map(sanitizeClipboardItem).filter(Boolean)
     .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.createdAt - a.createdAt);
   return searchClipboard(items, query);
@@ -737,7 +807,11 @@ function captureClipboardItem() {
   const item = sanitizeClipboardItem({ text: clipboard.readText(), createdAt: Date.now() });
   if (!item) return { error: 'The clipboard has no text to save.', items: listClipboardItems() };
   const items = [item, ...listClipboardItems().filter((existing) => existing.text !== item.text)].slice(0, MAX_CLIPBOARD_COUNT);
-  store.set('clipboardWorkspace', items);
+  try {
+    writeUserVault({ ...currentUserVault(), clipboardWorkspace: items });
+  } catch (_) {
+    return { error: 'Clipboard history could not be saved securely.', items: listClipboardItems() };
+  }
   return { item, items };
 }
 
@@ -750,7 +824,11 @@ function updateClipboardItem(id, action) {
   if (action === 'delete') items = items.filter((entry) => entry.id !== id);
   else if (action === 'pin') item.pinned = !item.pinned;
   else return { error: 'Invalid clipboard action.', items };
-  store.set('clipboardWorkspace', items);
+  try {
+    writeUserVault({ ...currentUserVault(), clipboardWorkspace: items });
+  } catch (_) {
+    return { error: 'Clipboard history could not be updated securely.', items: listClipboardItems() };
+  }
   return { success: true, items: listClipboardItems() };
 }
 
@@ -759,7 +837,11 @@ function deleteTemplate(id) {
   const templates = listTemplates();
   const filtered = templates.filter((template) => template.id !== id);
   if (filtered.length === templates.length) return { error: 'Template not found.', templates };
-  store.set('templates', filtered);
+  try {
+    writeUserVault({ ...currentUserVault(), templates: filtered });
+  } catch (_) {
+    return { error: 'Templates could not be updated securely.', templates: listTemplates() };
+  }
   return { success: true, templates: filtered };
 }
 
@@ -921,13 +1003,18 @@ async function restoreApplication(target) {
   }
 }
 
-function runTypingProcess(file, args) {
+function runTypingProcess(file, args, input = '') {
   return new Promise((resolve, reject) => {
-    activeTypingProcess = execFile(file, args, { timeout: 120000, windowsHide: true }, (error) => {
+    const child = execFile(file, args, { timeout: 120000, windowsHide: true }, (error) => {
       activeTypingProcess = null;
       if (error && !dripTypeCancelled) reject(error);
       else resolve();
     });
+    activeTypingProcess = child;
+    if (input) {
+      child.stdin.on('error', () => {});
+      child.stdin.end(input, 'utf8');
+    }
   });
 }
 
@@ -960,7 +1047,6 @@ async function dripType(input, options = {}) {
 
   dripTypeCancelled = false;
   dripTypeRunning = true;
-  let runDirectory = null;
 
   try {
     if (options.target) await restoreApplication(options.target);
@@ -989,7 +1075,6 @@ async function dripType(input, options = {}) {
     const burstChance = Math.max(0, numberSetting('dripBurstChance', DEFAULTS.dripBurstChance));
     const steps = buildCharacterSteps(text, speed, typoRate, pauseChance, burstChance);
     const chunkSize = 40;
-    runDirectory = fs.mkdtempSync(path.join(os.tmpdir(), 'drip-type-'));
 
     broadcastState({ status: 'typing', progress: 0, message: 'Typing…' });
 
@@ -998,23 +1083,10 @@ async function dripType(input, options = {}) {
 
       const events = steps.slice(offset, offset + chunkSize).flat();
       if (!validateTypingEvents(events)) throw new Error('Invalid typing plan.');
-      const planPath = path.join(runDirectory, `chunk-${offset}.json`);
-
-      try {
-        if (process.platform === 'darwin') {
-          const scriptPath = path.join(runDirectory, `chunk-${offset}.scpt`);
-          fs.writeFileSync(scriptPath, renderAppleScript(events), { mode: 0o600, flag: 'wx' });
-          try {
-            await runTypingProcess('/usr/bin/osascript', [scriptPath]);
-          } finally {
-            try { fs.unlinkSync(scriptPath); } catch (_) {}
-          }
-        } else {
-          fs.writeFileSync(planPath, JSON.stringify(events), { encoding: 'utf8', mode: 0o600, flag: 'wx' });
-          await runTypingProcess('powershell.exe', windowsPowerShellArguments('Type', ['-PlanPath', planPath]));
-        }
-      } finally {
-        try { fs.unlinkSync(planPath); } catch (_) {}
+      if (process.platform === 'darwin') {
+        await runTypingProcess('/usr/bin/osascript', [], renderAppleScript(events));
+      } else {
+        await runTypingProcess('powershell.exe', windowsPowerShellArguments('Type'), JSON.stringify(events));
       }
 
       const completed = Math.min(offset + chunkSize, steps.length);
@@ -1040,9 +1112,6 @@ async function dripType(input, options = {}) {
   } finally {
     dripTypeRunning = false;
     activeTypingProcess = null;
-    if (runDirectory) {
-      try { fs.rmSync(runDirectory, { recursive: true, force: true }); } catch (_) {}
-    }
   }
 }
 
@@ -1162,7 +1231,7 @@ async function showQuickComposer() {
   window.focus();
   sendToWindow(window, 'quick:opened', {
     targetName: quickTarget?.name || 'previous app',
-    settings: store.store,
+    settings: publicSettings(),
     templates: listTemplates(),
     features: access.features
   });
@@ -1356,7 +1425,7 @@ handleTrusted('onboarding:complete', ['onboarding.html'], async (_event, setting
   return { success: true };
 });
 
-handleTrusted('settings:get', ['index.html', 'onboarding.html'], () => ({ ...store.store, defaults: DEFAULTS }));
+handleTrusted('settings:get', ['index.html', 'onboarding.html'], () => publicSettings());
 handleTrusted('settings:save', ['index.html'], (_event, settings) => {
   const hasShortcutChange = ['hotkeyStart', 'hotkeyStop']
     .some((key) => Object.prototype.hasOwnProperty.call(settings || {}, key));
@@ -1365,7 +1434,7 @@ handleTrusted('settings:save', ['index.html'], (_event, settings) => {
   if (Object.prototype.hasOwnProperty.call(settings || {}, 'launchAtLogin')) configureLoginItem();
   if (tray) createTrayMenuOnly();
   return {
-    settings: store.store,
+    settings: publicSettings(),
     shortcutSuccess: shortcutResult ? shortcutResult.success : true,
     shortcutFailures: shortcutResult?.failures || []
   };
@@ -1483,6 +1552,7 @@ app.on('second-instance', (_event, commandLine) => {
 
 app.whenReady().then(async () => {
   await synchronizeTrialStartedAt();
+  migrateUserVault();
   registerAppProtocol();
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   session.defaultSession.setPermissionCheckHandler(() => false);

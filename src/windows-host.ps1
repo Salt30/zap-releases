@@ -2,7 +2,6 @@ param(
   [Parameter(Mandatory = $true)]
   [ValidateSet('Target', 'Restore', 'Type')]
   [string]$Action,
-  [string]$PlanPath = '',
   [UInt64]$WindowHandle = 0
 )
 
@@ -97,10 +96,11 @@ if ($Action -eq 'Restore') {
   exit 0
 }
 
-if ([string]::IsNullOrWhiteSpace($PlanPath) -or -not (Test-Path -LiteralPath $PlanPath -PathType Leaf)) {
+$planJson = [Console]::In.ReadToEnd()
+if ([string]::IsNullOrWhiteSpace($planJson) -or $planJson.Length -gt 200000) {
   throw 'A valid typing plan is required.'
 }
-$events = @(Get-Content -LiteralPath $PlanPath -Raw -Encoding UTF8 | ConvertFrom-Json)
+$events = @($planJson | ConvertFrom-Json)
 if ($events.Count -gt 1000) { throw 'The typing plan is too large.' }
 
 foreach ($event in $events) {

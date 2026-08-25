@@ -1,6 +1,17 @@
 const auth = require("./_auth");
 const billing = require("./_billing");
 const ticketStore = require("../server/tickets");
+const { timingSafeEqual } = require("node:crypto");
+
+function cronAuthorized(request) {
+  const expected = String(process.env.CRON_SECRET || "");
+  const supplied = String(request.headers?.authorization || "");
+  if (!/^[A-Za-z0-9_-]{32,256}$/u.test(expected) || !supplied.startsWith("Bearer ")) return false;
+  const actual = supplied.slice(7);
+  const left = Buffer.from(actual);
+  const right = Buffer.from(expected);
+  return left.length === right.length && timingSafeEqual(left, right);
+}
 
 function accountConfig(request, response) {
   billing.secureResponse(response);
@@ -161,12 +172,28 @@ async function adminTickets(request, response) {
   }
 }
 
+async function purgeSupportTickets(request, response) {
+  billing.secureResponse(response);
+  if (request.method !== "GET") {
+    response.setHeader("Allow", "GET");
+    return response.status(405).json({ error: "Method not allowed" });
+  }
+  if (!cronAuthorized(request)) return response.status(401).json({ error: "Unauthorized" });
+  try {
+    return response.status(200).json(await ticketStore.purgeExpiredTickets());
+  } catch (error) {
+    console.error("Support retention purge failed", { code: error.name || error.message || "purge_failed" });
+    return response.status(503).json({ error: "Support retention is temporarily unavailable." });
+  }
+}
+
 const routes = Object.freeze({
   config: accountConfig,
   status: accountStatus,
   portal: createAccountPortal,
   activation: createAppActivation,
   tickets: adminTickets,
+  purge: purgeSupportTickets,
 });
 
 async function accountRouter(request, response) {
