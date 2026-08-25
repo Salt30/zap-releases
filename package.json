@@ -123,7 +123,6 @@
     },
     "win": {
       "icon": "assets/icon.png",
-      "publisherName": "${env.WINDOWS_PUBLISHER_NAME}",
       "artifactName": "Drip-Type-${version}-windows.${ext}",
       "target": [
         {

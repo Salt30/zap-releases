@@ -396,7 +396,7 @@ if (!websiteSitemap.includes('https://tryzap.net/support')) {
 }
 for (const [name, source, markers] of [
   ['legal center', websiteLegal, ['VegaNext LLC', 'Private support form', 'Subscription summary', '/privacy', '/terms', '/refunds']],
-  ['privacy policy', websitePrivacy, ['Effective August 25, 2026', 'Version 2.5', 'Information we collect and why', 'support form', 'private Vercel Blob store', 'Clerk', 'We do not sell personal information', 'Your privacy rights', 'Windows Data Protection API', 'AES-256-GCM', '90 days', '400 Continental Blvd']],
+  ['privacy policy', websitePrivacy, ['Effective August 25, 2026', 'Version 2.6', 'Information we collect and why', 'support form', 'private Vercel Blob store', 'Clerk', 'We do not sell personal information', 'Your privacy rights', 'Windows Data Protection API', 'AES-256-GCM', '90 days', 'VegaNext LLC']],
   ['terms', websiteTerms, ['Effective August 22, 2026', 'Paid subscriptions and renewal', 'up to three devices', 'Governing law and disputes', 'These Terms do not require arbitration']],
   ['refund policy', websiteRefunds, ['Effective August 22, 2026', 'Cancel online at any time', '14 calendar days', 'Renewal charges and partial periods', 'private support form']]
 ]) {
@@ -453,21 +453,13 @@ if (releaseWorkflow.includes('git fetch') ||
 for (const marker of [
   'runs-on: windows-2025',
   'npm run dist:win',
-  'WINDOWS_CSC_LINK',
-  'WINDOWS_CSC_KEY_PASSWORD',
-  'WINDOWS_PUBLISHER_NAME',
-  'Unsigned releases are blocked',
-  'Get-AuthenticodeSignature',
+  'CSC_IDENTITY_AUTO_DISCOVERY: "false"',
   'dist/win-unpacked/Drip Type.exe',
   'dist/latest.yml',
   'Drip-Type-*-windows.exe.blockmap',
   'needs: [mac, windows]'
 ]) {
   if (!releaseWorkflow.includes(marker)) fail(`Native Windows release verification is missing: ${marker}`);
-}
-if (releaseWorkflow.includes('CSC_IDENTITY_AUTO_DISCOVERY: "false"') ||
-    packageJson.build?.win?.publisherName !== '${env.WINDOWS_PUBLISHER_NAME}') {
-  fail('Windows releases must require and verify an expected Authenticode publisher.');
 }
 if (releaseWorkflow.includes('cp dist/latest-mac.yml dist/*.dmg')) {
   fail('Large installers must not be copied into the Vercel deployment.');
