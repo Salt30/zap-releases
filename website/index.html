@@ -96,7 +96,7 @@
 <a class="button button-primary" href="https://drip-type-updates.vercel.app/Drip-Type-1.7.0-windows.exe">Download for Windows <span aria-hidden="true">↓</span>
 </a>
 <a class="button button-secondary" href="https://drip-type-updates.vercel.app/Drip-Type-1.7.0-mac.dmg">Download for Mac <span aria-hidden="true">↓</span></a>
-<a class="button button-secondary" id="try-interaction" href="#demo" aria-controls="demo">Try the controls</a>
+<a class="button button-secondary" id="try-interaction" href="#demo" aria-controls="demo">Watch it type</a>
 </div>
 <div class="hero-proof" aria-label="Product qualities">
 <span>15–120 WPM</span>
@@ -108,17 +108,18 @@
 <span>5 live controls</span>
 </div>
 </div>
-<div class="rhythm-stage" id="demo" aria-label="Interactive typing rhythm controls">
+<div class="rhythm-stage" id="demo" aria-label="Interactive demonstration of Drip Type typing into another app">
 <div class="rhythm-head">
 <div><span class="live-dot"></span><strong>Typing rhythm</strong></div>
-<span>Saved locally on this device</span>
+<button class="demo-replay" type="button" data-demo-replay><span aria-hidden="true">↻</span> Replay demo</button>
 </div>
-<div class="rhythm-preview" aria-live="polite">
-<span>Live cadence</span>
-<p>The right pace makes finished words feel effortless.</p>
-<div class="rhythm-signal" aria-hidden="true">
-<i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i>
+<div class="rhythm-preview">
+<div class="typing-demo-toolbar">
+<span><i aria-hidden="true"></i> Active text field</span>
+<b data-demo-status aria-live="polite">Starting in 3s</b>
 </div>
+<p class="typing-demo-line" aria-label="Drip Type types your words naturally into any app."><span data-demo-text></span><i class="typing-demo-caret" aria-hidden="true"></i></p>
+<div class="typing-demo-progress" aria-hidden="true"><span data-demo-progress></span></div>
 </div>
 <label class="rhythm-main-control">
 <span><strong>Typing speed</strong><small>Average pace before natural variation</small></span>
@@ -411,6 +412,20 @@
 .everywhere-strip>span{color:#777a81;align-items:center;gap:4px;font-size:10px;display:flex}
 @media (max-width:680px){.mobile-menu-button{display:grid}.mobile-menu:not([hidden]){display:grid}.nav-cta{margin-left:9px}.everywhere-strip{align-items:flex-start;flex-direction:column;justify-content:center;gap:14px;margin-top:16px;padding-block:24px}}
 @media (max-width:430px){.nav-cta{display:none}.mobile-menu-button{margin-left:auto}}
+.demo-replay{color:#858890;cursor:pointer;background:#ffffff08;border:1px solid #ffffff14;border-radius:7px;align-items:center;gap:5px;min-height:30px;padding:0 9px;font-size:8px;font-weight:680;display:inline-flex;transition:color .16s,border-color .16s,background .16s}
+.demo-replay:hover{color:#f1f0eb;background:#ffffff10;border-color:#ffffff2b}.demo-replay:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.demo-replay span{color:var(--accent);font-size:12px;line-height:1}
+.rhythm-preview{min-height:150px;padding:16px 18px 15px}
+.typing-demo-toolbar{color:#696c73;letter-spacing:.1em;text-transform:uppercase;justify-content:space-between;align-items:center;gap:12px;font-size:7px;font-weight:720;display:flex}
+.typing-demo-toolbar span{align-items:center;gap:7px;display:flex}.typing-demo-toolbar span i{background:#75d795;border-radius:50%;width:5px;height:5px;box-shadow:0 0 0 4px #75d79512}
+.typing-demo-toolbar b{color:#8a8d94;letter-spacing:.03em;text-transform:none;font-size:7px;font-weight:650}
+.rhythm-preview .typing-demo-line{color:#e8e7e2;letter-spacing:-.025em;max-width:470px;min-height:55px;margin:17px 0 15px;font-size:17px;line-height:1.45}
+.typing-demo-caret{vertical-align:-2px;background:var(--accent);width:2px;height:18px;margin-left:2px;animation:typing-caret .75s steps(1,end) infinite;display:inline-block;box-shadow:0 0 12px #ffd24d45}
+@keyframes typing-caret{50%{opacity:.18}}
+.typing-demo-progress{background:#2c2e35;border-radius:99px;width:100%;height:2px;overflow:hidden}.typing-demo-progress span{background:var(--accent);border-radius:inherit;width:0;height:100%;display:block;transition:width .12s linear;box-shadow:0 0 10px #ffd24d66}
+.rhythm-stage.is-typing .live-dot{animation:typing-live 1s ease-in-out infinite}.rhythm-stage.is-correcting .typing-demo-caret{background:#ef9a9f;box-shadow:0 0 12px #ef9a9f55}
+@keyframes typing-live{50%{opacity:.38;transform:scale(.82)}}
+@media (prefers-reduced-motion:reduce){.typing-demo-caret,.rhythm-stage.is-typing .live-dot{animation:none}.typing-demo-progress span{transition:none}}
 </style>
 <script src="/home-demo.js" defer></script>
 <script src="/downloads.js" defer></script>

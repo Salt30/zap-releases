@@ -44,6 +44,7 @@ const refreshSource = read('website/api/refresh-entitlement.js');
 const portalSource = read('website/api/create-portal.js');
 const checkoutStatusSource = read('website/api/checkout-status.js');
 const websiteMarkup = read('website/index.html');
+const websiteHomeDemo = read('website/home-demo.js');
 const websiteSuccess = read('website/success.html');
 const websiteDownloads = read('website/downloads.js');
 const websiteLegal = read('website/legal.html');
@@ -328,6 +329,15 @@ if (websiteMarkup.includes('Pause instantly')) {
 }
 for (const forbidden of ['data-rhythm-preset=', 'Steady</button>', 'Natural</button>', 'Expressive</button>', 'zap-brand-kit.zip']) {
   if (websiteMarkup.includes(forbidden)) fail(`Website contains removed marketing UI or private brand-kit access: ${forbidden}`);
+}
+for (const marker of ['data-demo-text', 'data-demo-status', 'data-demo-replay', 'Watch it type']) {
+  if (!websiteMarkup.includes(marker)) fail(`Visible website typing demo is missing: ${marker}`);
+}
+for (const marker of [
+  'typeCharacters', 'eraseCharacters', 'Correcting a typo', 'Brief speed burst',
+  'IntersectionObserver', 'prefers-reduced-motion: reduce'
+]) {
+  if (!websiteHomeDemo.includes(marker)) fail(`Website typing simulation is incomplete: ${marker}`);
 }
 for (const forbidden of ['data-preset=', 'class="preset"', "querySelectorAll('.preset')"]) {
   if (indexMarkup.includes(forbidden) || indexSource.includes(forbidden)) {
