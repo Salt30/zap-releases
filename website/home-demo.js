@@ -81,11 +81,6 @@
     }
 
     paintText("");
-    for (let remaining = values.delay; remaining > 0; remaining -= 1) {
-      demoStatus.textContent = `Starting in ${remaining}s`;
-      if (!await wait(1000, token)) return;
-    }
-
     demo.classList.add("is-typing");
     demoStatus.textContent = `${values.wpm} WPM · typing`;
     let text = await typeCharacters("", "Drip Type types your words ", values, token);
@@ -118,16 +113,18 @@
     if (text === null) return;
 
     demo.classList.remove("is-typing");
-    demoStatus.textContent = "Typed into the active field";
+    demoStatus.textContent = `Typed · replaying after ${values.delay}s delay`;
     demoProgress.style.width = "100%";
     replayTimer = window.setTimeout(() => {
       if (!document.hidden && token === runNumber) runDemo();
-    }, 2800);
+    }, (values.delay * 1000) + 1400);
   };
 
   const restartDemo = () => {
     window.clearTimeout(restartTimer);
-    restartTimer = window.setTimeout(runDemo, 260);
+    runNumber += 1;
+    demoStatus.textContent = "Applying settings";
+    restartTimer = window.setTimeout(runDemo, 160);
   };
 
   Object.values(controls).forEach((input) => input.addEventListener("input", () => {
