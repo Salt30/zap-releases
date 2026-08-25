@@ -270,12 +270,6 @@ function blockingSubscriptions(subscriptions) {
   return subscriptions.filter((item) => BLOCKING_SUBSCRIPTION_STATES.has(item?.status));
 }
 
-async function customersForEmail(email) {
-  const query = new URLSearchParams({ email, limit: "10" });
-  const result = await stripeRequest(`/v1/customers?${query}`);
-  return Array.isArray(result?.data) ? result.data.filter((item) => !item.deleted) : [];
-}
-
 async function customerById(customerId) {
   if (!validCustomerId(customerId)) throw new Error("Invalid customer");
   const customer = await stripeRequest(`/v1/customers/${encodeURIComponent(customerId)}`);
@@ -284,17 +278,17 @@ async function customerById(customerId) {
 }
 
 async function linkCustomerToAccount(customer, account) {
-  if (!validCustomerId(customer?.id) || !/^user_[A-Za-z0-9]+$/.test(String(account?.userId || ""))) {
+  if (!validCustomerId(customer?.id) || !/^acct_[A-Za-z0-9_-]{32}$/u.test(String(account?.userId || ""))) {
     throw new Error("Invalid account customer link");
   }
   if (
-    customer.metadata?.clerk_user_id === account.userId &&
+    customer.metadata?.zap_account_id === account.userId &&
     customer.metadata?.zap_account === accountKey(account.userId)
   ) return customer;
   return stripeRequest(`/v1/customers/${encodeURIComponent(customer.id)}`, {
     method: "POST",
     body: new URLSearchParams({
-      "metadata[clerk_user_id]": account.userId,
+      "metadata[zap_account_id]": account.userId,
       "metadata[zap_account]": accountKey(account.userId),
     }),
     headers: { "Idempotency-Key": `zap_customer_link_${accountKey(account.userId)}` },
@@ -306,7 +300,7 @@ function accountKey(userId) {
 }
 
 async function ensureAccountCustomer(account) {
-  const savedId = String(account.user?.privateMetadata?.stripeCustomerId || "");
+  const savedId = String(account.stripeCustomerId || "");
   if (validCustomerId(savedId)) {
     try {
       return await linkCustomerToAccount(await customerById(savedId), account);
@@ -315,36 +309,20 @@ async function ensureAccountCustomer(account) {
     }
   }
 
-  const matches = await customersForEmail(account.email);
-  const inspected = await Promise.all(matches.map(async (customer) => ({
-    customer,
-    subscriptions: await subscriptionsForCustomer(customer.id),
-  })));
-  const withPaidAccess = inspected.filter((entry) => blockingSubscriptions(entry.subscriptions).length);
-  if (withPaidAccess.length > 1) {
-    const error = new Error("Multiple subscriptions need support review");
-    error.code = "duplicate_subscriptions";
-    throw error;
-  }
-
-  let customer = withPaidAccess[0]?.customer || inspected[0]?.customer;
-  if (!customer) {
-    const body = new URLSearchParams({
-      email: account.email,
-      "metadata[clerk_user_id]": account.userId,
-      "metadata[zap_account]": accountKey(account.userId),
-    });
-    customer = await stripeRequest("/v1/customers", {
-      method: "POST",
-      body,
-      headers: { "Idempotency-Key": `zap_customer_${accountKey(account.userId)}` },
-    });
-  }
+  const body = new URLSearchParams({
+    email: account.email,
+    "metadata[zap_account_id]": account.userId,
+    "metadata[zap_account]": accountKey(account.userId),
+  });
+  let customer = await stripeRequest("/v1/customers", {
+    method: "POST",
+    body,
+    headers: { "Idempotency-Key": `zap_customer_${accountKey(account.userId)}` },
+  });
   if (!validCustomerId(customer?.id)) throw new Error("Invalid customer");
   customer = await linkCustomerToAccount(customer, account);
-  await account.client.users.updateUserMetadata(account.userId, {
-    privateMetadata: { stripeCustomerId: customer.id },
-  });
+  const auth = require("./_auth");
+  await auth.updateBillingMetadata(account.userId, { stripeCustomerId: customer.id });
   return customer;
 }
 

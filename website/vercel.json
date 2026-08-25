@@ -2,8 +2,16 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "cleanUrls": true,
   "trailingSlash": false,
+  "redirects": [
+    { "source": "/:path*", "has": [{ "type": "host", "value": "www.tryzap.net" }], "destination": "https://tryzap.net/:path*", "permanent": true },
+    { "source": "/:path*", "has": [{ "type": "host", "value": "drip-type.vercel.app" }], "destination": "https://tryzap.net/:path*", "permanent": true }
+  ],
   "rewrites": [
     { "source": "/api/account-config", "destination": "/api/account?action=config" },
+    { "source": "/api/register", "destination": "/api/account?action=register" },
+    { "source": "/api/login", "destination": "/api/account?action=login" },
+    { "source": "/api/logout", "destination": "/api/account?action=logout" },
+    { "source": "/api/recover-account", "destination": "/api/account?action=recover" },
     { "source": "/api/account-status", "destination": "/api/account?action=status" },
     { "source": "/api/create-account-portal", "destination": "/api/account?action=portal" },
     { "source": "/api/create-app-activation", "destination": "/api/account?action=activation" },
@@ -20,7 +28,7 @@
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "X-Frame-Options", "value": "DENY" },
         { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self' https://*.clerk.accounts.dev https://clerk.tryzap.net; script-src 'self' 'sha256-nUH7AI1rOvXi95lNwWZjnjmiTq1BhyYc6tUasRqPRcQ=' https://*.clerk.accounts.dev https://clerk.tryzap.net https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://img.clerk.com; font-src 'self' data:; connect-src 'self' https://*.clerk.accounts.dev https://clerk.tryzap.net https://api.clerk.com; frame-src https://*.clerk.accounts.dev https://clerk.tryzap.net https://challenges.cloudflare.com; worker-src 'self' blob:; upgrade-insecure-requests" },
+        { "key": "Content-Security-Policy", "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'sha256-nUH7AI1rOvXi95lNwWZjnjmiTq1BhyYc6tUasRqPRcQ='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-src 'none'; worker-src 'self' blob:; upgrade-insecure-requests" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
         { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), payment=()" },
         { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },

@@ -9,35 +9,13 @@
     });
   }
 
-  function frontendDomain(key) {
-    const encoded = key.replace(/^pk_(?:test|live)_/, "");
-    const padded = encoded.replace(/-/g, "+").replace(/_/g, "/").padEnd(Math.ceil(encoded.length / 4) * 4, "=");
-    const decoded = atob(padded).replace(/\$$/, "");
-    if (!/^[a-z0-9.-]+$/i.test(decoded)) throw new Error("Invalid account configuration");
-    return decoded;
-  }
-
-  function loadClerk(publishableKey) {
-    return new Promise((resolve, reject) => {
-      const script = document.createElement("script");
-      script.async = true;
-      script.crossOrigin = "anonymous";
-      script.dataset.clerkPublishableKey = publishableKey;
-      script.src = `https://${frontendDomain(publishableKey)}/npm/@clerk/clerk-js@6.30.1/dist/clerk.browser.js`;
-      script.onload = resolve;
-      script.onerror = () => reject(new Error("The account service could not be loaded."));
-      document.head.appendChild(script);
-    });
-  }
-
   async function api(options = {}) {
-    const token = await window.Clerk?.session?.getToken();
     const response = await fetch("/api/admin-tickets", {
       ...options,
+      credentials: "same-origin",
       headers: {
         Accept: "application/json",
         ...(options.body ? { "Content-Type": "application/json" } : {}),
-        ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
     });
     const result = await response.json().catch(() => ({}));
@@ -206,7 +184,12 @@
   $("status-filter").addEventListener("change", renderList);
   $("refresh").addEventListener("click", loadTickets);
   async function signOut() {
-    await window.Clerk?.signOut();
+    await fetch("/api/logout", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: "{}",
+    }).catch(() => {});
     show("sign-in-state");
     $("sign-out").hidden = true;
   }
@@ -217,13 +200,7 @@
     try {
       const response = await fetch("/api/account-config", { headers: { Accept: "application/json" } });
       const config = await response.json();
-      if (!response.ok || !config.configured || !config.publishableKey) throw new Error("Accounts are unavailable.");
-      await loadClerk(config.publishableKey);
-      await window.Clerk.load();
-      if (!window.Clerk.user) {
-        show("sign-in-state");
-        return;
-      }
+      if (!response.ok || !config.configured) throw new Error("Accounts are unavailable.");
       $("sign-out").hidden = false;
       show("admin-console");
       await loadTickets();

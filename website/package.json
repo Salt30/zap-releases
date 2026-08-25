@@ -7,7 +7,6 @@
     "node": "22.x"
   },
   "dependencies": {
-    "@clerk/backend": "3.16.10",
     "@vercel/blob": "2.8.0"
   }
 }

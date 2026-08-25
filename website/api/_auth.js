@@ -1,54 +1,21 @@
-const { createClerkClient } = require("@clerk/backend");
-
-const AUTHORIZED_PARTIES = Object.freeze([
-  "https://tryzap.net",
-  "https://www.tryzap.net",
-  "https://drip-type.vercel.app",
-]);
+const accounts = require("../server/accounts");
 
 function configured() {
-  return /^pk_(?:test|live)_[A-Za-z0-9_-]+$/.test(process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY || "") &&
-    /^sk_(?:test|live)_[A-Za-z0-9_-]+$/.test(process.env.CLERK_SECRET_KEY || "");
-}
-
-function clerkClient() {
-  if (!configured()) throw new Error("Account service is not configured");
-  return createClerkClient({
-    publishableKey: process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY,
-    secretKey: process.env.CLERK_SECRET_KEY,
-  });
-}
-
-function requestUrl(request) {
-  const host = String(request.headers?.host || "tryzap.net").toLowerCase();
-  const allowedHosts = new Set(["tryzap.net", "www.tryzap.net", "drip-type.vercel.app"]);
-  const origin = allowedHosts.has(host) ? `https://${host}` : "https://tryzap.net";
-  return new URL(String(request.url || "/"), origin).toString();
-}
-
-function webRequest(request) {
-  const headers = new Headers();
-  for (const [name, value] of Object.entries(request.headers || {})) {
-    if (Array.isArray(value)) value.forEach((item) => headers.append(name, String(item)));
-    else if (value !== undefined) headers.set(name, String(value));
-  }
-  return new Request(requestUrl(request), { method: request.method || "GET", headers });
+  return accounts.storageConfigured();
 }
 
 async function authenticatedUser(request) {
-  const client = clerkClient();
-  const state = await client.authenticateRequest(webRequest(request), {
-    acceptsToken: "session_token",
-    authorizedParties: AUTHORIZED_PARTIES,
-  });
-  if (!state.isAuthenticated) return null;
-  const auth = state.toAuth();
-  if (!/^user_[A-Za-z0-9]+$/.test(String(auth.userId || ""))) return null;
-  const user = await client.users.getUser(auth.userId);
-  const primary = user.emailAddresses?.find((entry) => entry.id === user.primaryEmailAddressId);
-  const email = String(primary?.emailAddress || "").trim().toLowerCase();
-  if (!email || primary?.verification?.status !== "verified") return null;
-  return { client, user, userId: user.id, email };
+  const account = await accounts.accountForRequest(request);
+  if (!account) return null;
+  return {
+    userId: account.accountId,
+    email: account.email,
+    stripeCustomerId: account.stripeCustomerId,
+    stripeSubscriptionId: account.stripeSubscriptionId,
+    stripeSubscriptionStatus: account.stripeSubscriptionStatus,
+    stripeSubscriptionPlan: account.stripeSubscriptionPlan,
+    stripeEventCreated: account.stripeEventCreated,
+  };
 }
 
 async function requireUser(request, response) {
@@ -64,7 +31,7 @@ async function requireUser(request, response) {
     }
     return account;
   } catch (error) {
-    console.error("Account authentication failed", { code: error.code || "auth_failed" });
+    console.error("Account authentication failed", { code: error.message || "auth_failed" });
     response.status(401).json({ error: "Your sign-in could not be verified. Please sign in again." });
     return null;
   }
@@ -74,14 +41,14 @@ function adminEmails() {
   return new Set(String(process.env.ADMIN_EMAILS || "")
     .split(",")
     .map((email) => email.trim().toLowerCase())
-    .filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)));
+    .filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(email)));
 }
 
 function adminUserIds() {
   return new Set(String(process.env.ADMIN_USER_IDS || "")
     .split(",")
     .map((userId) => userId.trim())
-    .filter((userId) => /^user_[A-Za-z0-9]+$/u.test(userId)));
+    .filter(accounts.validAccountId));
 }
 
 async function requireAdmin(request, response) {
@@ -101,12 +68,12 @@ async function requireAdmin(request, response) {
 }
 
 module.exports = {
-  AUTHORIZED_PARTIES,
+  accountById: accounts.accountById,
   authenticatedUser,
   adminEmails,
   adminUserIds,
-  clerkClient,
   configured,
   requireAdmin,
   requireUser,
+  updateBillingMetadata: accounts.updateBillingMetadata,
 };

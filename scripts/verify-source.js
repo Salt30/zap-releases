@@ -54,6 +54,7 @@ const websiteSupport = read('website/support.html');
 const websiteSupportClient = read('website/support.js');
 const websiteSupportApi = read('website/api/support-ticket.js');
 const websiteTicketStore = read('website/server/tickets.js');
+const websiteAccountStore = read('website/server/accounts.js');
 const websiteAccount = read('website/account.html');
 const websiteAccountClient = read('website/account.js');
 const websiteAccountAuth = read('website/api/_auth.js');
@@ -69,16 +70,14 @@ const websitePackageLock = JSON.parse(read('website/package-lock.json'));
 const appIconSource = read('assets/brand/zap/logo/zap-icon.svg');
 const websiteIconSource = read('website/brand/zap/zap-icon.svg');
 
-if (!websitePackage.private ||
-    websitePackage.dependencies?.['@clerk/backend'] !== packageJson.dependencies['@clerk/backend']) {
-  fail('The website must install the pinned Clerk backend dependency in its Vercel project root.');
+if (!websitePackage.private || packageJson.dependencies?.['@clerk/backend'] ||
+    websitePackage.dependencies?.['@clerk/backend']) {
+  fail('Clerk must not remain in the first-party Zap account implementation.');
 }
 if (websitePackage.dependencies?.['@vercel/blob'] !== packageJson.devDependencies['@vercel/blob']) {
   fail('The website must install the pinned private Blob dependency in its Vercel project root.');
 }
-if (websitePackageLock.packages?.['']?.dependencies?.['@clerk/backend'] !==
-      websitePackage.dependencies['@clerk/backend'] ||
-    websitePackageLock.packages?.['']?.dependencies?.['@vercel/blob'] !==
+if (websitePackageLock.packages?.['']?.dependencies?.['@vercel/blob'] !==
       websitePackage.dependencies['@vercel/blob']) {
   fail('The website runtime dependency lock does not match its Vercel package manifest.');
 }
@@ -90,6 +89,10 @@ if (websiteApiFunctions.length > 12) {
 }
 for (const [source, destination] of Object.entries({
   '/api/account-config': '/api/account?action=config',
+  '/api/register': '/api/account?action=register',
+  '/api/login': '/api/account?action=login',
+  '/api/logout': '/api/account?action=logout',
+  '/api/recover-account': '/api/account?action=recover',
   '/api/account-status': '/api/account?action=status',
   '/api/create-account-portal': '/api/account?action=portal',
   '/api/create-app-activation': '/api/account?action=activation',
@@ -349,8 +352,8 @@ for (const marker of [
   }
 }
 for (const marker of [
-  'reset_password_email_code', 'attemptFirstFactor', 'resetPassword',
-  'reset-strength-meter', 'minlength="15"'
+  'id="reset-code"', 'id="reset-password"', '/api/recover-account',
+  'reset-strength-meter', 'minlength="15"', 'recoveryCode'
 ]) {
   if (!websiteAccount.includes(marker) && !websiteAccountClient.includes(marker)) {
     fail(`Account password recovery requirement is missing: ${marker}`);
@@ -359,11 +362,11 @@ for (const marker of [
 for (const marker of [
   'STRIPE_WEBHOOK_SECRET', 'stripe-signature', 'createHmac("sha256"',
   'SIGNATURE_TOLERANCE_SECONDS', 'bodyParser: false', 'customer.subscription.deleted',
-  'clerk_user_id', 'stripeEventCreated'
+  'zap_account_id', 'stripeEventCreated'
 ]) {
   if (!websiteStripeWebhook.includes(marker)) fail(`Stripe webhook security requirement is missing: ${marker}`);
 }
-for (const marker of ['metadata[clerk_user_id]', 'subscription_data[metadata][clerk_user_id]']) {
+for (const marker of ['metadata[zap_account_id]', 'subscription_data[metadata][zap_account_id]']) {
   if (!checkoutSource.includes(marker)) fail(`Checkout account-link metadata is missing: ${marker}`);
 }
 for (const marker of ['hasExactKeys', 'RATE_LIMIT', 'configuredOrigin', 'ticketStore.createTicket']) {
@@ -375,8 +378,19 @@ for (const marker of ['access: "private"', 'allowOverwrite: false', 'ifMatch:', 
 for (const marker of ['aes-256-gcm', 'SUPPORT_DATA_KEY', 'RETENTION_MS', 'result.hasMore', 'purgeExpiredTickets']) {
   if (!websiteTicketStore.includes(marker)) fail(`Encrypted support retention requirement is missing: ${marker}`);
 }
-for (const marker of ['ADMIN_EMAILS', 'ADMIN_USER_IDS', 'requireAdmin', 'verification?.status !== "verified"']) {
+for (const marker of ['ADMIN_EMAILS', 'ADMIN_USER_IDS', 'requireAdmin', 'accountForRequest']) {
   if (!websiteAccountAuth.includes(marker)) fail(`Admin authentication requirement is missing: ${marker}`);
+}
+for (const marker of [
+  'AUTH_MASTER_KEY', 'aes-256-gcm', 'scrypt', '__Host-zap_session', 'HttpOnly', 'SameSite=Lax',
+  'allowOverwrite: options.create ? false : true', 'ifMatch:', 'MAX_LOGIN_FAILURES', 'LOCKOUT_MS', 'recoveryHash',
+  'sessionVersion', 'timingSafeEqual'
+]) {
+  if (!websiteAccountStore.includes(marker)) fail(`First-party account security requirement is missing: ${marker}`);
+}
+if (/clerk/iu.test(websiteAccount + websiteAccountClient + websiteAccountAuth + websiteAdminClient +
+    websitePrivacy + websiteTerms + websiteLegal + JSON.stringify(websiteVercelConfig))) {
+  fail('Clerk must not remain in the website, account, admin, legal, or security boundary.');
 }
 for (const marker of ['Private admin', 'id="ticket-list"', 'id="ticket-update"', '/api/admin-tickets']) {
   if (!websiteAdmin.includes(marker) && !websiteAdminClient.includes(marker)) {
@@ -396,7 +410,7 @@ if (!websiteSitemap.includes('https://tryzap.net/support')) {
 }
 for (const [name, source, markers] of [
   ['legal center', websiteLegal, ['VegaNext LLC', 'Private support form', 'Subscription summary', '/privacy', '/terms', '/refunds']],
-  ['privacy policy', websitePrivacy, ['Effective August 25, 2026', 'Version 2.6', 'Information we collect and why', 'support form', 'private Vercel Blob store', 'Clerk', 'We do not sell personal information', 'Your privacy rights', 'Windows Data Protection API', 'AES-256-GCM', '90 days', 'VegaNext LLC']],
+  ['privacy policy', websitePrivacy, ['Effective August 25, 2026', 'Version 2.7', 'Information we collect and why', 'support form', 'encrypted private account', 'salted scrypt', 'We do not sell personal information', 'Your privacy rights', 'Windows Data Protection API', 'AES-256-GCM', '90 days', 'VegaNext LLC']],
   ['terms', websiteTerms, ['Effective August 22, 2026', 'Paid subscriptions and renewal', 'up to three devices', 'Governing law and disputes', 'These Terms do not require arbitration']],
   ['refund policy', websiteRefunds, ['Effective August 22, 2026', 'Cancel online at any time', '14 calendar days', 'Renewal charges and partial periods', 'private support form']]
 ]) {
@@ -411,13 +425,13 @@ for (const marker of [
   if (!websiteAccount.includes(marker)) fail(`Website account requirement is missing: ${marker}`);
 }
 for (const marker of [
-  'prepareEmailAddressVerification', 'attemptEmailAddressVerification',
+  '/api/register', '/api/login', '/api/logout', '/api/recover-account',
   '/api/account-status', '/api/create-checkout', '/api/create-app-activation',
-  'Clerk.session.getToken()'
+  'credentials: "same-origin"'
 ]) {
   if (!websiteAccountClient.includes(marker)) fail(`Website account flow is missing: ${marker}`);
 }
-for (const marker of ['authenticateRequest', 'authorizedParties', 'verification?.status !== "verified"']) {
+for (const marker of ['accountForRequest', 'storageConfigured', 'validAccountId']) {
   if (!websiteAccountAuth.includes(marker)) fail(`Website account authentication boundary is missing: ${marker}`);
 }
 for (const marker of [

@@ -1,6 +1,7 @@
 const auth = require("./_auth");
 const billing = require("./_billing");
 const ticketStore = require("../server/tickets");
+const accounts = require("../server/accounts");
 const { timingSafeEqual } = require("node:crypto");
 
 function cronAuthorized(request) {
@@ -22,8 +23,102 @@ function accountConfig(request, response) {
   if (!billing.limitRequest(request, response, "account-config")) return;
   return response.status(200).json({
     configured: auth.configured(),
-    publishableKey: auth.configured() ? process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY : "",
+    passwordMinLength: accounts.PASSWORD_MIN_LENGTH,
   });
+}
+
+function trustedMutation(request) {
+  const origin = String(request.headers?.origin || "");
+  const fetchSite = String(request.headers?.["sec-fetch-site"] || "same-origin");
+  return Boolean(origin) && billing.verifyRequestOrigin(request) && ["same-origin", "none"].includes(fetchSite);
+}
+
+function authBody(request, response, keys, maximumBytes = 1024) {
+  if (!billing.requirePost(request, response)) return null;
+  if (!trustedMutation(request)) {
+    response.status(403).json({ error: "Request origin was rejected" });
+    return null;
+  }
+  try {
+    const body = billing.parseBody(request, maximumBytes);
+    if (!billing.hasExactKeys(body, keys)) throw new Error("invalid_auth_request");
+    return body;
+  } catch {
+    response.status(400).json({ error: "Invalid account request" });
+    return null;
+  }
+}
+
+async function registerAccount(request, response) {
+  const body = authBody(request, response, ["email", "password"]);
+  if (!body) return;
+  try {
+    const created = await accounts.createAccount(body.email, body.password);
+    accounts.setSessionCookie(response, created.account);
+    return response.status(201).json({
+      email: created.account.email,
+      accountId: created.account.accountId,
+      recoveryCode: created.recoveryCode,
+    });
+  } catch (error) {
+    if (error.message === "account_exists") {
+      return response.status(409).json({ error: "An account already exists for this email. Sign in instead." });
+    }
+    if (["invalid_email", "weak_password"].includes(error.message)) {
+      return response.status(400).json({ error: "Use a valid email and a strong password with at least 15 characters." });
+    }
+    console.error("Account registration failed", { code: error.message || "register_failed" });
+    return response.status(503).json({ error: "Account creation is temporarily unavailable." });
+  }
+}
+
+async function loginAccount(request, response) {
+  const body = authBody(request, response, ["email", "password"]);
+  if (!body) return;
+  try {
+    const account = await accounts.authenticate(body.email, body.password);
+    accounts.setSessionCookie(response, account);
+    return response.status(200).json({ email: account.email, accountId: account.accountId });
+  } catch (error) {
+    if (error.message === "account_locked") {
+      return response.status(429).json({ error: "This account is temporarily locked. Wait 15 minutes and try again." });
+    }
+    if (["invalid_credentials", "invalid_email"].includes(error.message)) {
+      return response.status(401).json({ error: "The email or password is incorrect." });
+    }
+    console.error("Account login failed", { code: error.message || "login_failed" });
+    return response.status(503).json({ error: "Sign-in is temporarily unavailable." });
+  }
+}
+
+async function logoutAccount(request, response) {
+  const body = authBody(request, response, []);
+  if (!body) return;
+  accounts.clearSessionCookie(response);
+  return response.status(200).json({ signedOut: true });
+}
+
+async function recoverAccount(request, response) {
+  const body = authBody(request, response, ["email", "recoveryCode", "password"], 1536);
+  if (!body) return;
+  try {
+    const recovered = await accounts.resetPassword(body.email, body.recoveryCode, body.password);
+    accounts.setSessionCookie(response, recovered.account);
+    return response.status(200).json({
+      email: recovered.account.email,
+      accountId: recovered.account.accountId,
+      recoveryCode: recovered.recoveryCode,
+    });
+  } catch (error) {
+    if (["invalid_recovery", "invalid_email"].includes(error.message)) {
+      return response.status(401).json({ error: "The account or recovery code could not be verified." });
+    }
+    if (error.message === "weak_password") {
+      return response.status(400).json({ error: "Use a stronger password with at least 15 characters." });
+    }
+    console.error("Account recovery failed", { code: error.message || "recovery_failed" });
+    return response.status(503).json({ error: "Account recovery is temporarily unavailable." });
+  }
 }
 
 async function accountStatus(request, response) {
@@ -43,6 +138,7 @@ async function accountStatus(request, response) {
     }
     return response.status(200).json({
       email: account.email,
+      accountId: account.userId,
       subscription: subscription ? {
         status: subscription.status,
         plan,
@@ -189,6 +285,10 @@ async function purgeSupportTickets(request, response) {
 
 const routes = Object.freeze({
   config: accountConfig,
+  register: registerAccount,
+  login: loginAccount,
+  logout: logoutAccount,
+  recover: recoverAccount,
   status: accountStatus,
   portal: createAccountPortal,
   activation: createAppActivation,

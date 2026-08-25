@@ -9,6 +9,7 @@ const checkoutStatus = require('../website/api/checkout-status');
 const checkoutConfig = require('../website/api/checkout-config');
 const supportTicket = require('../website/api/support-ticket');
 const ticketStore = require('../website/server/tickets');
+const accountStore = require('../website/server/accounts');
 const accountRouter = require('../website/api/account');
 const { config: accountConfig, status: accountStatus,
   portal: createAccountPortal, activation: createAppActivation,
@@ -179,7 +180,9 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
   const originalSigningKey = process.env.ENTITLEMENT_PRIVATE_KEY;
   const originalWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   const originalSupportDataKey = process.env.SUPPORT_DATA_KEY;
-  const originalClerkClient = auth.clerkClient;
+  const originalAuthMasterKey = process.env.AUTH_MASTER_KEY;
+  const originalAccountById = auth.accountById;
+  const originalUpdateBillingMetadata = auth.updateBillingMetadata;
   const originalRequireAdmin = auth.requireAdmin;
   const originalCreateTicket = ticketStore.createTicket;
   const originalListTickets = ticketStore.listTickets;
@@ -199,6 +202,37 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     submissionId: '12345678-1234-4abc-8abc-1234567890ab',
   };
   try {
+    process.env.AUTH_MASTER_KEY = Buffer.alloc(32, 11).toString('base64url');
+    const accountEmail = 'owner@example.com';
+    const accountId = accountStore.accountIdForEmail(accountEmail);
+    const accountFixture = {
+      version: 1,
+      accountId,
+      email: accountEmail,
+      password: { algorithm: 'scrypt', salt: 'a'.repeat(22), hash: 'b'.repeat(43), N: 32768, r: 8, p: 1 },
+      recoveryHash: 'c'.repeat(43),
+      sessionVersion: 1,
+      failedAttempts: 0,
+      lockUntil: null,
+      stripeCustomerId: null,
+      stripeSubscriptionId: null,
+      stripeSubscriptionStatus: null,
+      stripeSubscriptionPlan: null,
+      stripeEventCreated: 0,
+      stripeEventId: null,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      lastLoginAt: new Date().toISOString(),
+    };
+    const encryptedAccount = accountStore.encodeAccount(accountFixture);
+    assert.doesNotMatch(encryptedAccount, /owner@example\.com/);
+    assert.equal(accountStore.decodeAccount(encryptedAccount, accountId).email, accountEmail);
+    const sessionToken = accountStore.sessionToken(accountFixture, 2_000_000_000);
+    assert.equal(accountStore.parseSessionToken(sessionToken, 2_000_000_001).sub, accountId);
+    assert.equal(accountStore.parseSessionToken(`${sessionToken.slice(0, -1)}x`, 2_000_000_001), null);
+    assert.equal(accountStore.passwordScore('A long Correct-Horse 2026!'), 4);
+    assert.throws(() => accountStore.validatePassword('password1234567', accountEmail), /weak_password/);
+
     await expectStatus(
       supportTicket,
       supportRequest({ ...supportBody, unexpected: true }),
@@ -249,7 +283,7 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     assert.equal(storedTickets[0].email, supportBody.email);
     assert.equal(storedTickets[0].description, supportBody.description);
 
-    const adminFixture = { userId: 'user_adminfixture', email: 'owner@example.com' };
+    const adminFixture = { userId: `acct_${'a'.repeat(32)}`, email: 'owner@example.com' };
     auth.requireAdmin = async () => adminFixture;
     ticketStore.listTickets = async () => [{ ...storedTickets[0], status: 'open', audit: [] }];
     const adminListResponse = mockResponse();
@@ -278,7 +312,7 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     process.env.STRIPE_CORE_PRICE_ID = `price_${'p'.repeat(24)}`;
     process.env.STRIPE_CORE_CHECKOUT_ENABLED = 'true';
     process.env.ENTITLEMENT_PRIVATE_KEY = 'A'.repeat(64);
-    const testAccount = { userId: 'user_fixture', email: 'taylor@example.com' };
+    const testAccount = { userId: `acct_${'f'.repeat(32)}`, email: 'taylor@example.com' };
     auth.requireUser = async () => testAccount;
     billing.accountSubscription = async () => ({
       customer: { id: 'cus_fixture' },
@@ -307,8 +341,8 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     const checkoutForm = Object.fromEntries(checkoutCalls[0].options.body);
     assert.equal(checkoutForm.customer, 'cus_fixture');
     assert.equal(checkoutForm.client_reference_id, testAccount.userId);
-    assert.equal(checkoutForm['metadata[clerk_user_id]'], testAccount.userId);
-    assert.equal(checkoutForm['subscription_data[metadata][clerk_user_id]'], testAccount.userId);
+    assert.equal(checkoutForm['metadata[zap_account_id]'], testAccount.userId);
+    assert.equal(checkoutForm['subscription_data[metadata][zap_account_id]'], testAccount.userId);
     assert.equal(checkoutForm['line_items[0][price]'], process.env.STRIPE_CORE_PRICE_ID);
     assert.match(checkoutCalls[0].options.headers['Idempotency-Key'], /^zap_checkout_[a-f0-9]{64}$/);
     assert.equal(Number(checkoutForm.expires_at) - Math.floor(Date.now() / 1000) <= 30 * 60, true);
@@ -326,12 +360,8 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
 
     process.env.STRIPE_WEBHOOK_SECRET = `whsec_${'w'.repeat(32)}`;
     const webhookUpdates = [];
-    auth.clerkClient = () => ({
-      users: {
-        getUser: async () => ({ privateMetadata: {} }),
-        updateUserMetadata: async (userId, update) => webhookUpdates.push({ userId, update }),
-      },
-    });
+    auth.accountById = async () => ({ stripeEventCreated: 0, stripeCustomerId: null });
+    auth.updateBillingMetadata = async (userId, update) => webhookUpdates.push({ userId, update });
     const webhookEvent = {
       id: 'evt_subscriptionfixture',
       type: 'customer.subscription.updated',
@@ -340,7 +370,7 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
         id: 'sub_fixture',
         customer: 'cus_fixture',
         status: 'active',
-        metadata: { clerk_user_id: 'user_fixture', plan: 'core' },
+        metadata: { zap_account_id: testAccount.userId, plan: 'core' },
       } },
     };
     const webhookRaw = Buffer.from(JSON.stringify(webhookEvent));
@@ -362,8 +392,8 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     await stripeWebhook(webhookRequest, webhookResponse);
     assert.equal(webhookResponse.statusCode, 200);
     assert.equal(webhookUpdates.length, 1);
-    assert.equal(webhookUpdates[0].userId, 'user_fixture');
-    assert.equal(webhookUpdates[0].update.privateMetadata.stripeSubscriptionStatus, 'active');
+    assert.equal(webhookUpdates[0].userId, testAccount.userId);
+    assert.equal(webhookUpdates[0].update.stripeSubscriptionStatus, 'active');
     await expectStatus(
       stripeWebhook,
       { ...webhookRequest, headers: { ...webhookRequest.headers, 'stripe-signature': `t=${webhookTimestamp},v1=${'0'.repeat(64)}` } },
@@ -423,7 +453,8 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     billing.createPortalSession = originalCreatePortalSession;
     billing.stripeRequest = originalStripeRequest;
     billing.openCheckoutForCustomer = originalOpenCheckoutForCustomer;
-    auth.clerkClient = originalClerkClient;
+    auth.accountById = originalAccountById;
+    auth.updateBillingMetadata = originalUpdateBillingMetadata;
     ticketStore.createTicket = originalCreateTicket;
     ticketStore.listTickets = originalListTickets;
     ticketStore.updateTicket = originalUpdateTicket;
@@ -434,6 +465,7 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
       ['ENTITLEMENT_PRIVATE_KEY', originalSigningKey],
       ['STRIPE_WEBHOOK_SECRET', originalWebhookSecret],
       ['SUPPORT_DATA_KEY', originalSupportDataKey],
+      ['AUTH_MASTER_KEY', originalAuthMasterKey],
     ]) {
       if (value === undefined) delete process.env[name];
       else process.env[name] = value;

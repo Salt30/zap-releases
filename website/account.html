@@ -23,9 +23,9 @@
     <section class="intro">
       <span class="eyebrow">One account. One subscription.</span>
       <h1>Your access follows you.</h1>
-      <p>Buy on the website, connect Drip Type, and manage billing from the same verified account. If you already subscribe, we open billing management instead of starting another charge.</p>
+      <p>Buy on the website, connect Drip Type, and manage billing from the same private Zap account. If you already subscribe, we open billing management instead of starting another charge.</p>
       <div class="trust-row" aria-label="Account protections">
-        <span><i></i> Verified email</span>
+        <span><i></i> First-party account</span>
         <span><i></i> Stripe-hosted payment</span>
         <span><i></i> Up to 3 devices</span>
       </div>
@@ -60,41 +60,30 @@
             <meter id="strength-meter" min="0" max="4" value="0">0 out of 4</meter>
             <p>Use at least 15 characters. A unique passphrase is safer and easier to remember.</p>
           </div>
-          <div id="clerk-captcha" data-cl-theme="dark"></div>
           <p class="form-error" id="auth-error" role="alert"></p>
           <button class="primary" id="auth-submit" type="submit">Sign in</button>
           <button class="text-button forgot-button" id="forgot-password" type="button">Forgot password?</button>
-          <p class="notice">By continuing, you agree to the <a href="/terms">Terms</a> and acknowledge the <a href="/privacy">Privacy Policy</a>. Passwords are handled by our identity provider and are not sent to Zap's billing API.</p>
-        </form>
-
-        <form id="verify-form" hidden novalidate>
-          <label>Verification code
-            <input id="verification-code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required placeholder="Enter the email code">
-          </label>
-          <p class="form-error" id="verify-error" role="alert"></p>
-          <button class="primary" type="submit">Verify email</button>
-          <button class="text-button" id="restart-auth" type="button">Use a different email</button>
+          <p class="notice">By continuing, you agree to the <a href="/terms">Terms</a> and acknowledge the <a href="/privacy">Privacy Policy</a>. Zap stores only a salted password hash inside encrypted private account storage. Your password is never sent to Stripe.</p>
         </form>
 
         <form id="reset-form" hidden novalidate>
-          <div id="reset-code-step">
-            <label>Email reset code
-              <input id="reset-code" inputmode="numeric" autocomplete="one-time-code" maxlength="8" required placeholder="Enter the email code">
-            </label>
-            <p class="form-hint">We sent a one-time code to the email shown above.</p>
-          </div>
-          <div id="reset-password-step" hidden>
-            <label>New password
-              <span class="password-wrap"><input id="reset-password" type="password" autocomplete="new-password" minlength="15" maxlength="128" required placeholder="15+ characters"><button id="toggle-reset-password" type="button" aria-label="Show new password">Show</button></span>
-            </label>
-            <div class="strength" id="reset-strength">
-              <div><span>Password strength</span><output id="reset-strength-label">Too short</output></div>
-              <meter id="reset-strength-meter" min="0" max="4" value="0">0 out of 4</meter>
-              <p>Use at least 15 characters. A unique passphrase is safer and easier to remember.</p>
-            </div>
+          <label>Account email
+            <input id="reset-email" type="email" autocomplete="email" maxlength="254" required placeholder="you@example.com">
+          </label>
+          <label>Recovery code
+            <input id="reset-code" autocomplete="off" maxlength="40" required placeholder="ZAP-…">
+          </label>
+          <p class="form-hint">Use the one-time recovery code shown when the account was created or last recovered.</p>
+          <label>New password
+            <span class="password-wrap"><input id="reset-password" type="password" autocomplete="new-password" minlength="15" maxlength="128" required placeholder="15+ characters"><button id="toggle-reset-password" type="button" aria-label="Show new password">Show</button></span>
+          </label>
+          <div class="strength" id="reset-strength">
+            <div><span>Password strength</span><output id="reset-strength-label">Too short</output></div>
+            <meter id="reset-strength-meter" min="0" max="4" value="0">0 out of 4</meter>
+            <p>Use at least 15 characters. A unique passphrase is safer and easier to remember.</p>
           </div>
           <p class="form-error" id="reset-error" role="alert"></p>
-          <button class="primary" id="reset-submit" type="submit">Verify reset code</button>
+          <button class="primary" id="reset-submit" type="submit">Reset password</button>
           <button class="text-button" id="cancel-reset" type="button">Back to sign in</button>
         </form>
       </div>
@@ -103,6 +92,12 @@
         <div class="dashboard-head">
           <div><span class="card-kicker">Signed in</span><h2 id="account-email"></h2></div>
           <button class="text-button" id="sign-out" type="button">Sign out</button>
+        </div>
+        <div class="recovery-card" id="recovery-card" hidden>
+          <div><span class="card-kicker">Save this once</span><h3>Account recovery code</h3><p>Store this code in your password manager. It is not emailed or shown again.</p></div>
+          <code id="recovery-code-output"></code>
+          <button class="secondary" id="copy-recovery" type="button">Copy recovery code</button>
+          <button class="text-button" id="dismiss-recovery" type="button">I saved it</button>
         </div>
         <div class="subscription-card">
           <span class="status-dot" id="subscription-dot"></span>

@@ -79,26 +79,26 @@ function validEvent(event) {
 async function mirrorSubscriptionEvent(event) {
   if (!SUBSCRIPTION_EVENTS.has(event.type)) return;
   const subscription = event.data.object;
-  const userId = String(subscription.metadata?.clerk_user_id || "");
-  if (!/^user_[A-Za-z0-9]+$/.test(userId) || !/^sub_[A-Za-z0-9]+$/.test(String(subscription.id || ""))) {
+  const userId = String(subscription.metadata?.zap_account_id || "");
+  if (!/^acct_[A-Za-z0-9_-]{32}$/u.test(userId) || !/^sub_[A-Za-z0-9]+$/.test(String(subscription.id || ""))) {
     return;
   }
-  const client = auth.clerkClient();
-  const user = await client.users.getUser(userId);
-  const previousCreated = Number(user.privateMetadata?.stripeEventCreated || 0);
+  const account = await auth.accountById(userId);
+  if (!account) return;
+  const previousCreated = Number(account.stripeEventCreated || 0);
   if (Number.isSafeInteger(previousCreated) && previousCreated > event.created) return;
   const plan = ["core", "pro"].includes(subscription.metadata?.plan) ? subscription.metadata.plan : null;
-  await client.users.updateUserMetadata(userId, {
-    privateMetadata: {
-      stripeCustomerId: /^cus_[A-Za-z0-9]+$/.test(String(subscription.customer || ""))
-        ? subscription.customer
-        : user.privateMetadata?.stripeCustomerId,
-      stripeSubscriptionId: subscription.id,
-      stripeSubscriptionStatus: String(subscription.status || "unknown").slice(0, 40),
-      stripeSubscriptionPlan: plan,
-      stripeEventCreated: event.created,
-      stripeEventId: event.id,
-    },
+  await auth.updateBillingMetadata(userId, {
+    stripeCustomerId: /^cus_[A-Za-z0-9]+$/.test(String(subscription.customer || ""))
+      ? subscription.customer
+      : account.stripeCustomerId,
+    stripeSubscriptionId: subscription.id,
+    stripeSubscriptionStatus: /^[a-z_]{1,40}$/u.test(String(subscription.status || ""))
+      ? subscription.status
+      : "unknown",
+    stripeSubscriptionPlan: plan,
+    stripeEventCreated: event.created,
+    stripeEventId: event.id,
   });
 }
 

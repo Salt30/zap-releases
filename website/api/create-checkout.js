@@ -125,10 +125,10 @@ module.exports = async function createCheckout(request, response) {
       "customer_update[name]": "auto",
       integration_identifier: integrationIdentifier(),
       expires_at: String(checkoutCreatedAt + 30 * 60),
-      "metadata[clerk_user_id]": account.userId,
+      "metadata[zap_account_id]": account.userId,
       "metadata[plan]": planId,
       "metadata[zap_account]": billing.accountKey(account.userId),
-      "subscription_data[metadata][clerk_user_id]": account.userId,
+      "subscription_data[metadata][zap_account_id]": account.userId,
       "subscription_data[metadata][plan]": planId,
       "subscription_data[metadata][zap_account]": billing.accountKey(account.userId),
     });
