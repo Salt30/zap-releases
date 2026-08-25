@@ -1,7 +1,4 @@
-const { randomUUID } = require("node:crypto");
-
-const SUPPORT_INBOX = "support@tryzap.net";
-const SUPPORT_SENDER = "Drip Type Tickets <tickets@tryzap.net>";
+const ticketStore = require("../server/tickets");
 const MAX_BODY_BYTES = 12_000;
 const RATE_WINDOW_MS = 10 * 60 * 1000;
 const RATE_LIMIT = 5;
@@ -119,76 +116,6 @@ function validEmail(value) {
   return /^[A-Z0-9.!#$%&'*+/=?^_{}|~-]+@[A-Z0-9-]+(?:\.[A-Z0-9-]+)+$/iu.test(value);
 }
 
-function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#39;");
-}
-
-function emailText(ticket) {
-  return [
-    `New Drip Type support ticket ${ticket.code}`,
-    "",
-    `Category: ${ticket.category}`,
-    `Platform: ${ticket.platform}`,
-    `App version: ${ticket.appVersion || "Not supplied"}`,
-    `Name: ${ticket.name}`,
-    `Email: ${ticket.email}`,
-    `Subject: ${ticket.subject}`,
-    "",
-    "Issue:",
-    ticket.description,
-    "",
-    `Submitted: ${ticket.submittedAt}`,
-    `Ticket ID: ${ticket.submissionId}`,
-    "",
-    "Reply to this message to respond directly to the customer.",
-  ].join("\n");
-}
-
-function emailHtml(ticket) {
-  const row = (label, value) => `<tr><td style="padding:7px 14px 7px 0;color:#6b7280;vertical-align:top">${label}</td><td style="padding:7px 0;color:#111827">${escapeHtml(value)}</td></tr>`;
-  return `<!doctype html><html><body style="margin:0;background:#f5f5f4;font-family:Arial,sans-serif;color:#111827"><div style="max-width:680px;margin:0 auto;padding:32px 20px"><div style="background:#111217;border-top:4px solid #ffd24d;padding:28px;color:#f4f3ee"><div style="font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:#ffd24d">Drip Type by Zap</div><h1 style="margin:12px 0 0;font-size:26px">Support ticket ${ticket.code}</h1></div><div style="background:#fff;padding:28px"><table style="border-collapse:collapse;width:100%;font-size:14px">${row("Category", ticket.category)}${row("Platform", ticket.platform)}${row("App version", ticket.appVersion || "Not supplied")}${row("Name", ticket.name)}${row("Email", ticket.email)}${row("Subject", ticket.subject)}</table><h2 style="font-size:16px;margin:28px 0 10px">Issue</h2><div style="white-space:pre-wrap;background:#f5f5f4;border:1px solid #e7e5e4;padding:18px;font-size:14px;line-height:1.6">${escapeHtml(ticket.description)}</div><p style="margin:24px 0 0;color:#6b7280;font-size:12px">Submitted ${escapeHtml(ticket.submittedAt)} · ${escapeHtml(ticket.submissionId)}</p><p style="margin:10px 0 0;color:#6b7280;font-size:12px">Reply to this email to respond directly to the customer.</p></div></div></body></html>`;
-}
-
-async function sendTicket(ticket) {
-  const apiKey = process.env.RESEND_API_KEY || "";
-  if (!/^re_[A-Za-z0-9_-]{20,}$/u.test(apiKey)) throw new Error("email_not_configured");
-  const result = await fetch("https://api.resend.com/emails", {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-      "Idempotency-Key": `support-ticket/${ticket.submissionId}`,
-      "User-Agent": "DripType-Support/1.0",
-    },
-    body: JSON.stringify({
-      from: SUPPORT_SENDER,
-      to: [SUPPORT_INBOX],
-      reply_to: ticket.email,
-      subject: `[Drip Type ${ticket.code}] ${ticket.category}: ${ticket.subject}`,
-      text: emailText(ticket),
-      html: emailHtml(ticket),
-      tags: [
-        { name: "source", value: "support-form" },
-        { name: "category", value: ticket.categoryKey },
-      ],
-    }),
-    signal: AbortSignal.timeout(12_000),
-  });
-  const payload = await result.json().catch(() => ({}));
-  if (!result.ok || !/^[0-9a-f-]{20,}$/iu.test(String(payload.id || ""))) {
-    const error = new Error("email_delivery_failed");
-    error.status = result.status;
-    error.type = payload?.name || payload?.type || "resend_error";
-    throw error;
-  }
-  return payload.id;
-}
-
 module.exports = async function supportTicket(request, response) {
   setHeaders(response);
   if (request.method !== "POST") {
@@ -280,17 +207,15 @@ module.exports = async function supportTicket(request, response) {
     email,
     subject,
     description,
-    submittedAt: new Date().toISOString(),
   };
   try {
-    await sendTicket(ticket);
+    await ticketStore.createTicket(ticket);
     return response.status(200).json({ ok: true, ticketId: code });
   } catch (error) {
-    console.error("Support ticket delivery failed", {
-      status: Number(error.status || 0),
-      type: String(error.type || error.message || "delivery_failed").slice(0, 80),
+    console.error("Support ticket storage failed", {
+      type: String(error.name || error.message || "storage_failed").slice(0, 80),
     });
-    return response.status(503).json({ error: "Your ticket could not be delivered. Please try again shortly." });
+    return response.status(503).json({ error: "Your ticket could not be saved. Please try again shortly." });
   }
 };
 

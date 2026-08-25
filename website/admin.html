@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>Support Console — Drip Type by Zap</title>
+  <meta name="description" content="Private Drip Type support administration console.">
+  <meta name="robots" content="noindex,nofollow,noarchive">
+  <link rel="icon" href="/brand/zap/zap-icon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="/admin.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Drip Type home"><img src="/brand/zap/zap-icon-192.png" alt="" width="34" height="34"><span><strong>Drip Type</strong><small>Support Console</small></span></a>
+    <div class="admin-actions"><span class="secure-pill"><i></i> Private admin</span><button id="sign-out" type="button" hidden>Sign out</button></div>
+  </header>
+
+  <main>
+    <section class="state-card" id="loading-state">
+      <span class="spinner" aria-hidden="true"></span><h1>Verifying admin access…</h1><p>Checking your signed Zap account and the server-side allowlist.</p>
+    </section>
+
+    <section class="state-card" id="sign-in-state" hidden>
+      <span class="eyebrow">Authentication required</span><h1>Sign in with the admin account.</h1><p>The support console requires a verified Zap account that is also present in the server-side admin allowlist.</p><a class="primary-link" href="/account?mode=signin">Sign in to Zap account</a>
+    </section>
+
+    <section class="state-card" id="denied-state" hidden>
+      <span class="eyebrow">Access denied</span><h1>This account is not an admin.</h1><p id="denied-copy">Support data remains locked. Sign out and use the authorized owner account.</p><button class="secondary-button" id="denied-sign-out" type="button">Sign out</button>
+    </section>
+
+    <section class="console" id="admin-console" hidden>
+      <div class="console-heading"><div><span class="eyebrow">Drip Type support</span><h1>Issue inbox</h1><p>Review customer reports, track progress, and keep internal notes in one private workspace.</p></div><button class="secondary-button" id="refresh" type="button">Refresh</button></div>
+      <div class="metrics" aria-label="Ticket counts"><div><span>Open</span><strong id="open-count">0</strong></div><div><span>In progress</span><strong id="progress-count">0</strong></div><div><span>Resolved</span><strong id="resolved-count">0</strong></div></div>
+      <div class="toolbar"><label for="status-filter">Show</label><select id="status-filter"><option value="all">All tickets</option><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option></select><span id="console-status" role="status" aria-live="polite"></span></div>
+      <div class="workspace">
+        <div class="ticket-list" id="ticket-list" aria-label="Support tickets"></div>
+        <article class="ticket-detail" id="ticket-detail">
+          <div class="empty-detail" id="empty-detail"><span>↖</span><h2>Select a ticket</h2><p>Customer details and the complete issue report stay hidden until you select a record.</p></div>
+          <div id="selected-detail" hidden>
+            <div class="detail-head"><div><span class="ticket-code" id="detail-code"></span><h2 id="detail-subject"></h2></div><span class="status-badge" id="detail-status"></span></div>
+            <dl class="metadata"><div><dt>Customer</dt><dd id="detail-name"></dd></div><div><dt>Reply email</dt><dd><a id="detail-email"></a></dd></div><div><dt>Category</dt><dd id="detail-category"></dd></div><div><dt>Platform</dt><dd id="detail-platform"></dd></div><div><dt>App version</dt><dd id="detail-version"></dd></div><div><dt>Submitted</dt><dd id="detail-date"></dd></div></dl>
+            <section class="description"><h3>Issue report</h3><p id="detail-description"></p></section>
+            <section class="manage"><h3>Admin update</h3><form id="ticket-update"><label>Status<select id="ticket-status"><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option></select></label><label>Internal note<textarea id="ticket-note" maxlength="2000" placeholder="Optional note. This is visible only to admins."></textarea></label><div><button class="primary-button" id="save-ticket" type="submit">Save update</button><a class="secondary-button reply-link" id="reply-ticket">Reply by email</a></div><p id="update-status" role="status" aria-live="polite"></p></form></section>
+            <section class="audit"><h3>Audit trail</h3><ol id="audit-list"></ol></section>
+          </div>
+        </article>
+      </div>
+    </section>
+  </main>
+  <script src="/admin.js" defer></script>
+</body>
+</html>

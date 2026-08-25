@@ -70,10 +70,34 @@ async function requireUser(request, response) {
   }
 }
 
+function adminEmails() {
+  return new Set(String(process.env.ADMIN_EMAILS || "")
+    .split(",")
+    .map((email) => email.trim().toLowerCase())
+    .filter((email) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)));
+}
+
+async function requireAdmin(request, response) {
+  const account = await requireUser(request, response);
+  if (!account) return null;
+  const allowed = adminEmails();
+  if (!allowed.size) {
+    response.status(503).json({ error: "The support console is temporarily unavailable." });
+    return null;
+  }
+  if (!allowed.has(account.email)) {
+    response.status(403).json({ error: "This account is not authorized for the support console." });
+    return null;
+  }
+  return account;
+}
+
 module.exports = {
   AUTHORIZED_PARTIES,
   authenticatedUser,
+  adminEmails,
   clerkClient,
   configured,
+  requireAdmin,
   requireUser,
 };

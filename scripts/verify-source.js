@@ -53,16 +53,53 @@ const websiteRefunds = read('website/refunds.html');
 const websiteSupport = read('website/support.html');
 const websiteSupportClient = read('website/support.js');
 const websiteSupportApi = read('website/api/support-ticket.js');
+const websiteTicketStore = read('website/server/tickets.js');
 const websiteAccount = read('website/account.html');
 const websiteAccountClient = read('website/account.js');
 const websiteAccountAuth = read('website/api/_auth.js');
+const websiteAdmin = read('website/admin.html');
+const websiteAdminClient = read('website/admin.js');
 const websiteNavigation = read('website/navigation.js');
 const websiteNotFound = read('website/404.html');
 const websiteStripeWebhook = read('website/api/stripe-webhook.js');
 const websiteSitemap = read('website/sitemap.xml');
 const websiteVercelConfig = JSON.parse(read('website/vercel.json'));
+const websitePackage = JSON.parse(read('website/package.json'));
+const websitePackageLock = JSON.parse(read('website/package-lock.json'));
 const appIconSource = read('assets/brand/zap/logo/zap-icon.svg');
 const websiteIconSource = read('website/brand/zap/zap-icon.svg');
+
+if (!websitePackage.private ||
+    websitePackage.dependencies?.['@clerk/backend'] !== packageJson.dependencies['@clerk/backend']) {
+  fail('The website must install the pinned Clerk backend dependency in its Vercel project root.');
+}
+if (websitePackage.dependencies?.['@vercel/blob'] !== packageJson.devDependencies['@vercel/blob']) {
+  fail('The website must install the pinned private Blob dependency in its Vercel project root.');
+}
+if (websitePackageLock.packages?.['']?.dependencies?.['@clerk/backend'] !==
+      websitePackage.dependencies['@clerk/backend'] ||
+    websitePackageLock.packages?.['']?.dependencies?.['@vercel/blob'] !==
+      websitePackage.dependencies['@vercel/blob']) {
+  fail('The website runtime dependency lock does not match its Vercel package manifest.');
+}
+
+const websiteApiFunctions = fs.readdirSync(path.join(root, 'website/api'))
+  .filter((name) => name.endsWith('.js'));
+if (websiteApiFunctions.length > 12) {
+  fail(`Vercel Hobby deployments support at most 12 API functions; found ${websiteApiFunctions.length}.`);
+}
+for (const [source, destination] of Object.entries({
+  '/api/account-config': '/api/account?action=config',
+  '/api/account-status': '/api/account?action=status',
+  '/api/create-account-portal': '/api/account?action=portal',
+  '/api/create-app-activation': '/api/account?action=activation',
+  '/api/admin-tickets': '/api/account?action=tickets',
+})) {
+  if (!websiteVercelConfig.rewrites?.some((rewrite) =>
+    rewrite.source === source && rewrite.destination === destination)) {
+    fail(`Account API rewrite is missing: ${source}`);
+  }
+}
 
 if (!packageJson.private || packageJson.license !== 'UNLICENSED') {
   fail('The package must remain private and proprietary.');
@@ -315,11 +352,24 @@ for (const marker of [
 for (const marker of ['metadata[clerk_user_id]', 'subscription_data[metadata][clerk_user_id]']) {
   if (!checkoutSource.includes(marker)) fail(`Checkout account-link metadata is missing: ${marker}`);
 }
-for (const marker of [
-  'hasExactKeys', 'RATE_LIMIT', 'configuredOrigin', 'RESEND_API_KEY',
-  'Idempotency-Key', 'reply_to', 'support@tryzap.net'
-]) {
-  if (!websiteSupportApi.includes(marker)) fail(`Secure support delivery requirement is missing: ${marker}`);
+for (const marker of ['hasExactKeys', 'RATE_LIMIT', 'configuredOrigin', 'ticketStore.createTicket']) {
+  if (!websiteSupportApi.includes(marker)) fail(`Secure support intake requirement is missing: ${marker}`);
+}
+for (const marker of ['access: "private"', 'allowOverwrite: false', 'ifMatch:', 'support-tickets/']) {
+  if (!websiteTicketStore.includes(marker)) fail(`Private support storage requirement is missing: ${marker}`);
+}
+for (const marker of ['ADMIN_EMAILS', 'requireAdmin', 'verification?.status !== "verified"']) {
+  if (!websiteAccountAuth.includes(marker)) fail(`Admin authentication requirement is missing: ${marker}`);
+}
+for (const marker of ['Private admin', 'id="ticket-list"', 'id="ticket-update"', '/api/admin-tickets']) {
+  if (!websiteAdmin.includes(marker) && !websiteAdminClient.includes(marker)) {
+    fail(`Support admin console requirement is missing: ${marker}`);
+  }
+}
+if (/RESEND_API_KEY|api\.resend\.com|<strong>Resend<\/strong>/.test(
+  websiteSupportApi + websitePrivacy + websiteLegal
+)) {
+  fail('Resend must not remain in the support-ticket flow or current legal disclosures.');
 }
 if (websiteSupport.includes('support@tryzap.net') || websiteSupportClient.includes('support@tryzap.net')) {
   fail('The public support form must not expose its server-side delivery address.');
@@ -329,7 +379,7 @@ if (!websiteSitemap.includes('https://tryzap.net/support')) {
 }
 for (const [name, source, markers] of [
   ['legal center', websiteLegal, ['VegaNext LLC', 'support@tryzap.net', 'Subscription summary', '/privacy', '/terms', '/refunds']],
-  ['privacy policy', websitePrivacy, ['Effective August 22, 2026', 'Version 2.3', 'Information we collect and why', 'support form', 'Resend', 'Clerk', 'We do not sell personal information', 'Your privacy rights', 'Windows Data Protection API', '400 Continental Blvd']],
+  ['privacy policy', websitePrivacy, ['Effective August 25, 2026', 'Version 2.4', 'Information we collect and why', 'support form', 'private Vercel Blob store', 'Clerk', 'We do not sell personal information', 'Your privacy rights', 'Windows Data Protection API', '400 Continental Blvd']],
   ['terms', websiteTerms, ['Effective August 22, 2026', 'Paid subscriptions and renewal', 'up to three devices', 'Governing law and disputes', 'These Terms do not require arbitration']],
   ['refund policy', websiteRefunds, ['Effective August 22, 2026', 'Cancel online at any time', '14 calendar days', 'Renewal charges and partial periods', 'support@tryzap.net']]
 ]) {

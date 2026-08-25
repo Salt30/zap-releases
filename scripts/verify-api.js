@@ -8,11 +8,12 @@ const createPortal = require('../website/api/create-portal');
 const checkoutStatus = require('../website/api/checkout-status');
 const checkoutConfig = require('../website/api/checkout-config');
 const supportTicket = require('../website/api/support-ticket');
-const accountConfig = require('../website/api/account-config');
-const accountStatus = require('../website/api/account-status');
+const ticketStore = require('../website/server/tickets');
+const accountRouter = require('../website/api/account');
+const { config: accountConfig, status: accountStatus,
+  portal: createAccountPortal, activation: createAppActivation,
+  tickets: adminTickets } = accountRouter.routes;
 const claimAccountEntitlement = require('../website/api/claim-account-entitlement');
-const createAccountPortal = require('../website/api/create-account-portal');
-const createAppActivation = require('../website/api/create-app-activation');
 const stripeWebhook = require('../website/api/stripe-webhook');
 const auth = require('../website/api/_auth');
 const billing = require('../website/api/_billing');
@@ -138,6 +139,12 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     /Method not allowed/,
   );
   await expectStatus(
+    accountRouter,
+    { method: 'GET', query: { action: 'config', debug: '1' }, headers: {}, socket: {} },
+    404,
+    /Not found/,
+  );
+  await expectStatus(
     refreshEntitlement,
     postRequest(
       { refreshToken, deviceId },
@@ -160,7 +167,6 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
   );
 
   const originalSiteUrl = process.env.PUBLIC_SITE_URL;
-  const originalResendKey = process.env.RESEND_API_KEY;
   const originalFetch = global.fetch;
   const originalAuthRequireUser = auth.requireUser;
   const originalAccountSubscription = billing.accountSubscription;
@@ -173,8 +179,11 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
   const originalSigningKey = process.env.ENTITLEMENT_PRIVATE_KEY;
   const originalWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   const originalClerkClient = auth.clerkClient;
+  const originalRequireAdmin = auth.requireAdmin;
+  const originalCreateTicket = ticketStore.createTicket;
+  const originalListTickets = ticketStore.listTickets;
+  const originalUpdateTicket = ticketStore.updateTicket;
   process.env.PUBLIC_SITE_URL = 'https://tryzap.net';
-  process.env.RESEND_API_KEY = `re_${'a'.repeat(32)}`;
   const supportBody = {
     name: 'Taylor Example',
     email: 'taylor@example.com',
@@ -202,28 +211,41 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
       /origin was rejected/,
     );
 
-    const deliveries = [];
-    global.fetch = async (url, options) => {
-      deliveries.push({ url: String(url), options });
-      return {
-        ok: true,
-        status: 200,
-        json: async () => ({ id: '49a3999c-0ce1-4ea6-ab68-afcd6dc2e794' }),
-      };
-    };
+    const storedTickets = [];
+    ticketStore.createTicket = async (ticket) => storedTickets.push(ticket);
     const response = mockResponse();
     await supportTicket(supportRequest(supportBody), response);
     assert.equal(response.statusCode, 200);
     assert.deepEqual(response.body, { ok: true, ticketId: '12345678' });
-    assert.equal(deliveries.length, 1);
-    assert.equal(deliveries[0].url, 'https://api.resend.com/emails');
-    assert.equal(deliveries[0].options.method, 'POST');
-    assert.equal(deliveries[0].options.headers['Idempotency-Key'], `support-ticket/${supportBody.submissionId}`);
-    const delivered = JSON.parse(deliveries[0].options.body);
-    assert.deepEqual(delivered.to, ['support@tryzap.net']);
-    assert.equal(delivered.reply_to, supportBody.email);
-    assert.match(delivered.from, /tickets@tryzap\.net/);
-    assert.match(delivered.text, /Reply to this message to respond directly/);
+    assert.equal(storedTickets.length, 1);
+    assert.equal(storedTickets[0].submissionId, supportBody.submissionId);
+    assert.equal(storedTickets[0].email, supportBody.email);
+    assert.equal(storedTickets[0].description, supportBody.description);
+
+    const adminFixture = { userId: 'user_adminfixture', email: 'owner@example.com' };
+    auth.requireAdmin = async () => adminFixture;
+    ticketStore.listTickets = async () => [{ ...storedTickets[0], status: 'open', audit: [] }];
+    const adminListResponse = mockResponse();
+    await adminTickets({
+      method: 'GET',
+      headers: { 'x-forwarded-for': '203.0.113.240' },
+      query: {},
+      socket: {},
+    }, adminListResponse);
+    assert.equal(adminListResponse.statusCode, 200);
+    assert.equal(adminListResponse.body.tickets.length, 1);
+    ticketStore.updateTicket = async (update, actor) => ({ ...storedTickets[0], ...update, actor: actor.userId, audit: [] });
+    const adminUpdateResponse = mockResponse();
+    const adminUpdateRequest = supportRequest({
+      submissionId: supportBody.submissionId,
+      status: 'in_progress',
+      note: 'Reproduced on Windows.',
+    });
+    adminUpdateRequest.method = 'PATCH';
+    await adminTickets(adminUpdateRequest, adminUpdateResponse);
+    assert.equal(adminUpdateResponse.statusCode, 200);
+    assert.equal(adminUpdateResponse.body.ticket.status, 'in_progress');
+    assert.equal(adminUpdateResponse.body.ticket.actor, adminFixture.userId);
 
     process.env.STRIPE_SECRET_KEY = `sk_live_${'s'.repeat(32)}`;
     process.env.STRIPE_CORE_PRICE_ID = `price_${'p'.repeat(24)}`;
@@ -368,14 +390,16 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     global.fetch = originalFetch;
     if (originalSiteUrl === undefined) delete process.env.PUBLIC_SITE_URL;
     else process.env.PUBLIC_SITE_URL = originalSiteUrl;
-    if (originalResendKey === undefined) delete process.env.RESEND_API_KEY;
-    else process.env.RESEND_API_KEY = originalResendKey;
     auth.requireUser = originalAuthRequireUser;
+    auth.requireAdmin = originalRequireAdmin;
     billing.accountSubscription = originalAccountSubscription;
     billing.createPortalSession = originalCreatePortalSession;
     billing.stripeRequest = originalStripeRequest;
     billing.openCheckoutForCustomer = originalOpenCheckoutForCustomer;
     auth.clerkClient = originalClerkClient;
+    ticketStore.createTicket = originalCreateTicket;
+    ticketStore.listTickets = originalListTickets;
+    ticketStore.updateTicket = originalUpdateTicket;
     for (const [name, value] of [
       ['STRIPE_SECRET_KEY', originalStripeKey],
       ['STRIPE_CORE_PRICE_ID', originalCorePrice],

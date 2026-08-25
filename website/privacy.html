@@ -17,7 +17,7 @@
       <span class="eyebrow">Local-first by design</span>
       <h1>Privacy Policy</h1>
       <p>This policy explains what Drip Type processes on your device, what limited information reaches our services, why we use it, and the choices available to you.</p>
-      <div class="meta"><span>Effective August 22, 2026</span><span>Version 2.3</span></div>
+      <div class="meta"><span>Effective August 25, 2026</span><span>Version 2.4</span></div>
     </header>
 
     <section class="copy">
@@ -63,8 +63,7 @@
       <ul>
         <li><strong>Stripe</strong>, which provides checkout, payment processing, subscriptions, invoices, fraud controls, and the Customer Portal.</li>
         <li><strong>Clerk</strong>, which provides account registration, verified-email authentication, password handling, session security, and account recovery.</li>
-        <li><strong>Vercel and GitHub</strong>, which host the website, serverless billing and support endpoints, operational logs, update metadata, and downloadable release files.</li>
-        <li><strong>Resend</strong>, which delivers support-ticket email to Zap and processes the name, reply email, ticket details, and delivery metadata needed for that purpose.</li>
+        <li><strong>Vercel and GitHub</strong>, which host the website, serverless billing and support endpoints, private support-ticket records, operational logs, update metadata, and downloadable release files. Support-ticket contents are stored in a private Vercel Blob store and are retrieved only through Zap's authenticated admin endpoint.</li>
         <li><strong>Apple, Microsoft, and your operating system</strong>, which provide platform permissions or input services, Keychain or DPAPI-protected credential storage, release verification, and macOS notarization checks.</li>
         <li>Professional advisers, authorities, or other parties when reasonably necessary to comply with law, protect rights and safety, investigate fraud, or handle a merger, financing, acquisition, reorganization, or sale of assets subject to appropriate safeguards.</li>
       </ul>
@@ -72,10 +71,10 @@
 
       <h2>8. Retention and deletion</h2>
       <p>Local drafts disappear when their in-memory session ends. Local templates, profiles, preferences, device identifiers, and captured clipboard items remain until you delete them or remove the relevant application data. The subscription refresh credential is stored in macOS Keychain or encrypted using Windows Data Protection API (DPAPI) until it is replaced, access is revoked, or you remove the relevant application data.</p>
-      <p>Account, billing, subscription, device-hash, support-ticket, security, and transaction records are retained for as long as reasonably necessary to provide account access and support, reproduce and fix reported issues, resolve disputes, prevent fraud, enforce agreements, and meet legal, tax, and accounting requirements. Clerk session and identity records, provider logs, delivered support messages, and payment records are also subject to the providers' retention practices. When information is no longer required, we delete or de-identify it where reasonably practicable.</p>
+      <p>Account, billing, subscription, device-hash, support-ticket, security, and transaction records are retained for as long as reasonably necessary to provide account access and support, reproduce and fix reported issues, resolve disputes, prevent fraud, enforce agreements, and meet legal, tax, and accounting requirements. Clerk session and identity records, provider logs, private support records, and payment records are also subject to the providers' retention practices. When information is no longer required, we delete or de-identify it where reasonably practicable.</p>
 
       <h2>9. Security</h2>
-      <p>We use measures designed for the information we process, including HTTPS, verified-email accounts, provider-managed password hashing and session controls, strict support-form validation, bounded support and activation attempts, a hidden anti-bot field, Stripe-hosted payment entry, a one-account-to-one-customer billing mapping, signed and notarized macOS releases, checksummed Windows releases, short-lived Ed25519-signed entitlements, hashed device bindings, restricted server credentials, and operating-system-protected storage for the refresh credential. No system is completely secure, so we cannot guarantee absolute security.</p>
+      <p>We use measures designed for the information we process, including HTTPS, verified-email accounts, provider-managed password hashing and session controls, strict support-form validation, bounded support and activation attempts, a hidden anti-bot field, private support storage, a Clerk-authenticated admin console protected by a separate server-side allowlist, Stripe-hosted payment entry, a one-account-to-one-customer billing mapping, signed and notarized macOS releases, checksummed Windows releases, short-lived Ed25519-signed entitlements, hashed device bindings, restricted server credentials, and operating-system-protected storage for the refresh credential. No system is completely secure, so we cannot guarantee absolute security.</p>
 
       <h2>10. Your privacy rights</h2>
       <p>Depending on where you live and which law applies, you may have rights to know or access personal information, correct it, delete it, obtain a portable copy, restrict or object to processing, withdraw consent, or appeal a denied request. California residents may also have rights to know, delete, correct, opt out of sale or sharing, limit certain uses of sensitive personal information, and receive equal service and pricing when exercising their rights. Because we do not sell or share personal information for cross-context behavioral advertising, no sale/share opt-out is presently required for Drip Type.</p>

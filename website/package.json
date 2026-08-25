@@ -1,0 +1,13 @@
+{
+  "name": "drip-type-website",
+  "version": "1.0.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "engines": {
+    "node": "22.x"
+  },
+  "dependencies": {
+    "@clerk/backend": "3.16.10",
+    "@vercel/blob": "2.8.0"
+  }
+}
