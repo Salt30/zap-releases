@@ -61,9 +61,14 @@ const websiteNotFound = read('website/404.html');
 const websiteStripeWebhook = read('website/api/stripe-webhook.js');
 const websiteSitemap = read('website/sitemap.xml');
 const websiteVercelConfig = JSON.parse(read('website/vercel.json'));
+const appIconSource = read('assets/brand/zap/logo/zap-icon.svg');
+const websiteIconSource = read('website/brand/zap/zap-icon.svg');
 
 if (!packageJson.private || packageJson.license !== 'UNLICENSED') {
   fail('The package must remain private and proprietary.');
+}
+if (appIconSource !== websiteIconSource || /stroke-opacity|fill="none"\s+stroke=/.test(appIconSource)) {
+  fail('The Zap app icon must stay synchronized and free of an outer border.');
 }
 if (packageJson.version !== packageLock.version || packageJson.version !== packageLock.packages[''].version) {
   fail('package.json and package-lock.json versions do not match.');
@@ -86,6 +91,9 @@ if (!packageJson.build?.asar || packageJson.build?.compression !== 'maximum') {
 }
 if (!packageJson.build?.mac?.forceCodeSigning || !packageJson.build?.mac?.hardenedRuntime) {
   fail('macOS signing and Hardened Runtime must remain mandatory.');
+}
+if (packageJson.build?.mac?.icon !== 'assets/icon.icns') {
+  fail('macOS builds must use the verified multi-resolution borderless icon.');
 }
 if (packageJson.build?.win?.target?.[0]?.target !== 'nsis' ||
     !packageJson.build?.win?.target?.[0]?.arch?.includes('x64') ||
