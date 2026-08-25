@@ -118,7 +118,7 @@
 <span><i aria-hidden="true"></i> Active text field</span>
 <b data-demo-status aria-live="polite">Live typing starts automatically</b>
 </div>
-<p class="typing-demo-line" aria-label="Drip Type types your words naturally into any app."><span data-demo-text>Drip Type types your words naturally into any app.</span><i class="typing-demo-caret" aria-hidden="true"></i></p>
+<p class="typing-demo-line" aria-label="Drip Type types finished words naturally into any app."><span data-demo-text>Drip Type types finished words naturally into any app.</span><i class="typing-demo-caret" aria-hidden="true"></i></p>
 <div class="typing-demo-progress" aria-hidden="true"><span data-demo-progress></span></div>
 </div>
 <label class="rhythm-main-control">
@@ -127,10 +127,10 @@
 <input data-rhythm-control="wpm" type="range" min="15" max="120" step="1" value="45" aria-label="Typing speed in words per minute"/>
 </label>
 <div class="rhythm-control-grid">
-<label><span>Start delay</span><output data-rhythm-output="delay">3s</output><input data-rhythm-control="delay" type="range" min="1" max="15" step="1" value="3"/></label>
-<label><span>Corrected typos</span><output data-rhythm-output="typos">3%</output><input data-rhythm-control="typos" type="range" min="0" max="15" step="1" value="3"/></label>
-<label><span>Thinking pauses</span><output data-rhythm-output="pauses">3%</output><input data-rhythm-control="pauses" type="range" min="0" max="12" step="1" value="3"/></label>
-<label><span>Speed bursts</span><output data-rhythm-output="bursts">8%</output><input data-rhythm-control="bursts" type="range" min="0" max="25" step="1" value="8"/></label>
+<label><span>Start delay</span><output data-rhythm-output="delay">3s</output><input data-rhythm-control="delay" type="range" min="1" max="15" step="1" value="3" aria-label="Start delay in seconds"/></label>
+<label><span>Corrected typos</span><output data-rhythm-output="typos">3%</output><input data-rhythm-control="typos" type="range" min="0" max="15" step="1" value="3" aria-label="Corrected typo frequency"/></label>
+<label><span>Thinking pauses</span><output data-rhythm-output="pauses">3%</output><input data-rhythm-control="pauses" type="range" min="0" max="12" step="1" value="3" aria-label="Thinking pause frequency"/></label>
+<label><span>Speed bursts</span><output data-rhythm-output="bursts">8%</output><input data-rhythm-control="bursts" type="range" min="0" max="25" step="1" value="8" aria-label="Speed burst frequency"/></label>
 </div>
 <p class="rhythm-note"><span>Core</span> Every control shown here is adjustable in Drip Type 1.7.</p>
 </div>
@@ -427,7 +427,7 @@
 @keyframes typing-live{50%{opacity:.38;transform:scale(.82)}}
 @media (prefers-reduced-motion:reduce){.typing-demo-caret,.rhythm-stage.is-typing .live-dot{animation:none}.typing-demo-progress span{transition:none}}
 </style>
-<script src="/home-demo.js?v=20260825-2" defer></script>
+<script src="/home-demo.js?v=20260825-3" defer></script>
 <script src="/downloads.js" defer></script>
 <script src="/navigation.js" defer></script>
 <script src="/checkout.js" defer>

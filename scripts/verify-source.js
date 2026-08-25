@@ -337,7 +337,8 @@ if (!websiteMarkup.includes('/home-demo.js?v=')) {
   fail('The website typing demo must use a versioned URL so browsers cannot retain stale behavior.');
 }
 for (const marker of [
-  'typeCharacters', 'eraseCharacters', 'Correcting a typo', 'Brief speed burst',
+  'typeCharacters', 'eraseCharacters', 'plannedCorrections', 'plannedPauses',
+  'Correcting typo', 'Thinking pause', 'runSummary',
   'IntersectionObserver', 'prefers-reduced-motion: reduce'
 ]) {
   if (!websiteHomeDemo.includes(marker)) fail(`Website typing simulation is incomplete: ${marker}`);

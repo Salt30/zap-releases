@@ -11,7 +11,25 @@
     .map((output) => [output.dataset.rhythmOutput, output]));
   if (!demo || !demoText || !demoStatus || !demoProgress || Object.keys(controls).length !== 5) return;
 
-  const targetText = "Drip Type types your words naturally into any app.";
+  const demoTokens = [
+    { word: "Drip", suffix: " " },
+    { word: "Type", suffix: " " },
+    { word: "types", suffix: " " },
+    { word: "finished", suffix: " " },
+    { word: "words", suffix: " " },
+    { word: "naturally", suffix: " " },
+    { word: "into", suffix: " " },
+    { word: "any", suffix: " " },
+    { word: "app", suffix: "." },
+  ];
+  const targetText = demoTokens.map(({ word, suffix }) => `${word}${suffix}`).join("");
+  const typoCandidates = [
+    { tokenIndex: 1, wrongCharacter: "w" },
+    { tokenIndex: 3, wrongCharacter: "f" },
+    { tokenIndex: 5, wrongCharacter: "u" },
+    { tokenIndex: 8, wrongCharacter: "o" },
+  ];
+  const pauseCandidates = [2, 4, 5, 7];
   const reducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)");
   let runNumber = 0;
   let replayTimer = 0;
@@ -20,6 +38,21 @@
 
   const readValues = () => Object.fromEntries(Object.entries(controls)
     .map(([key, input]) => [key, Number(input.value)]));
+
+  const representativeCount = (value, step, maximum) => value === 0
+    ? 0
+    : Math.min(maximum, Math.max(1, Math.round(value / step)));
+
+  const runPlan = (values) => ({
+    corrections: representativeCount(values.typos, 4, typoCandidates.length),
+    pauses: representativeCount(values.pauses, 3, pauseCandidates.length),
+  });
+
+  const runSummary = (values, plan) => {
+    const correctionLabel = plan.corrections === 1 ? "correction" : "corrections";
+    const pauseLabel = plan.pauses === 1 ? "pause" : "pauses";
+    return `${values.wpm} WPM · ${plan.corrections} ${correctionLabel} · ${plan.pauses} ${pauseLabel}`;
+  };
 
   const renderControls = () => {
     const values = readValues();
@@ -72,48 +105,60 @@
     window.clearTimeout(replayTimer);
     const token = ++runNumber;
     const values = readValues();
+    const plan = runPlan(values);
+    const plannedCorrections = typoCandidates.slice(0, plan.corrections);
+    const plannedPauses = new Set(pauseCandidates.slice(0, plan.pauses));
     demo.classList.remove("is-typing", "is-correcting");
 
     if (reducedMotion.matches) {
       paintText(targetText);
-      demoStatus.textContent = "Preview ready";
+      demoStatus.textContent = `Preview ready · ${runSummary(values, plan)}`;
       return;
     }
 
     paintText("");
     demo.classList.add("is-typing");
-    demoStatus.textContent = `${values.wpm} WPM · typing`;
-    let text = await typeCharacters("", "Drip Type types your words ", values, token);
-    if (text === null) return;
-
-    if (values.pauses > 0) {
-      demoStatus.textContent = "Thinking pause";
-      if (!await wait(320 + (values.pauses * 38), token)) return;
-      demoStatus.textContent = `${values.wpm} WPM · typing`;
-    }
-
-    if (values.typos > 0) {
-      text = await typeCharacters(text, "naturak", values, token);
-      if (text === null) return;
-      demo.classList.add("is-correcting");
-      demoStatus.textContent = "Correcting a typo";
-      if (!await wait(240 + (values.typos * 24), token)) return;
-      text = await eraseCharacters(text, 1, values, token);
-      if (text === null) return;
-      demo.classList.remove("is-correcting");
-      text = await typeCharacters(text, "lly", values, token);
-    } else {
-      text = await typeCharacters(text, "naturally", values, token);
-    }
-    if (text === null) return;
-
+    demoStatus.textContent = runSummary(values, plan);
+    let text = "";
+    let completedCorrections = 0;
+    let completedPauses = 0;
     const burstPace = values.bursts > 0 ? Math.max(0.52, 1 - (values.bursts / 55)) : 1;
-    if (values.bursts > 0) demoStatus.textContent = "Brief speed burst";
-    text = await typeCharacters(text, " into any app.", values, token, burstPace);
-    if (text === null) return;
+    for (let tokenIndex = 0; tokenIndex < demoTokens.length; tokenIndex += 1) {
+      const { word, suffix } = demoTokens[tokenIndex];
+      const correction = plannedCorrections.find((candidate) => candidate.tokenIndex === tokenIndex);
+      const pace = tokenIndex >= 6 ? burstPace : 1;
+
+      if (correction) {
+        const mistypedWord = `${word.slice(0, -1)}${correction.wrongCharacter}`;
+        text = await typeCharacters(text, mistypedWord, values, token, pace);
+        if (text === null) return;
+        completedCorrections += 1;
+        demo.classList.add("is-correcting");
+        demoStatus.textContent = `Correcting typo ${completedCorrections} of ${plan.corrections} · ${values.typos}%`;
+        if (!await wait(300 + (values.typos * 35), token)) return;
+        text = await eraseCharacters(text, 1, values, token);
+        if (text === null) return;
+        text = await typeCharacters(text, word.slice(-1), values, token, pace);
+        if (text === null) return;
+        demo.classList.remove("is-correcting");
+      } else {
+        text = await typeCharacters(text, word, values, token, pace);
+        if (text === null) return;
+      }
+
+      text = await typeCharacters(text, suffix, values, token, pace);
+      if (text === null) return;
+
+      if (plannedPauses.has(tokenIndex)) {
+        completedPauses += 1;
+        demoStatus.textContent = `Thinking pause ${completedPauses} of ${plan.pauses} · ${values.pauses}%`;
+        if (!await wait(260 + (values.pauses * 40), token)) return;
+      }
+      demoStatus.textContent = runSummary(values, plan);
+    }
 
     demo.classList.remove("is-typing");
-    demoStatus.textContent = `Typed · replaying after ${values.delay}s delay`;
+    demoStatus.textContent = `${plan.corrections} corrections · ${plan.pauses} pauses · replay in ${values.delay}s`;
     demoProgress.style.width = "100%";
     replayTimer = window.setTimeout(() => {
       if (!document.hidden && token === runNumber) runDemo();
