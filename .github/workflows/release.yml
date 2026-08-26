@@ -297,3 +297,53 @@ jobs:
           else
             gh release create "${RELEASE_TAG}" "${FILES[@]}" --repo "${GITHUB_REPOSITORY}" --target "${RELEASE_SHA}" --generate-notes
           fi
+
+  updater:
+    name: Publish verified public updater
+    needs: [mac, windows, release]
+    runs-on: ubuntu-latest
+    environment: production-signing
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Check out release source
+        uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
+        with:
+          ref: ${{ needs.mac.outputs.release_sha }}
+          persist-credentials: false
+
+      - name: Set up Node
+        uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Download verified artifacts
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4
+        with:
+          path: release-artifacts
+
+      - name: Stage updater files
+        run: |
+          mkdir -p dist update-site
+          find release-artifacts -type f \( -name '*.dmg' -o -name '*.zip' -o -name '*.exe' -o -name '*.blockmap' -o -name 'latest*.yml' \) -exec cp {} dist/ \;
+          test -s dist/latest-mac.yml
+          test -s dist/latest.yml
+
+      - name: Publish immutable updater artifacts
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+        run: |
+          : "${VERCEL_TOKEN:?Missing VERCEL_TOKEN}"
+          npx vercel@50.19.1 link --yes --project=drip-type-updates --scope=salt30s-projects --cwd update-site --token="$VERCEL_TOKEN"
+          npx vercel@50.19.1 pull --yes --environment=production --scope=salt30s-projects --cwd update-site --token="$VERCEL_TOKEN"
+          set -a
+          source update-site/.vercel/.env.production.local
+          set +a
+          node scripts/publish-update-blobs.js
+          cp dist/latest-mac.yml dist/latest.yml update-site/
+          npx vercel@50.19.1 deploy --prod --yes --scope=salt30s-projects --cwd update-site --token="$VERCEL_TOKEN"
