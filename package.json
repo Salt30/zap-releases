@@ -1,6 +1,6 @@
 {
   "name": "drip-type",
-  "version": "1.7.1",
+  "version": "1.7.2",
   "description": "Private, configurable typing for macOS and Windows — Drip Type by Zap.",
   "main": "src/main.js",
   "author": "VegaNext LLC",
@@ -72,8 +72,8 @@
       }
     ],
     "releaseInfo": {
-      "releaseName": "Drip Type by Zap 1.7.1",
-      "releaseNotes": "Drip Type 1.7.1 replaces the boxed macOS menu bar artwork with a native transparent template icon. Core, Pro, billing, activation, Windows, and updater behavior remain unchanged."
+      "releaseName": "Drip Type by Zap 1.7.2",
+      "releaseNotes": "Drip Type 1.7.2 repairs navigation and repeated support submissions, improves keyboard and accessibility behavior, hardens error recovery, and adds response-header protection to native app pages."
     },
     "protocols": [
       {

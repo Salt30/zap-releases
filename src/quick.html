@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="dark light">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <link rel="icon" href="zap-icon.svg" type="image/svg+xml">
   <title>Drip Composer</title>
   <style>
     :root { color-scheme: dark; --text:#fff; --muted:#a3a3a3; --subtle:#6b6b73; --accent:#ffd24d; --accent-ink:#08080e; --border:rgba(255,255,255,.13); }
@@ -45,6 +46,7 @@
     .state { color:var(--subtle); font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
     .actions { display:flex; gap:8px; margin-left:auto; }
     button { height:34px; padding:0 13px; border-radius:8px; border:1px solid transparent; font:600 12px -apple-system,sans-serif; cursor:pointer; }
+    button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
     button:disabled { opacity:.4; cursor:default; }
     .secondary { border-color:rgba(255,255,255,.1); background:rgba(255,255,255,.05); color:var(--muted); }
     .secondary:hover { background:rgba(255,255,255,.09); color:var(--text); }
@@ -79,7 +81,7 @@
     <textarea id="text" spellcheck="true" maxlength="100000" aria-label="Composer text" placeholder="Paste or type anything you want Drip Type to enter…"></textarea>
     <div class="footer">
       <div class="details"><span class="meta" id="meta">0 words · 0 characters</span><span class="state" id="state">Private draft · stored in memory only</span></div>
-      <div class="actions"><button class="secondary" id="paste">Paste</button><button class="secondary" id="clear" disabled>Clear</button><button class="submit" id="submit" disabled>Drip after 3s</button></div>
+      <div class="actions"><button class="secondary" id="paste" type="button">Paste</button><button class="secondary" id="clear" type="button" disabled>Clear</button><button class="submit" id="submit" type="button" disabled>Drip after 3s</button></div>
     </div>
   </div>
   <dialog id="template-dialog">

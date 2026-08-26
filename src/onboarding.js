@@ -40,7 +40,15 @@ function values() {
 }
 
 async function refreshPermissionChecklist() {
-  const permissions = await window.dripType.getPermissionChecklist();
+  let permissions;
+  try {
+    permissions = await window.dripType.getPermissionChecklist();
+  } catch (error) {
+    permissionsReady = false;
+    document.getElementById('permission-status').textContent = error?.message || 'Permission status could not be checked. Try again.';
+    document.getElementById('next').disabled = index === slides.length - 1;
+    return { accessibility: false, automation: false };
+  }
   const rows = [
     ['access', permissions.accessibility],
     ['automation', permissions.automation]
@@ -70,16 +78,21 @@ document.getElementById('next').addEventListener('click', async () => {
     render();
     if (index === 3) refreshPermissionChecklist();
   } else {
-    const result = await window.dripType.completeOnboarding({
-      dripWPM: Number(wpm.value),
-      dripDelay: Number(delay.value),
-      typoRate: Number(typo.value),
-      dripPauseChance: Number(pause.value),
-      dripBurstChance: Number(burst.value)
-    });
-    if (!result?.success) {
+    try {
+      const result = await window.dripType.completeOnboarding({
+        dripWPM: Number(wpm.value),
+        dripDelay: Number(delay.value),
+        typoRate: Number(typo.value),
+        dripPauseChance: Number(pause.value),
+        dripBurstChance: Number(burst.value)
+      });
+      if (result?.success) return;
       permissionsReady = false;
       document.getElementById('permission-status').textContent = `Still required: ${(result?.missing || []).join(' and ')}.`;
+      render();
+    } catch (error) {
+      permissionsReady = false;
+      document.getElementById('permission-status').textContent = error?.message || 'Setup could not be completed. Try again.';
       render();
     }
   }
@@ -97,11 +110,19 @@ document.getElementById('run-demo').addEventListener('click', () => {
 });
 [wpm, delay, typo, pause, burst].forEach((control) => control.addEventListener('input', values));
 document.getElementById('enable-access').addEventListener('click', async () => {
-  await window.dripType.requestAccessibility();
+  try {
+    await window.dripType.requestAccessibility();
+  } catch (error) {
+    document.getElementById('permission-status').textContent = error?.message || 'Accessibility settings could not be opened.';
+  }
   await refreshPermissionChecklist();
 });
 document.getElementById('enable-automation').addEventListener('click', async () => {
-  await window.dripType.requestAutomation();
+  try {
+    await window.dripType.requestAutomation();
+  } catch (error) {
+    document.getElementById('permission-status').textContent = error?.message || 'Automation permission could not be requested.';
+  }
   await refreshPermissionChecklist();
 });
 window.dripType.onTheme(({ theme }) => applyTheme(theme));
@@ -130,4 +151,6 @@ async function load() {
   values();
 }
 
-load();
+load().catch((error) => {
+  document.getElementById('permission-status').textContent = error?.message || 'Setup could not be loaded. Reopen Drip Type and try again.';
+});

@@ -49,6 +49,7 @@ const MAX_CLIPBOARD_COUNT = 200;
 const MAX_CLIPBOARD_ITEM_LENGTH = 20000;
 const APP_SCHEME = 'drip';
 const APP_HOST = 'app';
+const APP_CONTENT_SECURITY_POLICY = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 const APP_RESOURCES = new Set([
   'index.html', 'index.js', 'quick.html', 'quick.js',
   'onboarding.html', 'onboarding.js', 'zap-icon.svg',
@@ -526,7 +527,7 @@ function appPageUrl(page) {
 }
 
 function registerAppProtocol() {
-  protocol.handle(APP_SCHEME, (request) => {
+  protocol.handle(APP_SCHEME, async (request) => {
     const url = new URL(request.url);
     const resource = decodeURIComponent(url.pathname).replace(/^\/+/, '');
     if (request.method !== 'GET' || url.hostname !== APP_HOST || !APP_RESOURCES.has(resource)) {
@@ -535,7 +536,11 @@ function registerAppProtocol() {
     const localPath = resource.startsWith('zap-')
       ? path.join(__dirname, '..', 'assets', 'brand', 'zap', 'logo', resource)
       : path.join(__dirname, resource);
-    return net.fetch(pathToFileURL(localPath).href);
+    const response = await net.fetch(pathToFileURL(localPath).href);
+    if (!resource.endsWith('.html')) return response;
+    const headers = new Headers(response.headers);
+    headers.set('Content-Security-Policy', APP_CONTENT_SECURITY_POLICY);
+    return new Response(response.body, { status: response.status, statusText: response.statusText, headers });
   });
 }
 

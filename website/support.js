@@ -56,7 +56,8 @@
       startedAt = Date.now();
       submissionId = crypto.randomUUID();
       setStatus(`Ticket ${result.ticketId} is in. We’ll reply to the email you provided.`, "success");
-      button.textContent = "Ticket submitted";
+      button.disabled = false;
+      button.textContent = "Submit another ticket";
     } catch (error) {
       setStatus(error.message || "Your ticket could not be submitted. Please try again.", "error");
       button.disabled = false;

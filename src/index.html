@@ -4,7 +4,8 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <meta name="color-scheme" content="dark light">
-  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
+  <link rel="icon" href="zap-icon.svg" type="image/svg+xml">
   <title>Drip Type</title>
   <style>
     :root {
@@ -61,6 +62,7 @@
 
     button, input, textarea { font: inherit; }
     button { -webkit-app-region: no-drag; }
+    button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
 
     .app { display: grid; grid-template-columns: 226px 1fr; height: 100%; }
 
@@ -354,41 +356,41 @@
     <aside class="sidebar">
       <div class="brand">
         <img class="brand-mark" src="zap-icon.svg" alt="">
-        <div><div class="brand-name">Drip Type <span style="color:var(--subtle);font-weight:500">by Zap</span></div><div class="brand-version" id="brand-version">Version 1.7.1</div></div>
+        <div><div class="brand-name">Drip Type <span style="color:var(--subtle);font-weight:500">by Zap</span></div><div class="brand-version" id="brand-version">Version 1.7.2</div></div>
       </div>
 
       <nav class="nav" aria-label="Main navigation">
-        <button class="nav-button active" data-page="composer">
+        <button class="nav-button active" type="button" data-page="composer" aria-current="page">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v11H8l-4 4V5Z"/></svg><span>Composer</span>
         </button>
-        <button class="nav-button" data-page="templates">
+        <button class="nav-button" type="button" data-page="templates">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg><span>Templates</span>
         </button>
-        <button class="nav-button" data-page="studio" data-feature="batch">
+        <button class="nav-button" type="button" data-page="studio" data-feature="batch">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m13 2-2 8H4l7 12 2-8h7L13 2Z"/></svg><span>Pro Studio</span>
         </button>
-        <button class="nav-button" data-page="profiles" data-feature="profiles">
+        <button class="nav-button" type="button" data-page="profiles" data-feature="profiles">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></svg><span>Profiles</span>
         </button>
-        <button class="nav-button" data-page="clipboard" data-feature="clipboard">
+        <button class="nav-button" type="button" data-page="clipboard" data-feature="clipboard">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="5" width="14" height="16" rx="2"/><path d="M9 5V3h6v2M8 10h8M8 14h8"/></svg><span>Clipboard</span>
         </button>
-        <button class="nav-button" data-page="typing">
+        <button class="nav-button" type="button" data-page="typing">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M7 12h10M9 17h6"/></svg><span>Typing</span>
         </button>
-        <button class="nav-button" data-page="shortcuts">
+        <button class="nav-button" type="button" data-page="shortcuts">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M18 10h.01M8 14h8"/></svg><span>Shortcuts</span>
         </button>
-        <button class="nav-button" data-page="billing">
+        <button class="nav-button" type="button" data-page="billing">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 9h18M7 15h4"/></svg><span>Billing</span>
         </button>
-        <button class="nav-button" data-page="setup">
+        <button class="nav-button" type="button" data-page="setup">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06-2.83 2.83-.06-.06A1.7 1.7 0 0 0 15 19.4a1.7 1.7 0 0 0-1 .6 1.7 1.7 0 0 0-.4 1v.1h-4v-.1a1.7 1.7 0 0 0-1.1-1.6 1.7 1.7 0 0 0-1.88.34l-.06.06-2.83-2.83.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-.6-1 1.7 1.7 0 0 0-1-.4h-.1v-4H3a1.7 1.7 0 0 0 1.6-1.1 1.7 1.7 0 0 0-.34-1.88l-.06-.06 2.83-2.83.06.06A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-.6 1.7 1.7 0 0 0 .4-1v-.1h4V3a1.7 1.7 0 0 0 1.1 1.6 1.7 1.7 0 0 0 1.88-.34l.06-.06 2.83 2.83-.06.06A1.7 1.7 0 0 0 19.4 9c.14.37.35.71.6 1 .28.26.63.4 1 .4h.1v4H21a1.7 1.7 0 0 0-1.6.6Z"/></svg><span>Setup</span><span class="nav-update-dot" id="update-dot" hidden></span>
         </button>
       </nav>
 
       <div class="sidebar-bottom">
-        <button class="permission" id="permission-card">
+        <button class="permission" id="permission-card" type="button">
           <span class="permission-dot"></span>
           <span><span class="permission-title" id="permission-title">Accessibility needed</span><span class="permission-copy" id="permission-copy">Click to enable typing access.</span></span>
         </button>
@@ -407,8 +409,8 @@
           <div class="composer-footer">
             <div class="text-meta"><span id="word-count">0 words</span><span id="char-count">0 characters</span><span id="estimate">—</span></div>
             <div class="composer-actions">
-              <button class="button danger" id="cancel" disabled>Stop</button>
-              <button class="button primary" id="start" disabled>Start typing</button>
+              <button class="button danger" id="cancel" type="button" disabled>Stop</button>
+              <button class="button primary" id="start" type="button" disabled>Start typing</button>
             </div>
           </div>
         </div>
@@ -426,7 +428,7 @@
           <input class="template-input" id="template-name" maxlength="60" placeholder="Template name" aria-label="Template name">
           <textarea class="template-body" id="template-body" maxlength="20000" placeholder="Hi {{name}},&#10;&#10;Following up about {{topic}}…" aria-label="Template body"></textarea>
           <div class="template-help">Templates and filled values stay on this device. Filled values are never saved to the template.</div>
-          <div class="template-actions"><button class="button primary" id="save-template">Save template</button><button class="button secondary" id="cancel-template" hidden>Cancel edit</button><button class="button secondary" id="install-library">Install Pro library</button><span class="save-note" id="template-note"></span></div>
+          <div class="template-actions"><button class="button primary" id="save-template" type="button">Save template</button><button class="button secondary" id="cancel-template" type="button" hidden>Cancel edit</button><button class="button secondary" id="install-library" type="button">Install Pro library</button><span class="save-note" id="template-note"></span></div>
         </div>
         <div class="template-list" id="template-list"></div>
       </section>
@@ -435,24 +437,24 @@
         <div class="eyebrow">Pro Studio</div>
         <h1>Personalize and polish, entirely on-device.</h1>
         <p class="lead">Generate one message per CSV or tab-separated row, or apply transparent writing transforms. No text leaves this device.</p>
-        <div class="pro-lock" data-pro-lock><strong>Unlock Pro Studio</strong><p>Batch personalization and the local Writing Lab are included with Pro.</p><button class="button primary" data-upgrade>Choose Pro</button></div>
+        <div class="pro-lock" data-pro-lock><strong>Unlock Pro Studio</strong><p>Batch personalization and the local Writing Lab are included with Pro.</p><button class="button primary" type="button" data-upgrade>Choose Pro</button></div>
         <div class="pro-grid pro-only" data-pro-content aria-disabled="true">
-          <div class="card pro-card stack"><h2>Batch personalization</h2><p>Select a template, then paste CSV/TSV whose headers match the {{fields}}.</p><select class="select" id="batch-template"></select><textarea class="pro-textarea" id="batch-data" placeholder="name,topic&#10;Maya,launch plan&#10;Devon,renewal"></textarea><button class="button primary" id="batch-run">Generate locally</button><div class="pro-note" id="batch-note"></div></div>
-          <div class="card pro-card stack"><h2>Writing Lab</h2><p>Rule-based transforms are predictable, fast, and private—no generative service is called.</p><select class="select" id="transform-mode"><option value="tighten">Tighten</option><option value="direct">Make direct</option><option value="warm">Warm up</option><option value="outline">Turn into outline</option></select><textarea class="pro-textarea" id="transform-input" placeholder="Paste text to transform locally…"></textarea><button class="button primary" id="transform-run">Transform locally</button><textarea class="pro-textarea" id="transform-output" readonly placeholder="Result appears here"></textarea><div class="row"><button class="button secondary" id="transform-copy">Copy</button><button class="button secondary" id="transform-compose">Send to Composer</button></div><div class="pro-note" id="transform-note"></div></div>
+          <div class="card pro-card stack"><h2>Batch personalization</h2><p>Select a template, then paste CSV/TSV whose headers match the {{fields}}.</p><select class="select" id="batch-template" aria-label="Batch template"></select><textarea class="pro-textarea" id="batch-data" aria-label="Batch CSV or tab-separated data" placeholder="name,topic&#10;Maya,launch plan&#10;Devon,renewal"></textarea><button class="button primary" id="batch-run" type="button">Generate locally</button><div class="pro-note" id="batch-note"></div></div>
+          <div class="card pro-card stack"><h2>Writing Lab</h2><p>Rule-based transforms are predictable, fast, and private—no generative service is called.</p><select class="select" id="transform-mode" aria-label="Writing transform"><option value="tighten">Tighten</option><option value="direct">Make direct</option><option value="warm">Warm up</option><option value="outline">Turn into outline</option></select><textarea class="pro-textarea" id="transform-input" aria-label="Text to transform" placeholder="Paste text to transform locally…"></textarea><button class="button primary" id="transform-run" type="button">Transform locally</button><textarea class="pro-textarea" id="transform-output" aria-label="Transformed result" readonly placeholder="Result appears here"></textarea><div class="row"><button class="button secondary" id="transform-copy" type="button">Copy</button><button class="button secondary" id="transform-compose" type="button">Send to Composer</button></div><div class="pro-note" id="transform-note"></div></div>
         </div>
         <div class="batch-results" id="batch-results"></div>
       </section>
 
       <section class="page" id="page-profiles">
         <div class="eyebrow">Pro Profiles</div><h1>Switch typing styles in one click.</h1><p class="lead">Save different speeds and rhythms for email, support, outreach, or long-form work.</p>
-        <div class="pro-lock" data-pro-lock><strong>Unlock writing profiles</strong><p>Multiple reusable local profiles are included with Pro.</p><button class="button primary" data-upgrade>Choose Pro</button></div>
-        <div class="pro-only" data-pro-content aria-disabled="true"><div class="card pro-card stack"><input class="field" id="profile-name" maxlength="40" placeholder="Profile name"><button class="button primary" id="profile-save">Save current typing settings</button><div class="pro-note" id="profile-note"></div></div><div class="profile-list" id="profile-list"></div></div>
+        <div class="pro-lock" data-pro-lock><strong>Unlock writing profiles</strong><p>Multiple reusable local profiles are included with Pro.</p><button class="button primary" type="button" data-upgrade>Choose Pro</button></div>
+        <div class="pro-only" data-pro-content aria-disabled="true"><div class="card pro-card stack"><input class="field" id="profile-name" maxlength="40" placeholder="Profile name" aria-label="Profile name"><button class="button primary" id="profile-save" type="button">Save current typing settings</button><div class="pro-note" id="profile-note"></div></div><div class="profile-list" id="profile-list"></div></div>
       </section>
 
       <section class="page" id="page-clipboard">
         <div class="eyebrow">Private Clipboard</div><h1>Keep useful text close.</h1><p class="lead">Capture clipboard text only when you press the button. Search, pin, reuse, and delete it locally.</p>
-        <div class="pro-lock" data-pro-lock><strong>Unlock the clipboard workspace</strong><p>A bounded, searchable, local text workspace is included with Pro.</p><button class="button primary" data-upgrade>Choose Pro</button></div>
-        <div class="pro-only" data-pro-content aria-disabled="true"><div class="row"><input class="field" id="clipboard-search" placeholder="Search saved clipboard text"><button class="button primary" id="clipboard-capture">Capture clipboard</button></div><div class="pro-note" id="clipboard-note"></div><div class="clipboard-list" id="clipboard-list"></div></div>
+        <div class="pro-lock" data-pro-lock><strong>Unlock the clipboard workspace</strong><p>A bounded, searchable, local text workspace is included with Pro.</p><button class="button primary" type="button" data-upgrade>Choose Pro</button></div>
+        <div class="pro-only" data-pro-content aria-disabled="true"><div class="row"><input class="field" id="clipboard-search" placeholder="Search saved clipboard text" aria-label="Search saved clipboard text"><button class="button primary" id="clipboard-capture" type="button">Capture clipboard</button></div><div class="pro-note" id="clipboard-note"></div><div class="clipboard-list" id="clipboard-list"></div></div>
       </section>
 
       <section class="page" id="page-typing">
@@ -460,11 +462,11 @@
         <h1>Make the rhythm yours.</h1>
         <p class="lead">Tune each behavior directly. Changes are saved locally on this device.</p>
         <div class="section-list">
-          <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Typing speed</div><div class="settings-description">Average pace before natural character variation.</div></div><output class="value" id="wpm-out">45 WPM</output></div><input id="wpm" type="range" min="15" max="120" step="5"></div>
-          <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Start delay</div><div class="settings-description">Time to focus a destination after pressing Start.</div></div><output class="value" id="delay-out">3 seconds</output></div><input id="delay" type="range" min="1" max="15" step="1"></div>
-          <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Corrected typos</div><div class="settings-description">Nearby-key mistakes followed by a short pause and correction.</div></div><output class="value" id="typos-out">3%</output></div><input id="typos" type="range" min="0" max="0.15" step="0.01"></div>
-          <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Thinking pauses</div><div class="settings-description">Occasional longer pauses between thoughts.</div></div><output class="value" id="pauses-out">3%</output></div><input id="pauses" type="range" min="0" max="0.12" step="0.01"></div>
-          <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Speed bursts</div><div class="settings-description">Brief acceleration through familiar phrases.</div></div><output class="value" id="bursts-out">8%</output></div><input id="bursts" type="range" min="0" max="0.25" step="0.01"></div>
+          <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Typing speed</div><div class="settings-description">Average pace before natural character variation.</div></div><output class="value" id="wpm-out">45 WPM</output></div><input id="wpm" type="range" min="15" max="120" step="5" aria-label="Typing speed in words per minute"></div>
+          <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Start delay</div><div class="settings-description">Time to focus a destination after pressing Start.</div></div><output class="value" id="delay-out">3 seconds</output></div><input id="delay" type="range" min="1" max="15" step="1" aria-label="Start delay in seconds"></div>
+          <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Corrected typos</div><div class="settings-description">Nearby-key mistakes followed by a short pause and correction.</div></div><output class="value" id="typos-out">3%</output></div><input id="typos" type="range" min="0" max="0.15" step="0.01" aria-label="Corrected typo frequency"></div>
+          <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Thinking pauses</div><div class="settings-description">Occasional longer pauses between thoughts.</div></div><output class="value" id="pauses-out">3%</output></div><input id="pauses" type="range" min="0" max="0.12" step="0.01" aria-label="Thinking pause frequency"></div>
+          <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Speed bursts</div><div class="settings-description">Brief acceleration through familiar phrases.</div></div><output class="value" id="bursts-out">8%</output></div><input id="bursts" type="range" min="0" max="0.25" step="0.01" aria-label="Speed burst frequency"></div>
         </div>
       </section>
 
@@ -476,7 +478,7 @@
           <div class="shortcut-card"><div><div class="shortcut-name">Open Drip Composer</div><div class="shortcut-description">Show the translucent composer above the current app without opening settings. Default: ⌥5.</div></div><input class="shortcut-input" id="start-key" value="⌥5" readonly aria-label="Open Drip Composer shortcut; press a key combination to change it"></div>
           <div class="shortcut-card"><div><div class="shortcut-name">Stop typing</div><div class="shortcut-description">Immediately cancels the current typing session. Default: ⌥0.</div></div><input class="shortcut-input" id="stop-key" value="⌥0" readonly aria-label="Stop typing shortcut; press a key combination to change it"></div>
         </div>
-        <div class="save-row"><button class="button primary" id="save-shortcuts">Save shortcuts</button><button class="button secondary" id="reset-shortcuts">Use defaults</button><span class="save-note" id="shortcut-note" aria-live="polite"></span></div>
+        <div class="save-row"><button class="button primary" id="save-shortcuts" type="button">Save shortcuts</button><button class="button secondary" id="reset-shortcuts" type="button">Use defaults</button><span class="save-note" id="shortcut-note" aria-live="polite"></span></div>
       </section>
 
       <section class="page" id="page-billing">
@@ -494,9 +496,9 @@
               </div>
             </div>
             <div class="billing-actions">
-              <button class="button primary" id="billing-subscribe">Connect Zap account</button>
-              <button class="button secondary" id="billing-manage" disabled>Manage billing</button>
-              <button class="button secondary" id="billing-refresh">Refresh access</button>
+              <button class="button primary" id="billing-subscribe" type="button">Connect Zap account</button>
+              <button class="button secondary" id="billing-manage" type="button" disabled>Manage billing</button>
+              <button class="button secondary" id="billing-refresh" type="button">Refresh access</button>
               <span class="billing-note" id="billing-note"></span>
             </div>
           </div>
@@ -517,49 +519,49 @@
             <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v2"/></svg></div>
             <div class="setup-copy"><div class="setup-title" id="accessibility-label">Accessibility access</div><div class="setup-description" id="setup-permission-copy">Required to type into other applications.</div></div>
             <span class="check-state" id="accessibility-state">Required</span>
-            <button class="button secondary" id="request-access">Open permission prompt</button>
+            <button class="button secondary" id="request-access" type="button">Open permission prompt</button>
           </div>
           <div class="card setup-card">
             <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 7h10v10H7z"/><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"/></svg></div>
             <div class="setup-copy"><div class="setup-title" id="automation-label">Automation access</div><div class="setup-description" id="automation-copy">Required so Drip Type can use macOS System Events.</div></div>
             <span class="check-state" id="automation-state">Required</span>
-            <button class="button secondary" id="request-automation">Allow automation</button>
+            <button class="button secondary" id="request-automation" type="button">Allow automation</button>
           </div>
           <div class="card setup-card">
             <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M18 10h.01M8 14h8"/></svg></div>
             <div class="setup-copy"><div class="setup-title">Global shortcuts</div><div class="setup-description" id="setup-shortcut-copy">⌥5 opens Composer and ⌥0 stops typing.</div></div>
             <span class="check-state" id="shortcut-state">Checking</span>
-            <button class="button secondary" id="open-shortcut-settings">Customize</button>
+            <button class="button secondary" id="open-shortcut-settings" type="button">Customize</button>
           </div>
           <div class="card setup-card">
             <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v14H4zM8 9h8M8 13h5"/></svg></div>
             <div class="setup-copy"><div class="setup-title">Drip Composer</div><div class="setup-description">Open the translucent composer now. Paste or write text, then return it to any app.</div></div>
-            <button class="button secondary" id="preview-quick">Open composer</button>
+            <button class="button secondary" id="preview-quick" type="button">Open composer</button>
           </div>
           <div class="card setup-card">
             <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3v12M8 7l4-4 4 4"/><path d="M5 13v6h14v-6"/></svg></div>
             <div class="setup-copy"><div class="setup-title">Ready at login</div><div class="setup-description" id="launch-login-copy">Starts quietly in the menu bar so the global composer shortcut is always available.</div></div>
-            <button class="toggle" id="launch-login" role="switch" aria-checked="true"><span class="toggle-track" aria-hidden="true"></span><span id="launch-login-label">On</span></button>
+            <button class="toggle" id="launch-login" type="button" role="switch" aria-checked="true"><span class="toggle-track" aria-hidden="true"></span><span id="launch-login-label">On</span></button>
           </div>
           <div class="card setup-card">
             <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3a9 9 0 1 0 9 9"/><path d="M21 3v6h-6M21 9a9 9 0 0 0-9-6"/><path d="M9.5 9.5 15 12l-5.5 2.5v-5Z"/></svg></div>
             <div class="setup-copy"><div class="setup-title">Getting started tour</div><div class="setup-description">Replay the interactive walkthrough and typing demo.</div></div>
-            <button class="button secondary" id="replay-onboarding">Replay onboarding</button>
+            <button class="button secondary" id="replay-onboarding" type="button">Replay onboarding</button>
           </div>
           <div class="card setup-card">
             <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.42 1.42M17.65 17.65l1.42 1.42M2 12h2M20 12h2M4.93 19.07l1.42-1.42M17.65 6.35l1.42-1.42"/></svg></div>
             <div class="setup-copy"><div class="setup-title">Appearance</div><div class="setup-description" id="appearance-copy">Match macOS automatically or choose a permanent theme.</div></div>
             <div class="theme-picker" role="group" aria-label="Appearance">
-              <button class="theme-option" data-theme-value="system">System</button>
-              <button class="theme-option" data-theme-value="light">Light</button>
-              <button class="theme-option" data-theme-value="dark">Dark</button>
+              <button class="theme-option" type="button" data-theme-value="system">System</button>
+              <button class="theme-option" type="button" data-theme-value="light">Light</button>
+              <button class="theme-option" type="button" data-theme-value="dark">Dark</button>
             </div>
           </div>
           <div class="card setup-card update-card" id="update-card" data-update-status="idle">
             <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 5 6v5c0 4.4 2.7 8.3 7 10 4.3-1.7 7-5.6 7-10V6l-7-3Z"/><path d="m9 12 2 2 4-4"/></svg></div>
             <div class="setup-copy"><div class="setup-title">Secure updates</div><div class="setup-description" id="update-copy">Updates are verified and installed without replacing your settings.</div><div class="update-release" id="update-release" hidden><strong id="update-release-name">What’s new</strong><p id="update-release-copy"></p></div></div>
             <progress class="update-progress" id="update-progress" value="0" max="100" hidden></progress>
-            <button class="button secondary" id="update-action">Check for updates</button>
+            <button class="button secondary" id="update-action" type="button">Check for updates</button>
           </div>
           <dl class="card about-meta"><dt>Version</dt><dd id="about-version">1.0.0</dd><dt>Storage</dt><dd>Local settings only</dd><dt>Typing engine</dt><dd id="typing-engine">macOS System Events</dd><dt>Bundle ID</dt><dd id="about-id">com.salt30.driptype</dd></dl>
         </div>

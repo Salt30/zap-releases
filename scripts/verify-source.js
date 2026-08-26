@@ -206,15 +206,18 @@ for (const extension of ['exe', 'exe.blockmap']) {
     fail(`The public updater fallback is missing or incorrect for ${name}.`);
   }
 }
-for (const [platform, metadata, artifact] of [
-  ['macOS', updateHostMacMetadata, `Drip-Type-${packageJson.version}-mac.zip`],
-  ['Windows', updateHostWindowsMetadata, `Drip-Type-${packageJson.version}-windows.exe`],
+const versionNumber = (version) => version.split('.').reduce((total, part) => total * 1000 + Number(part), 0);
+for (const [platform, metadata, artifactSuffix] of [
+  ['macOS', updateHostMacMetadata, 'mac.zip'],
+  ['Windows', updateHostWindowsMetadata, 'windows.exe'],
 ]) {
-  if (!metadata.includes(`version: ${packageJson.version}`) ||
+  const publishedVersion = metadata.match(/^version: ([0-9]+\.[0-9]+\.[0-9]+)$/m)?.[1];
+  const artifact = publishedVersion && `Drip-Type-${publishedVersion}-${artifactSuffix}`;
+  if (!publishedVersion || versionNumber(publishedVersion) > versionNumber(packageJson.version) ||
       !metadata.includes(`url: ${artifact}`) ||
-      !metadata.includes(`releaseName: Drip Type by Zap ${packageJson.version}`) ||
+      !metadata.includes(`releaseName: Drip Type by Zap ${publishedVersion}`) ||
       !metadata.includes('sha512: ') || !metadata.includes('size: ')) {
-    fail(`The deployed ${platform} updater metadata does not match the current release.`);
+    fail(`The deployed ${platform} updater metadata is invalid or newer than the application source.`);
   }
 }
 
@@ -255,7 +258,7 @@ if (windowsHostSource.includes('Invoke-Expression')) fail('The Windows typing ho
 if (windowsHostSource.includes('PlanPath') || mainSource.includes("mkdtempSync(path.join(os.tmpdir(), 'drip-type-')")) {
   fail('Typing content must stream through protected process input instead of temporary files.');
 }
-for (const marker of ['app.enableSandbox()', ".replace(/\\r\\n?/g, '\\n')", 'Rejected untrusted IPC sender.']) {
+for (const marker of ['app.enableSandbox()', ".replace(/\\r\\n?/g, '\\n')", 'Rejected untrusted IPC sender.', 'APP_CONTENT_SECURITY_POLICY', "headers.set('Content-Security-Policy'"]) {
   if (!mainSource.includes(marker)) fail(`Application hardening requirement is missing: ${marker}`);
 }
 for (const marker of ['encryptedUserVault', 'safeStorage.encryptString', 'publicSettings()', "child.stdin.end(input, 'utf8')"]) {
@@ -330,7 +333,12 @@ const websiteDirectory = path.join(root, 'website');
 const websiteHtmlFiles = fs.readdirSync(websiteDirectory).filter((name) => name.endsWith('.html'));
 for (const htmlName of websiteHtmlFiles) {
   const html = read(`website/${htmlName}`);
-  const ids = new Set([...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]));
+  const idList = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
+  const ids = new Set(idList);
+  if (ids.size !== idList.length) {
+    const duplicates = [...new Set(idList.filter((id, index) => idList.indexOf(id) !== index))];
+    fail(`Website ${htmlName} contains duplicate IDs: ${duplicates.join(', ')}`);
+  }
   for (const match of html.matchAll(/(?:href|src)="([^"]+)"/g)) {
     const reference = match[1];
     if (reference.startsWith('#')) {
@@ -349,6 +357,22 @@ for (const htmlName of websiteHtmlFiles) {
         : [`${relative}.html`, path.join(relative, 'index.html')];
     if (!candidates.some((candidate) => fs.existsSync(path.join(websiteDirectory, candidate)))) {
       fail(`Website ${htmlName} links to a missing local resource: ${reference}`);
+    }
+  }
+  for (const match of html.matchAll(/<a\b([^>]*)\btarget="_blank"([^>]*)>/g)) {
+    if (!/\brel="[^"]*noopener/.test(`${match[1]} ${match[2]}`)) {
+      fail(`Website ${htmlName} opens a new tab without rel="noopener".`);
+    }
+  }
+}
+for (const directory of ['website', 'src']) {
+  const htmlFiles = fs.readdirSync(path.join(root, directory)).filter((name) => name.endsWith('.html'));
+  for (const htmlName of htmlFiles) {
+    const html = read(`${directory}/${htmlName}`);
+    for (const match of html.matchAll(/<button\b([^>]*)>/g)) {
+      if (!/\btype="(?:button|submit|reset)"/.test(match[1])) {
+        fail(`${directory}/${htmlName} has a button without an explicit type: ${match[0]}`);
+      }
     }
   }
 }

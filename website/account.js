@@ -24,6 +24,8 @@
     $("sign-up-tab").classList.toggle("active", signup);
     $("sign-in-tab").setAttribute("aria-selected", String(!signup));
     $("sign-up-tab").setAttribute("aria-selected", String(signup));
+    $("sign-in-tab").tabIndex = signup ? -1 : 0;
+    $("sign-up-tab").tabIndex = signup ? 0 : -1;
     $("auth-title").textContent = signup ? "Create your account." : "Welcome back.";
     $("auth-copy").textContent = signup
       ? "Create one private Zap account, then website purchases connect directly to Drip Type."
@@ -73,6 +75,7 @@
 
   function displayRecovery(code) {
     $("recovery-code-output").textContent = code;
+    $("copy-recovery").textContent = "Copy recovery code";
     $("recovery-card").hidden = false;
   }
 
@@ -144,6 +147,16 @@
 
   $("sign-in-tab").addEventListener("click", () => setMode("signin"));
   $("sign-up-tab").addEventListener("click", () => setMode("signup"));
+  const accountTabs = [$("sign-in-tab"), $("sign-up-tab")];
+  accountTabs.forEach((tab, index) => tab.addEventListener("keydown", (event) => {
+    const next = event.key === "ArrowRight" ? (index + 1) % accountTabs.length
+      : event.key === "ArrowLeft" ? (index - 1 + accountTabs.length) % accountTabs.length
+        : event.key === "Home" ? 0 : event.key === "End" ? accountTabs.length - 1 : -1;
+    if (next < 0) return;
+    event.preventDefault();
+    setMode(next === 0 ? "signin" : "signup");
+    accountTabs[next].focus();
+  }));
   $("password").addEventListener("input", () => updateStrength("password", "strength-meter", "strength-label"));
   $("toggle-password").addEventListener("click", () => {
     const visible = $("password").type === "text";

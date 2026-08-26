@@ -21,6 +21,10 @@ let activeProfileId = null;
 let savedShortcuts = { hotkeyStart: 'Alt+5', hotkeyStop: 'Alt+0' };
 let currentPlatform = 'darwin';
 
+function errorMessage(error, fallback = 'That action could not be completed. Try again.') {
+  return String(error?.message || fallback);
+}
+
 function hasFeature(feature) {
   return Array.isArray(billingState.features) && billingState.features.includes(feature);
 }
@@ -40,12 +44,18 @@ function applyTheme(preference = 'system') {
 function setPage(name) {
   const button = document.querySelector(`.nav-button[data-page="${name}"]`);
   if (button?.dataset.feature && !hasFeature(button.dataset.feature)) {
-    document.querySelectorAll('.nav-button').forEach((item) => item.classList.toggle('active', item.dataset.page === name));
+    document.querySelectorAll('.nav-button').forEach((item) => {
+      const active = item.dataset.page === name;
+      item.classList.toggle('active', active);
+      if (active) item.setAttribute('aria-current', 'page'); else item.removeAttribute('aria-current');
+    });
     document.querySelectorAll('.page').forEach((page) => page.classList.toggle('active', page.id === `page-${name}`));
     return;
   }
   document.querySelectorAll('.nav-button').forEach((button) => {
-    button.classList.toggle('active', button.dataset.page === name);
+    const active = button.dataset.page === name;
+    button.classList.toggle('active', active);
+    if (active) button.setAttribute('aria-current', 'page'); else button.removeAttribute('aria-current');
   });
   document.querySelectorAll('.page').forEach((page) => {
     page.classList.toggle('active', page.id === `page-${name}`);
@@ -144,12 +154,17 @@ async function saveTemplate() {
     return;
   }
   $('save-template').disabled = true;
-  const result = await window.dripType.saveTemplate({ id: editingTemplateId, name, body });
-  $('save-template').disabled = false;
-  renderTemplates(result.templates);
-  $('template-note').textContent = result.error || (editingTemplateId ? 'Updated' : 'Saved');
-  if (!result.error) clearTemplateEditor();
-  setTimeout(() => { $('template-note').textContent = ''; }, 2200);
+  try {
+    const result = await window.dripType.saveTemplate({ id: editingTemplateId, name, body });
+    renderTemplates(result.templates);
+    $('template-note').textContent = result.error || (editingTemplateId ? 'Updated' : 'Saved');
+    if (!result.error) clearTemplateEditor();
+    setTimeout(() => { $('template-note').textContent = ''; }, 2200);
+  } catch (error) {
+    $('template-note').textContent = errorMessage(error, 'The template could not be saved.');
+  } finally {
+    $('save-template').disabled = false;
+  }
 }
 
 function rangeFill(input) {
@@ -233,8 +248,8 @@ async function runBatch() {
     const head = document.createElement('div'); head.className = 'item-head';
     const title = document.createElement('strong'); title.textContent = `Row ${output.index}`;
     const actions = document.createElement('div'); actions.className = 'row';
-    const copy = document.createElement('button'); copy.className = 'mini'; copy.textContent = 'Copy'; copy.addEventListener('click', () => window.dripType.writeClipboardText(output.text));
-    const compose = document.createElement('button'); compose.className = 'mini'; compose.textContent = 'Compose'; compose.addEventListener('click', () => sendToComposer(output.text));
+    const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'mini'; copy.textContent = 'Copy'; copy.addEventListener('click', () => window.dripType.writeClipboardText(output.text));
+    const compose = document.createElement('button'); compose.type = 'button'; compose.className = 'mini'; compose.textContent = 'Compose'; compose.addEventListener('click', () => sendToComposer(output.text));
     actions.append(copy, compose); head.append(title, actions);
     const pre = document.createElement('pre'); pre.textContent = output.text;
     item.append(head, pre); list.appendChild(item);
@@ -257,9 +272,9 @@ function renderProfiles(result = {}) {
     const head = document.createElement('div'); head.className = 'item-head';
     const title = document.createElement('strong'); title.textContent = `${profile.name}${profile.id === activeProfileId ? ' · Active' : ''}`;
     const actions = document.createElement('div'); actions.className = 'row';
-    const activate = document.createElement('button'); activate.className = 'mini'; activate.textContent = 'Activate'; activate.disabled = profile.id === activeProfileId;
+    const activate = document.createElement('button'); activate.type = 'button'; activate.className = 'mini'; activate.textContent = 'Activate'; activate.disabled = profile.id === activeProfileId;
     activate.addEventListener('click', async () => { const next = await window.dripType.activateProfile(profile.id); renderProfiles(next); if (next.profile) applyProfileControls(next.profile); });
-    const remove = document.createElement('button'); remove.className = 'mini'; remove.textContent = 'Delete'; remove.addEventListener('click', async () => renderProfiles(await window.dripType.deleteProfile(profile.id)));
+    const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'mini'; remove.textContent = 'Delete'; remove.addEventListener('click', async () => renderProfiles(await window.dripType.deleteProfile(profile.id)));
     actions.append(activate, remove); head.append(title, actions);
     const detail = document.createElement('div'); detail.className = 'pro-note'; detail.textContent = `${profile.dripWPM} WPM · ${profile.dripDelay}s delay · ${Math.round(profile.typoRate * 100)}% corrected typos`;
     item.append(head, detail); list.appendChild(item);
@@ -282,13 +297,13 @@ async function renderClipboard(query = '') {
     const title = document.createElement('strong'); title.textContent = `${clip.pinned ? 'Pinned · ' : ''}${new Date(clip.createdAt).toLocaleString()}`;
     const actions = document.createElement('div'); actions.className = 'row';
     for (const [label, action] of [['Copy', 'copy'], [clip.pinned ? 'Unpin' : 'Pin', 'pin'], ['Delete', 'delete']]) {
-      const button = document.createElement('button'); button.className = 'mini'; button.textContent = label;
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'mini'; button.textContent = label;
       button.addEventListener('click', async () => {
         if (action === 'copy') await window.dripType.writeClipboardText(clip.text);
         else { const next = await window.dripType.updateClipboardItem(clip.id, action); if (!next.error) renderClipboard($('clipboard-search').value); }
       }); actions.appendChild(button);
     }
-    const compose = document.createElement('button'); compose.className = 'mini'; compose.textContent = 'Compose'; compose.addEventListener('click', () => sendToComposer(clip.text)); actions.appendChild(compose);
+    const compose = document.createElement('button'); compose.type = 'button'; compose.className = 'mini'; compose.textContent = 'Compose'; compose.addEventListener('click', () => sendToComposer(clip.text)); actions.appendChild(compose);
     head.append(title, actions); const copy = document.createElement('p'); copy.textContent = clip.text;
     item.append(head, copy); list.appendChild(item);
   }
@@ -462,9 +477,13 @@ function renderUpdate(state) {
 }
 
 async function runUpdateAction() {
-  if (updateState.status === 'available') await window.dripType.downloadUpdate();
-  else if (updateState.status === 'downloaded') window.dripType.installUpdate();
-  else await window.dripType.checkForUpdates();
+  try {
+    if (updateState.status === 'available') await window.dripType.downloadUpdate();
+    else if (updateState.status === 'downloaded') window.dripType.installUpdate();
+    else await window.dripType.checkForUpdates();
+  } catch (error) {
+    renderUpdate({ status: 'error', message: errorMessage(error, 'The update check failed. Try again.') });
+  }
 }
 
 document.querySelectorAll('.nav-button').forEach((button) => {
@@ -506,23 +525,37 @@ $('replay-onboarding').addEventListener('click', () => window.dripType.replayOnb
 $('update-action').addEventListener('click', runUpdateAction);
 $('billing-subscribe').addEventListener('click', async () => {
   $('billing-note').textContent = 'Opening secure checkout…';
-  await window.dripType.subscribe();
-  $('billing-note').textContent = 'Complete checkout in your browser, then return here.';
+  try {
+    const result = await window.dripType.subscribe();
+    $('billing-note').textContent = result?.error || 'Complete checkout in your browser, then return here.';
+  } catch (error) {
+    $('billing-note').textContent = errorMessage(error, 'Secure checkout could not be opened.');
+  }
 });
 $('billing-refresh').addEventListener('click', async () => {
   $('billing-refresh').disabled = true;
   $('billing-note').textContent = 'Refreshing access…';
-  const state = await window.dripType.refreshBilling();
-  renderBilling(state);
-  $('billing-refresh').disabled = false;
-  $('billing-note').textContent = state.status === 'active' ? 'Access refreshed.' : state.message || '';
+  try {
+    const state = await window.dripType.refreshBilling();
+    renderBilling(state);
+    $('billing-note').textContent = state.status === 'active' ? 'Access refreshed.' : state.message || '';
+  } catch (error) {
+    $('billing-note').textContent = errorMessage(error, 'Access could not be refreshed.');
+  } finally {
+    $('billing-refresh').disabled = false;
+  }
 });
 $('billing-manage').addEventListener('click', async () => {
   $('billing-manage').disabled = true;
   $('billing-note').textContent = 'Opening Stripe’s secure portal…';
-  const result = await window.dripType.manageBilling();
-  $('billing-manage').disabled = billingState.status !== 'active';
-  $('billing-note').textContent = result?.error || 'Billing portal opened in your browser.';
+  try {
+    const result = await window.dripType.manageBilling();
+    $('billing-note').textContent = result?.error || 'Billing portal opened in your browser.';
+  } catch (error) {
+    $('billing-note').textContent = errorMessage(error, 'Billing management could not be opened.');
+  } finally {
+    $('billing-manage').disabled = billingState.status !== 'active';
+  }
 });
 $('save-template').addEventListener('click', saveTemplate);
 $('cancel-template').addEventListener('click', clearTemplateEditor);
@@ -565,42 +598,51 @@ window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', ()
 });
 
 $('start').addEventListener('click', async () => {
-  await flushBehavior();
-  if (!await refreshPermission(false)) {
-    setPage('setup');
-    setStatus({ status: 'error', message: 'Enable Accessibility access before typing.' });
-    return;
+  try {
+    await flushBehavior();
+    if (!await refreshPermission(false)) {
+      setPage('setup');
+      setStatus({ status: 'error', message: 'Enable Accessibility access before typing.' });
+      return;
+    }
+    setStatus({ status: 'waiting', message: `Switch to the destination. Typing starts in ${controls.delay.value}s.` });
+    const result = await window.dripType.start($('text').value);
+    if (result?.code === 'SUBSCRIPTION_REQUIRED') {
+      setPage('billing');
+      renderBilling({ allowed: false, status: 'required', message: result.error });
+    } else if (result?.error) setStatus({ status: 'error', message: result.error });
+    else if (result?.fallback) setStatus({ status: 'complete', message: result.message });
+  } catch (error) {
+    setStatus({ status: 'error', message: errorMessage(error, 'Typing could not be started.') });
   }
-  setStatus({ status: 'waiting', message: `Switch to the destination. Typing starts in ${controls.delay.value}s.` });
-  const result = await window.dripType.start($('text').value);
-  if (result?.code === 'SUBSCRIPTION_REQUIRED') {
-    setPage('billing');
-    renderBilling({ allowed: false, status: 'required', message: result.error });
-  } else if (result?.error) setStatus({ status: 'error', message: result.error });
-  else if (result?.fallback) setStatus({ status: 'complete', message: result.message });
 });
 $('cancel').addEventListener('click', () => window.dripType.cancel());
 
 $('save-shortcuts').addEventListener('click', async () => {
   $('save-shortcuts').disabled = true;
   shortcutMessage('Checking shortcut availability…');
-  const result = await window.dripType.saveSettings({
-    hotkeyStart: $('start-key').dataset.accelerator,
-    hotkeyStop: $('stop-key').dataset.accelerator
-  });
-  savedShortcuts = {
-    hotkeyStart: result.settings.hotkeyStart,
-    hotkeyStop: result.settings.hotkeyStop
-  };
-  renderShortcutInput($('start-key'), savedShortcuts.hotkeyStart);
-  renderShortcutInput($('stop-key'), savedShortcuts.hotkeyStop);
-  renderCurrentShortcuts();
-  shortcutMessage(result.shortcutFailures?.length
-    ? result.shortcutFailures.join(' ')
-    : `${formatAccelerator(savedShortcuts.hotkeyStart, currentPlatform)} opens Composer; ${formatAccelerator(savedShortcuts.hotkeyStop, currentPlatform)} stops typing.`,
-  Boolean(result.shortcutFailures?.length));
-  $('save-shortcuts').disabled = false;
-  await refreshPermissionChecklist();
+  try {
+    const result = await window.dripType.saveSettings({
+      hotkeyStart: $('start-key').dataset.accelerator,
+      hotkeyStop: $('stop-key').dataset.accelerator
+    });
+    savedShortcuts = {
+      hotkeyStart: result.settings.hotkeyStart,
+      hotkeyStop: result.settings.hotkeyStop
+    };
+    renderShortcutInput($('start-key'), savedShortcuts.hotkeyStart);
+    renderShortcutInput($('stop-key'), savedShortcuts.hotkeyStop);
+    renderCurrentShortcuts();
+    shortcutMessage(result.shortcutFailures?.length
+      ? result.shortcutFailures.join(' ')
+      : `${formatAccelerator(savedShortcuts.hotkeyStart, currentPlatform)} opens Composer; ${formatAccelerator(savedShortcuts.hotkeyStop, currentPlatform)} stops typing.`,
+    Boolean(result.shortcutFailures?.length));
+    await refreshPermissionChecklist();
+  } catch (error) {
+    shortcutMessage(errorMessage(error, 'The shortcuts could not be saved.'), true);
+  } finally {
+    $('save-shortcuts').disabled = false;
+  }
 });
 
 window.dripType.onState(setStatus);
@@ -659,4 +701,7 @@ async function load() {
   if (subscription.plan === 'pro') renderClipboard();
 }
 
-load();
+load().catch((error) => {
+  setStatus({ status: 'error', message: errorMessage(error, 'Drip Type settings could not be loaded.') });
+  $('permission-copy').textContent = 'Setup status could not be loaded. Reopen Drip Type and try again.';
+});

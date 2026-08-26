@@ -34,12 +34,12 @@
         <div class="heading-actions"><span id="console-status" role="status" aria-live="polite"></span><button class="secondary-button" id="refresh" type="button">Refresh data</button></div>
       </div>
 
-      <nav class="view-tabs" aria-label="Admin dashboard sections">
-        <button class="active" type="button" data-view="overview" aria-selected="true">Overview</button>
-        <button type="button" data-view="support" aria-selected="false">Support inbox <span id="support-tab-count">0</span></button>
+      <nav class="view-tabs" role="tablist" aria-label="Admin dashboard sections">
+        <button class="active" id="overview-tab" type="button" role="tab" data-view="overview" aria-selected="true" aria-controls="overview-view" tabindex="0">Overview</button>
+        <button id="support-tab" type="button" role="tab" data-view="support" aria-selected="false" aria-controls="support-view" tabindex="-1">Support inbox <span id="support-tab-count">0</span></button>
       </nav>
 
-      <section class="dashboard-view" id="overview-view">
+      <section class="dashboard-view" id="overview-view" role="tabpanel" aria-labelledby="overview-tab">
         <div class="data-alert" id="billing-alert" hidden><span>!</span><div><strong>Billing reporting needs attention</strong><p id="billing-alert-copy"></p></div></div>
 
         <div class="kpi-grid" aria-label="Headline business statistics">
@@ -87,7 +87,7 @@
         <footer class="data-footer"><span id="data-freshness">Not loaded yet</span><span>Private · no-store · admin allowlist required</span></footer>
       </section>
 
-      <section class="dashboard-view" id="support-view" hidden>
+      <section class="dashboard-view" id="support-view" role="tabpanel" aria-labelledby="support-tab" hidden>
         <div class="support-heading"><div><span class="eyebrow">Customer support</span><h2>Issue inbox</h2><p>Review reports, track progress, and keep internal notes in one private workspace.</p></div></div>
         <div class="metrics" aria-label="Ticket counts"><div><span>Open</span><strong id="open-count">0</strong></div><div><span>In progress</span><strong id="progress-count">0</strong></div><div><span>Resolved</span><strong id="resolved-count">0</strong></div></div>
         <div class="toolbar"><label for="status-filter">Show</label><select id="status-filter"><option value="all">All tickets</option><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option></select><span id="ticket-status-copy" role="status" aria-live="polite"></span></div>

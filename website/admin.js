@@ -297,6 +297,7 @@
 
   async function loadTickets() {
     setText("ticket-status-copy", "Loading tickets…");
+    $("ticket-status-copy").classList.remove("console-error");
     try {
       const result = await api("/api/admin-tickets");
       tickets = Array.isArray(result.tickets) ? result.tickets : [];
@@ -315,6 +316,7 @@
   async function refreshAll() {
     $("refresh").disabled = true;
     setText("console-status", "Refreshing…");
+    $("console-status").classList.remove("console-error");
     try {
       const results = await Promise.all([loadOverview(), loadTickets()]);
       if ($("admin-console").hidden) return;
@@ -334,6 +336,7 @@
       const active = button.dataset.view === activeView;
       button.classList.toggle("active", active);
       button.setAttribute("aria-selected", String(active));
+      button.tabIndex = active ? 0 : -1;
     });
   }
 
@@ -343,6 +346,7 @@
     const button = $("save-ticket");
     button.disabled = true;
     setText("update-status", "Saving secure update…");
+    $("update-status").classList.remove("console-error");
     try {
       const result = await api("/api/admin-tickets", {
         method: "PATCH",
@@ -362,7 +366,20 @@
 
   $("status-filter").addEventListener("change", renderList);
   $("refresh").addEventListener("click", refreshAll);
-  document.querySelectorAll("[data-view]").forEach((button) => button.addEventListener("click", () => selectView(button.dataset.view)));
+  const viewTabs = [...document.querySelectorAll("[data-view]")];
+  viewTabs.forEach((button) => {
+    button.addEventListener("click", () => selectView(button.dataset.view));
+    button.addEventListener("keydown", (event) => {
+      const current = viewTabs.indexOf(button);
+      const next = event.key === "ArrowRight" ? (current + 1) % viewTabs.length
+        : event.key === "ArrowLeft" ? (current - 1 + viewTabs.length) % viewTabs.length
+          : event.key === "Home" ? 0 : event.key === "End" ? viewTabs.length - 1 : -1;
+      if (next < 0) return;
+      event.preventDefault();
+      selectView(viewTabs[next].dataset.view);
+      viewTabs[next].focus();
+    });
+  });
 
   async function signOut() {
     await fetch("/api/logout", {

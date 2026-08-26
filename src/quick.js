@@ -147,20 +147,31 @@ async function start() {
   }
   submit.disabled = true;
   state.textContent = 'Returning to target…';
-  const result = await window.dripType.start(text.value);
-  if (result?.error) {
-    state.textContent = result.error;
+  try {
+    const result = await window.dripType.start(text.value);
+    if (result?.error) {
+      state.textContent = result.error;
+      submit.disabled = false;
+    } else {
+      text.value = '';
+      state.textContent = privateDraftMessage;
+      refresh();
+    }
+  } catch (error) {
+    state.textContent = error?.message || 'Typing could not be started. Try again.';
     submit.disabled = false;
-  } else {
-    text.value = '';
-    state.textContent = privateDraftMessage;
-    refresh();
   }
 }
 
 text.addEventListener('input', refresh);
 submit.addEventListener('click', start);
-document.getElementById('paste').addEventListener('click', async () => insertText(await window.dripType.readClipboardText()));
+document.getElementById('paste').addEventListener('click', async () => {
+  try {
+    insertText(await window.dripType.readClipboardText());
+  } catch (error) {
+    state.textContent = error?.message || 'Clipboard text could not be read.';
+  }
+});
 document.getElementById('tool-clean').addEventListener('click', () => replaceText(cleanSpacing(text.value), 'Spacing cleaned locally'));
 document.getElementById('tool-bullets').addEventListener('click', toggleBullets);
 templatePicker.addEventListener('change', () => chooseTemplate(templatePicker.value));
