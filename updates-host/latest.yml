@@ -1,10 +1,10 @@
-version: 1.7.1
+version: 1.7.2
 files:
-  - url: Drip-Type-1.7.1-windows.exe
-    sha512: uER33OTWftk1nnr3enWjRjPdehHcOakbZhp1Q4w2pyHPanI53gJoVWJ3Yw8+SdODbn30fpnO8CeLf0hkVFn26g==
-    size: 91257944
-path: Drip-Type-1.7.1-windows.exe
-sha512: uER33OTWftk1nnr3enWjRjPdehHcOakbZhp1Q4w2pyHPanI53gJoVWJ3Yw8+SdODbn30fpnO8CeLf0hkVFn26g==
-releaseName: Drip Type by Zap 1.7.1
-releaseNotes: Drip Type 1.7.1 replaces the boxed macOS menu bar artwork with a native transparent template icon. Core, Pro, billing, activation, Windows, and updater behavior remain unchanged.
-releaseDate: '2026-08-26T01:33:59.496Z'
+  - url: Drip-Type-1.7.2-windows.exe
+    sha512: ufm8iuiDMHcICan+Y7E5isdh0aNTN9tueSE9RRvC01DanKr3AI9bvi7nyqyUPmisEiC3DEtUuqd6+BAH7eOjlA==
+    size: 91258469
+path: Drip-Type-1.7.2-windows.exe
+sha512: ufm8iuiDMHcICan+Y7E5isdh0aNTN9tueSE9RRvC01DanKr3AI9bvi7nyqyUPmisEiC3DEtUuqd6+BAH7eOjlA==
+releaseName: Drip Type by Zap 1.7.2
+releaseNotes: Drip Type 1.7.2 repairs navigation and repeated support submissions, improves keyboard and accessibility behavior, hardens error recovery, and adds response-header protection to native app pages.
+releaseDate: '2026-08-26T03:49:30.769Z'
