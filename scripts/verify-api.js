@@ -13,7 +13,7 @@ const accountStore = require('../website/server/accounts');
 const accountRouter = require('../website/api/account');
 const { config: accountConfig, status: accountStatus,
   portal: createAccountPortal, activation: createAppActivation,
-  tickets: adminTickets } = accountRouter.routes;
+  stats: adminStats, tickets: adminTickets } = accountRouter.routes;
 const claimAccountEntitlement = require('../website/api/claim-account-entitlement');
 const stripeWebhook = require('../website/api/stripe-webhook');
 const auth = require('../website/api/_auth');
@@ -182,6 +182,7 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
   const originalWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   const originalSupportDataKey = process.env.SUPPORT_DATA_KEY;
   const originalAuthMasterKey = process.env.AUTH_MASTER_KEY;
+  const originalListAccountSummaries = accountStore.listAccountSummaries;
   const originalAccountById = auth.accountById;
   const originalUpdateBillingMetadata = auth.updateBillingMetadata;
   const originalRequireAdmin = auth.requireAdmin;
@@ -311,6 +312,100 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     assert.equal(adminUpdateResponse.statusCode, 200);
     assert.equal(adminUpdateResponse.body.ticket.status, 'in_progress');
     assert.equal(adminUpdateResponse.body.ticket.actor, adminFixture.userId);
+
+    const now = Date.now();
+    process.env.STRIPE_CORE_PRICE_ID = `price_${'p'.repeat(24)}`;
+    accountStore.listAccountSummaries = async () => ({
+      total: 2,
+      unreadableCount: 0,
+      accounts: [
+        {
+          accountId: adminFixture.userId,
+          email: adminFixture.email,
+          createdAt: new Date(now - 2 * 24 * 60 * 60 * 1000).toISOString(),
+          updatedAt: new Date(now).toISOString(),
+          lastLoginAt: new Date(now).toISOString(),
+          stripeCustomerId: 'cus_adminfixture',
+          stripeSubscriptionId: 'sub_adminfixture',
+          stripeSubscriptionStatus: 'active',
+          stripeSubscriptionPlan: 'core',
+        },
+        {
+          accountId: `acct_${'b'.repeat(32)}`,
+          email: 'student@example.com',
+          createdAt: new Date(now - 45 * 24 * 60 * 60 * 1000).toISOString(),
+          updatedAt: new Date(now).toISOString(),
+          lastLoginAt: new Date(now - 31 * 24 * 60 * 60 * 1000).toISOString(),
+          stripeCustomerId: null,
+          stripeSubscriptionId: null,
+          stripeSubscriptionStatus: null,
+          stripeSubscriptionPlan: null,
+        },
+      ],
+    });
+    billing.stripeRequest = async (path) => {
+      if (path.startsWith('/v1/subscriptions?')) {
+        return { data: [{
+          id: 'sub_adminfixture',
+          status: 'active',
+          created: Math.floor(now / 1000),
+          cancel_at_period_end: false,
+          metadata: { zap_account_id: adminFixture.userId, dt_d1: 'device_fixture' },
+          items: { data: [{ quantity: 1, price: {
+            id: process.env.STRIPE_CORE_PRICE_ID,
+            currency: 'usd',
+            unit_amount: 999,
+            recurring: { interval: 'month', interval_count: 1 },
+          } }] },
+        }], has_more: false };
+      }
+      if (path.startsWith('/v1/charges?')) {
+        return { data: [{
+          id: 'ch_fixture',
+          status: 'succeeded',
+          paid: true,
+          currency: 'usd',
+          amount_captured: 999,
+          amount_refunded: 100,
+          created: Math.floor(now / 1000),
+        }], has_more: false };
+      }
+      throw new Error(`Unexpected Stripe reporting path: ${path}`);
+    };
+    const adminStatsResponse = mockResponse();
+    await adminStats({
+      method: 'GET',
+      headers: { 'x-forwarded-for': '203.0.113.241' },
+      query: {},
+      socket: {},
+    }, adminStatsResponse);
+    assert.equal(adminStatsResponse.statusCode, 200);
+    assert.equal(adminStatsResponse.headers['cache-control'], 'no-store');
+    assert.equal(adminStatsResponse.body.accounts.total, 2);
+    assert.equal(adminStatsResponse.body.accounts.new7d, 1);
+    assert.equal(adminStatsResponse.body.accounts.conversionRate, 50);
+    assert.equal(adminStatsResponse.body.billing.mrrCents, 999);
+    assert.equal(adminStatsResponse.body.billing.collectedRevenueCents, 899);
+    assert.equal(adminStatsResponse.body.billing.activeDevices, 1);
+    assert.equal(adminStatsResponse.body.billing.planBreakdown.core, 1);
+    assert.equal(adminStatsResponse.body.support.open, 1);
+    assert.equal(adminStatsResponse.body.trends.at(-1).revenueCents, 899);
+    billing.stripeRequest = async () => {
+      const error = new Error('Stripe permission required');
+      error.code = 'more_permissions_required';
+      throw error;
+    };
+    const degradedStatsResponse = mockResponse();
+    await adminStats({
+      method: 'GET',
+      headers: { 'x-forwarded-for': '203.0.113.242' },
+      query: {},
+      socket: {},
+    }, degradedStatsResponse);
+    assert.equal(degradedStatsResponse.statusCode, 200);
+    assert.equal(degradedStatsResponse.body.accounts.total, 2);
+    assert.equal(degradedStatsResponse.body.billing.available, false);
+    assert.equal(degradedStatsResponse.body.billing.mrrCents, null);
 
     process.env.STRIPE_SECRET_KEY = `sk_live_${'s'.repeat(32)}`;
     process.env.STRIPE_CORE_PRICE_ID = `price_${'p'.repeat(24)}`;
@@ -485,6 +580,7 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     ticketStore.createTicket = originalCreateTicket;
     ticketStore.listTickets = originalListTickets;
     ticketStore.updateTicket = originalUpdateTicket;
+    accountStore.listAccountSummaries = originalListAccountSummaries;
     for (const [name, value] of [
       ['STRIPE_SECRET_KEY', originalStripeKey],
       ['STRIPE_CORE_PRICE_ID', originalCorePrice],

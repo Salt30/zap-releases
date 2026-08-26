@@ -3,48 +3,108 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Support Console | Drip Type by Zap</title>
-  <meta name="description" content="Private Drip Type support administration console.">
+  <title>Admin Dashboard | Drip Type by Zap</title>
+  <meta name="description" content="Private Drip Type business and support administration dashboard.">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <link rel="icon" href="/brand/zap/zap-icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/admin.css">
 </head>
 <body>
   <header class="topbar">
-    <a class="brand" href="/" aria-label="Drip Type home"><img src="/brand/zap/zap-icon-192.png" alt="" width="34" height="34"><span><strong>Drip Type</strong><small>Support Console</small></span></a>
+    <a class="brand" href="/" aria-label="Drip Type home"><img src="/brand/zap/zap-icon-192.png" alt="" width="34" height="34"><span><strong>Drip Type</strong><small>Admin Dashboard</small></span></a>
     <div class="admin-actions"><span class="secure-pill"><i></i> Private admin</span><button id="sign-out" type="button" hidden>Sign out</button></div>
   </header>
 
   <main>
     <section class="state-card" id="loading-state">
-      <span class="spinner" aria-hidden="true"></span><h1>Verifying admin access…</h1><p>Checking your private Zap session and the server-side allowlist.</p>
+      <span class="spinner" aria-hidden="true"></span><h1>Verifying admin access…</h1><p>Checking your private Zap session and server-side admin allowlists.</p>
     </section>
 
     <section class="state-card" id="sign-in-state" hidden>
-      <span class="eyebrow">Authentication required</span><h1>Sign in with the admin account.</h1><p>The support console requires a Zap account that is also present in the server-side account-ID and email allowlists.</p><a class="primary-link" href="/account?mode=signin">Sign in to Zap account</a>
+      <span class="eyebrow">Authentication required</span><h1>Sign in with the admin account.</h1><p>This dashboard requires a Zap account present in both the server-side account-ID and email allowlists.</p><a class="primary-link" href="/account?mode=signin">Sign in to Zap account</a>
     </section>
 
     <section class="state-card" id="denied-state" hidden>
-      <span class="eyebrow">Access denied</span><h1>This account is not an admin.</h1><p id="denied-copy">Support data remains locked. Sign out and use the authorized owner account.</p><button class="secondary-button" id="denied-sign-out" type="button">Sign out</button>
+      <span class="eyebrow">Access denied</span><h1>This account is not an admin.</h1><p id="denied-copy">Business and customer data remains locked. Sign out and use the authorized owner account.</p><button class="secondary-button" id="denied-sign-out" type="button">Sign out</button>
     </section>
 
     <section class="console" id="admin-console" hidden>
-      <div class="console-heading"><div><span class="eyebrow">Drip Type support</span><h1>Issue inbox</h1><p>Review customer reports, track progress, and keep internal notes in one private workspace.</p></div><button class="secondary-button" id="refresh" type="button">Refresh</button></div>
-      <div class="metrics" aria-label="Ticket counts"><div><span>Open</span><strong id="open-count">0</strong></div><div><span>In progress</span><strong id="progress-count">0</strong></div><div><span>Resolved</span><strong id="resolved-count">0</strong></div></div>
-      <div class="toolbar"><label for="status-filter">Show</label><select id="status-filter"><option value="all">All tickets</option><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option></select><span id="console-status" role="status" aria-live="polite"></span></div>
-      <div class="workspace">
-        <div class="ticket-list" id="ticket-list" aria-label="Support tickets"></div>
-        <article class="ticket-detail" id="ticket-detail">
-          <div class="empty-detail" id="empty-detail"><span>↖</span><h2>Select a ticket</h2><p>Customer details and the complete issue report stay hidden until you select a record.</p></div>
-          <div id="selected-detail" hidden>
-            <div class="detail-head"><div><span class="ticket-code" id="detail-code"></span><h2 id="detail-subject"></h2></div><span class="status-badge" id="detail-status"></span></div>
-            <dl class="metadata"><div><dt>Customer</dt><dd id="detail-name"></dd></div><div><dt>Reply email</dt><dd><a id="detail-email"></a></dd></div><div><dt>Category</dt><dd id="detail-category"></dd></div><div><dt>Platform</dt><dd id="detail-platform"></dd></div><div><dt>App version</dt><dd id="detail-version"></dd></div><div><dt>Submitted</dt><dd id="detail-date"></dd></div></dl>
-            <section class="description"><h3>Issue report</h3><p id="detail-description"></p></section>
-            <section class="manage"><h3>Admin update</h3><form id="ticket-update"><label>Status<select id="ticket-status"><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option></select></label><label>Internal note<textarea id="ticket-note" maxlength="2000" placeholder="Optional note. This is visible only to admins."></textarea></label><div><button class="primary-button" id="save-ticket" type="submit">Save update</button><a class="secondary-button reply-link" id="reply-ticket">Reply by email</a></div><p id="update-status" role="status" aria-live="polite"></p></form></section>
-            <section class="audit"><h3>Audit trail</h3><ol id="audit-list"></ol></section>
-          </div>
-        </article>
+      <div class="console-heading">
+        <div><span class="eyebrow">Drip Type control room</span><h1>Know the business.</h1><p>Accounts, subscriptions, revenue, billing health, and customer issues in one secure view.</p></div>
+        <div class="heading-actions"><span id="console-status" role="status" aria-live="polite"></span><button class="secondary-button" id="refresh" type="button">Refresh data</button></div>
       </div>
+
+      <nav class="view-tabs" aria-label="Admin dashboard sections">
+        <button class="active" type="button" data-view="overview" aria-selected="true">Overview</button>
+        <button type="button" data-view="support" aria-selected="false">Support inbox <span id="support-tab-count">0</span></button>
+      </nav>
+
+      <section class="dashboard-view" id="overview-view">
+        <div class="data-alert" id="billing-alert" hidden><span>!</span><div><strong>Billing reporting needs attention</strong><p id="billing-alert-copy"></p></div></div>
+
+        <div class="kpi-grid" aria-label="Headline business statistics">
+          <article class="kpi-card"><span>Total users</span><strong id="kpi-users">—</strong><p id="kpi-users-note">Loading accounts…</p></article>
+          <article class="kpi-card accent"><span>Monthly recurring revenue</span><strong id="kpi-mrr">—</strong><p id="kpi-mrr-note">Active paid subscriptions</p></article>
+          <article class="kpi-card"><span>Collected revenue</span><strong id="kpi-revenue">—</strong><p id="kpi-revenue-note">Captured payments minus refunds</p></article>
+          <article class="kpi-card"><span>Subscribers</span><strong id="kpi-subscribers">—</strong><p id="kpi-subscribers-note">Active and trialing</p></article>
+          <article class="kpi-card"><span>Conversion</span><strong id="kpi-conversion">—</strong><p>Subscribers ÷ accounts</p></article>
+          <article class="kpi-card"><span>Revenue · 30 days</span><strong id="kpi-revenue-30">—</strong><p>Recent captured revenue</p></article>
+        </div>
+
+        <section class="health-panel" aria-labelledby="health-title">
+          <div class="section-heading"><div><span class="eyebrow">What needs attention</span><h2 id="health-title">Business health</h2></div><span class="live-label"><i></i> Live account + Stripe data</span></div>
+          <div class="health-grid">
+            <div><span>New users · 7d</span><strong id="health-new-users">—</strong></div>
+            <div><span>Active users · 30d</span><strong id="health-active-users">—</strong></div>
+            <div><span>Trials</span><strong id="health-trials">—</strong></div>
+            <div><span>Past due</span><strong class="warn-value" id="health-past-due">—</strong></div>
+            <div><span>Canceling</span><strong id="health-canceling">—</strong></div>
+            <div><span>Canceled · 30d</span><strong id="health-canceled">—</strong></div>
+            <div><span>Failed payments · 30d</span><strong class="warn-value" id="health-failed">—</strong></div>
+            <div><span>Refunded</span><strong id="health-refunds">—</strong></div>
+            <div><span>Active devices</span><strong id="health-devices">—</strong></div>
+            <div><span>Open support issues</span><strong id="health-support">—</strong></div>
+          </div>
+        </section>
+
+        <div class="insight-grid">
+          <section class="chart-card trend-card">
+            <div class="section-heading"><div><span class="eyebrow">Last 12 months</span><h2>Revenue and signups</h2></div><div class="legend"><span><i class="revenue-key"></i>Revenue</span><span><i class="signup-key"></i>Signups</span></div></div>
+            <div class="trend-chart" id="trend-chart" aria-label="Monthly revenue and signup chart"></div>
+          </section>
+          <section class="chart-card plan-card">
+            <div class="section-heading"><div><span class="eyebrow">Subscribers</span><h2>Plan mix</h2></div></div>
+            <div class="plan-visual"><div class="plan-ring" id="plan-ring"><span><strong id="plan-total">0</strong><small>total</small></span></div><dl><div><dt><i class="core-key"></i>Core</dt><dd id="plan-core">0</dd></div><div><dt><i class="pro-key"></i>Pro</dt><dd id="plan-pro">0</dd></div></dl></div>
+            <p class="chart-note" id="plan-note">Plan totals include active and trialing subscriptions.</p>
+          </section>
+        </div>
+
+        <section class="accounts-panel">
+          <div class="section-heading"><div><span class="eyebrow">Newest first</span><h2>Recent accounts</h2></div><span id="account-table-note">Up to 50 accounts</span></div>
+          <div class="table-wrap"><table><thead><tr><th>Email</th><th>Plan</th><th>Status</th><th>Joined</th><th>Last active</th></tr></thead><tbody id="account-table-body"></tbody></table></div>
+          <p class="empty-table" id="account-table-empty" hidden>No accounts yet.</p>
+        </section>
+        <footer class="data-footer"><span id="data-freshness">Not loaded yet</span><span>Private · no-store · admin allowlist required</span></footer>
+      </section>
+
+      <section class="dashboard-view" id="support-view" hidden>
+        <div class="support-heading"><div><span class="eyebrow">Customer support</span><h2>Issue inbox</h2><p>Review reports, track progress, and keep internal notes in one private workspace.</p></div></div>
+        <div class="metrics" aria-label="Ticket counts"><div><span>Open</span><strong id="open-count">0</strong></div><div><span>In progress</span><strong id="progress-count">0</strong></div><div><span>Resolved</span><strong id="resolved-count">0</strong></div></div>
+        <div class="toolbar"><label for="status-filter">Show</label><select id="status-filter"><option value="all">All tickets</option><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option></select><span id="ticket-status-copy" role="status" aria-live="polite"></span></div>
+        <div class="workspace">
+          <div class="ticket-list" id="ticket-list" aria-label="Support tickets"></div>
+          <article class="ticket-detail" id="ticket-detail">
+            <div class="empty-detail" id="empty-detail"><span>↖</span><h2>Select a ticket</h2><p>Customer details and the complete issue report stay hidden until you select a record.</p></div>
+            <div id="selected-detail" hidden>
+              <div class="detail-head"><div><span class="ticket-code" id="detail-code"></span><h2 id="detail-subject"></h2></div><span class="status-badge" id="detail-status"></span></div>
+              <dl class="metadata"><div><dt>Customer</dt><dd id="detail-name"></dd></div><div><dt>Reply email</dt><dd><a id="detail-email"></a></dd></div><div><dt>Category</dt><dd id="detail-category"></dd></div><div><dt>Platform</dt><dd id="detail-platform"></dd></div><div><dt>App version</dt><dd id="detail-version"></dd></div><div><dt>Submitted</dt><dd id="detail-date"></dd></div></dl>
+              <section class="description"><h3>Issue report</h3><p id="detail-description"></p></section>
+              <section class="manage"><h3>Admin update</h3><form id="ticket-update"><label>Status<select id="ticket-status"><option value="open">Open</option><option value="in_progress">In progress</option><option value="resolved">Resolved</option></select></label><label>Internal note<textarea id="ticket-note" maxlength="2000" placeholder="Optional note. This is visible only to admins."></textarea></label><div><button class="primary-button" id="save-ticket" type="submit">Save update</button><a class="secondary-button reply-link" id="reply-ticket">Reply by email</a></div><p id="update-status" role="status" aria-live="polite"></p></form></section>
+              <section class="audit"><h3>Audit trail</h3><ol id="audit-list"></ol></section>
+            </div>
+          </article>
+        </div>
+      </section>
     </section>
   </main>
   <script src="/admin.js" defer></script>

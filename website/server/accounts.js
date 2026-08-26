@@ -1,4 +1,4 @@
-const { get, put } = require("@vercel/blob");
+const { get, list, put } = require("@vercel/blob");
 const {
   createCipheriv,
   createDecipheriv,
@@ -220,6 +220,68 @@ async function readAccountByEmail(email) {
 async function accountById(accountId) {
   const existing = await readAccountById(accountId);
   return existing?.account || null;
+}
+
+async function listAccountBlobs() {
+  if (!storageConfigured()) throw new Error("account_storage_not_configured");
+  const blobs = [];
+  let cursor;
+  const seenCursors = new Set();
+  do {
+    const result = await list({ prefix: PREFIX, limit: 1000, ...(cursor ? { cursor } : {}) });
+    blobs.push(...(Array.isArray(result?.blobs) ? result.blobs : []).filter((blob) => (
+      /^zap-accounts\/acct_[A-Za-z0-9_-]{32}\.json$/u.test(String(blob?.pathname || "")) &&
+      Number(blob?.size || 0) <= MAX_RECORD_BYTES * 2
+    )));
+    if (blobs.length > 25_000) throw new Error("account_list_too_large");
+    cursor = result?.hasMore ? String(result.cursor || "") : "";
+    if (cursor && seenCursors.has(cursor)) throw new Error("account_list_cursor_loop");
+    if (cursor) seenCursors.add(cursor);
+  } while (cursor);
+  return blobs;
+}
+
+async function mapWithConcurrency(values, limit, mapper) {
+  const output = new Array(values.length);
+  let nextIndex = 0;
+  async function worker() {
+    while (nextIndex < values.length) {
+      const index = nextIndex;
+      nextIndex += 1;
+      output[index] = await mapper(values[index], index);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(limit, values.length) }, worker));
+  return output;
+}
+
+async function listAccountSummaries() {
+  const blobs = await listAccountBlobs();
+  let unreadableCount = 0;
+  const accounts = (await mapWithConcurrency(blobs, 8, async (blob) => {
+    const match = /^zap-accounts\/(acct_[A-Za-z0-9_-]{32})\.json$/u.exec(String(blob?.pathname || ""));
+    if (!match) return null;
+    try {
+      const existing = await readAccountById(match[1]);
+      if (!existing) return null;
+      const account = existing.account;
+      return {
+        accountId: account.accountId,
+        email: account.email,
+        createdAt: account.createdAt || null,
+        updatedAt: account.updatedAt || null,
+        lastLoginAt: account.lastLoginAt || null,
+        stripeCustomerId: account.stripeCustomerId || null,
+        stripeSubscriptionId: account.stripeSubscriptionId || null,
+        stripeSubscriptionStatus: account.stripeSubscriptionStatus || null,
+        stripeSubscriptionPlan: account.stripeSubscriptionPlan || null,
+      };
+    } catch {
+      unreadableCount += 1;
+      return null;
+    }
+  })).filter(Boolean);
+  return { accounts, total: blobs.length, unreadableCount };
 }
 
 async function writeAccount(account, options = {}) {
@@ -461,6 +523,7 @@ module.exports = {
   createAccount,
   decodeAccount,
   encodeAccount,
+  listAccountSummaries,
   normalizeEmail,
   parseSessionToken,
   passwordScore,

@@ -101,6 +101,7 @@ for (const [source, destination] of Object.entries({
   '/api/account-status': '/api/account?action=status',
   '/api/create-account-portal': '/api/account?action=portal',
   '/api/create-app-activation': '/api/account?action=activation',
+  '/api/admin-stats': '/api/account?action=stats',
   '/api/admin-tickets': '/api/account?action=tickets',
 })) {
   if (!websiteVercelConfig.rewrites?.some((rewrite) =>
@@ -438,6 +439,14 @@ for (const marker of ['Private admin', 'id="ticket-list"', 'id="ticket-update"',
     fail(`Support admin console requirement is missing: ${marker}`);
   }
 }
+for (const marker of [
+  'id="kpi-users"', 'id="kpi-mrr"', 'id="kpi-revenue"', 'id="trend-chart"',
+  'id="account-table-body"', '/api/admin-stats', 'renderOverview', 'renderPlanMix'
+]) {
+  if (!websiteAdmin.includes(marker) && !websiteAdminClient.includes(marker)) {
+    fail(`Business admin dashboard requirement is missing: ${marker}`);
+  }
+}
 if (/RESEND_API_KEY|api\.resend\.com|<strong>Resend<\/strong>/.test(
   websiteSupportApi + websitePrivacy + websiteLegal
 )) {
@@ -477,6 +486,13 @@ if (!websiteCheckout.includes('/account?mode=signup&plan=') || websiteCheckout.i
 }
 for (const marker of ['accountForRequest', 'storageConfigured', 'validAccountId']) {
   if (!websiteAccountAuth.includes(marker)) fail(`Website account authentication boundary is missing: ${marker}`);
+}
+for (const marker of ['listAccountSummaries', 'listAccountBlobs', 'mapWithConcurrency']) {
+  if (!websiteAccountStore.includes(marker)) fail(`Private account statistics requirement is missing: ${marker}`);
+}
+if (!read('website/api/account.js').includes('auth.requireAdmin(request, response)') ||
+    !read('website/api/account.js').includes('stripeList("/v1/charges"')) {
+  fail('Admin statistics must be allowlist-protected and use server-side Stripe reporting.');
 }
 for (const marker of [
   'customer: customer.id', 'client_reference_id: account.userId',
