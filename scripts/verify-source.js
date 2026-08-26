@@ -505,6 +505,11 @@ for (const marker of [
 ]) {
   if (!websiteAccountClient.includes(marker)) fail(`Website account flow is missing: ${marker}`);
 }
+if (websiteAccountClient.includes('passwordMinLength !==') ||
+    !websiteAccount.includes('/account.js?v=') ||
+    !JSON.stringify(websiteVercelConfig).includes('public, max-age=0, must-revalidate')) {
+  fail('Account startup must tolerate password-policy rollouts and bypass stale cached assets.');
+}
 if (!websiteCheckout.includes('/account?mode=signup&plan=') || websiteCheckout.includes('/api/create-checkout')) {
   fail('Public pricing must require account creation before the protected checkout API is used.');
 }

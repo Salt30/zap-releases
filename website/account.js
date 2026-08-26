@@ -292,7 +292,7 @@
   async function boot() {
     try {
       const config = await api("/api/account-config");
-      if (!config.configured || config.passwordMinLength !== 6) throw new Error("Accounts are not configured.");
+      if (!config.configured) throw new Error("Accounts are not configured.");
       await renderDashboard();
     } catch (error) {
       show("account-unavailable");
