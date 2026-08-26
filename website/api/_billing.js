@@ -219,8 +219,9 @@ function stripeKey() {
 }
 
 async function stripeRequest(path, options = {}) {
+  const method = options.method || "GET";
   const response = await fetch(`https://api.stripe.com${path}`, {
-    method: options.method || "GET",
+    method,
     headers: {
       Authorization: `Bearer ${stripeKey()}`,
       "Content-Type": "application/x-www-form-urlencoded",
@@ -235,6 +236,8 @@ async function stripeRequest(path, options = {}) {
     const error = new Error("Stripe request failed");
     error.status = response.status;
     error.code = result?.error?.code || result?.error?.type || "stripe_error";
+    error.operation = `${method} ${String(path).split("?", 1)[0]
+      .replace(/\/(?:cus|sub|cs)_[A-Za-z0-9_-]+/g, "/:id")}`;
     throw error;
   }
   return result;
@@ -340,7 +343,26 @@ async function accountSubscription(account) {
 }
 
 async function existingAccountSubscription(account) {
+  const savedSubscriptionId = String(account?.stripeSubscriptionId || "");
   const customerId = String(account?.stripeCustomerId || "");
+  if (savedSubscriptionId) {
+    if (!validSubscriptionId(savedSubscriptionId)) throw new Error("Invalid account subscription");
+    const subscription = await subscriptionById(savedSubscriptionId);
+    if (
+      subscription.metadata?.zap_account_id !== account.userId ||
+      subscription.metadata?.zap_account !== accountKey(account.userId)
+    ) {
+      throw new Error("Invalid account subscription link");
+    }
+    const subscriptionCustomerId = String(subscription.customer || "");
+    if (!validCustomerId(subscriptionCustomerId) || (customerId && customerId !== subscriptionCustomerId)) {
+      throw new Error("Invalid account subscription customer");
+    }
+    return {
+      customer: { id: subscriptionCustomerId },
+      subscription: BLOCKING_SUBSCRIPTION_STATES.has(subscription.status) ? subscription : null,
+    };
+  }
   if (!customerId) return { customer: null, subscription: null };
   if (!validCustomerId(customerId)) throw new Error("Invalid account customer");
   const customer = await customerById(customerId);

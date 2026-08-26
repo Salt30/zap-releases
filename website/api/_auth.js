@@ -15,6 +15,9 @@ async function authenticatedUser(request) {
     stripeSubscriptionStatus: account.stripeSubscriptionStatus,
     stripeSubscriptionPlan: account.stripeSubscriptionPlan,
     stripeEventCreated: account.stripeEventCreated,
+    stripeCheckoutUrl: account.stripeCheckoutUrl || null,
+    stripeCheckoutPlan: account.stripeCheckoutPlan || null,
+    stripeCheckoutExpiresAt: account.stripeCheckoutExpiresAt || null,
   };
 }
 

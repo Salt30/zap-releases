@@ -178,6 +178,8 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
   const originalStripeKey = process.env.STRIPE_SECRET_KEY;
   const originalCorePrice = process.env.STRIPE_CORE_PRICE_ID;
   const originalCoreEnabled = process.env.STRIPE_CORE_CHECKOUT_ENABLED;
+  const originalProPrice = process.env.STRIPE_PRO_PRICE_ID;
+  const originalProEnabled = process.env.STRIPE_PRO_CHECKOUT_ENABLED;
   const originalSigningKey = process.env.ENTITLEMENT_PRIVATE_KEY;
   const originalWebhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
   const originalSupportDataKey = process.env.SUPPORT_DATA_KEY;
@@ -410,6 +412,8 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     process.env.STRIPE_SECRET_KEY = `sk_live_${'s'.repeat(32)}`;
     process.env.STRIPE_CORE_PRICE_ID = `price_${'p'.repeat(24)}`;
     process.env.STRIPE_CORE_CHECKOUT_ENABLED = 'true';
+    process.env.STRIPE_PRO_PRICE_ID = `price_${'q'.repeat(24)}`;
+    process.env.STRIPE_PRO_CHECKOUT_ENABLED = 'true';
     process.env.ENTITLEMENT_PRIVATE_KEY = 'A'.repeat(64);
     auth.requireUser = async (_request, response) => {
       response.status(401).json({ error: 'Sign in to your Zap account to continue.' });
@@ -433,9 +437,35 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
       { customer: null, subscription: null },
     );
     assert.equal(unexpectedStripeRead, false);
+    const storedSubscriptionCalls = [];
+    global.fetch = async (url) => {
+      storedSubscriptionCalls.push(String(url));
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          id: 'sub_fixture',
+          customer: 'cus_fixture',
+          status: 'active',
+          metadata: {
+            zap_account_id: testAccount.userId,
+            zap_account: billing.accountKey(testAccount.userId),
+          },
+        }),
+      };
+    };
+    const storedSubscription = await billing.existingAccountSubscription({
+      ...testAccount,
+      stripeCustomerId: 'cus_fixture',
+      stripeSubscriptionId: 'sub_fixture',
+    });
+    assert.equal(storedSubscription.subscription.id, 'sub_fixture');
+    assert.deepEqual(storedSubscription.customer, { id: 'cus_fixture' });
+    assert.equal(storedSubscriptionCalls.length, 1);
+    assert.match(storedSubscriptionCalls[0], /\/v1\/subscriptions\/sub_fixture$/);
     global.fetch = originalFetch;
     auth.requireUser = async () => testAccount;
-    billing.accountSubscription = async () => ({
+    billing.existingAccountSubscription = async () => ({
       customer: { id: 'cus_fixture' },
       subscription: { id: 'sub_fixture', status: 'active' },
     });
@@ -447,11 +477,16 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     assert.match(duplicateResponse.body.message, /instead of charging again/);
 
     const checkoutCalls = [];
-    billing.accountSubscription = async () => ({ customer: { id: 'cus_fixture' }, subscription: null });
-    billing.openCheckoutForCustomer = async () => null;
+    const checkoutMetadataUpdates = [];
+    billing.existingAccountSubscription = async () => ({ customer: null, subscription: null });
+    auth.updateBillingMetadata = async (userId, update) => checkoutMetadataUpdates.push({ userId, update });
     billing.stripeRequest = async (path, options) => {
       checkoutCalls.push({ path, options });
-      return { url: 'https://checkout.stripe.com/c/pay_fixture' };
+      return {
+        id: 'cs_live_fixture',
+        url: 'https://checkout.stripe.com/c/pay_fixture',
+        expires_at: Math.floor(Date.now() / 1000) + 30 * 60,
+      };
     };
     const checkoutResponse = mockResponse();
     await createCheckout(supportRequest({ plan: 'core' }), checkoutResponse);
@@ -460,7 +495,8 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     assert.equal(checkoutCalls.length, 1);
     assert.equal(checkoutCalls[0].path, '/v1/checkout/sessions');
     const checkoutForm = Object.fromEntries(checkoutCalls[0].options.body);
-    assert.equal(checkoutForm.customer, 'cus_fixture');
+    assert.equal(checkoutForm.customer, undefined);
+    assert.equal(checkoutForm.customer_email, testAccount.email);
     assert.equal(checkoutForm.client_reference_id, testAccount.userId);
     assert.equal(checkoutForm['metadata[zap_account_id]'], testAccount.userId);
     assert.equal(checkoutForm['subscription_data[metadata][zap_account_id]'], testAccount.userId);
@@ -471,16 +507,28 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     assert.match(checkoutForm['custom_text[submit][message]'], /No free trial or money-back guarantee/);
     assert.match(checkoutCalls[0].options.headers['Idempotency-Key'], /^zap_checkout_[a-f0-9]{64}$/);
     assert.equal(Number(checkoutForm.expires_at) - Math.floor(Date.now() / 1000) <= 30 * 60, true);
+    assert.equal(checkoutMetadataUpdates.length, 1);
+    assert.equal(checkoutMetadataUpdates[0].userId, testAccount.userId);
+    assert.equal(checkoutMetadataUpdates[0].update.stripeCheckoutPlan, 'core');
+    assert.equal(checkoutMetadataUpdates[0].update.stripeCheckoutUrl, 'https://checkout.stripe.com/c/pay_fixture');
 
-    billing.openCheckoutForCustomer = async () => ({
-      url: 'https://checkout.stripe.com/c/pay_existing',
-      mode: 'subscription',
+    auth.requireUser = async () => ({
+      ...testAccount,
+      stripeCheckoutUrl: 'https://checkout.stripe.com/c/pay_existing',
+      stripeCheckoutPlan: 'core',
+      stripeCheckoutExpiresAt: Math.floor(Date.now() / 1000) + 900,
     });
     const resumedCheckoutResponse = mockResponse();
     await createCheckout(supportRequest({ plan: 'core' }), resumedCheckoutResponse);
     assert.equal(resumedCheckoutResponse.statusCode, 200);
     assert.equal(resumedCheckoutResponse.body.url, 'https://checkout.stripe.com/c/pay_existing');
     assert.match(resumedCheckoutResponse.body.message, /instead of creating another/);
+    assert.equal(checkoutCalls.length, 1);
+
+    const conflictingCheckoutResponse = mockResponse();
+    await createCheckout(supportRequest({ plan: 'pro' }), conflictingCheckoutResponse);
+    assert.equal(conflictingCheckoutResponse.statusCode, 409);
+    assert.match(conflictingCheckoutResponse.body.error, /Core checkout is already open/);
     assert.equal(checkoutCalls.length, 1);
 
     process.env.STRIPE_WEBHOOK_SECRET = `whsec_${'w'.repeat(32)}`;
@@ -519,6 +567,9 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     assert.equal(webhookUpdates.length, 1);
     assert.equal(webhookUpdates[0].userId, testAccount.userId);
     assert.equal(webhookUpdates[0].update.stripeSubscriptionStatus, 'active');
+    assert.equal(webhookUpdates[0].update.stripeCheckoutUrl, null);
+    assert.equal(webhookUpdates[0].update.stripeCheckoutPlan, null);
+    assert.equal(webhookUpdates[0].update.stripeCheckoutExpiresAt, null);
     const canceledTrials = [];
     billing.stripeRequest = async (path, options) => {
       canceledTrials.push({ path, options });
@@ -612,6 +663,8 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
       ['STRIPE_SECRET_KEY', originalStripeKey],
       ['STRIPE_CORE_PRICE_ID', originalCorePrice],
       ['STRIPE_CORE_CHECKOUT_ENABLED', originalCoreEnabled],
+      ['STRIPE_PRO_PRICE_ID', originalProPrice],
+      ['STRIPE_PRO_CHECKOUT_ENABLED', originalProEnabled],
       ['ENTITLEMENT_PRIVATE_KEY', originalSigningKey],
       ['STRIPE_WEBHOOK_SECRET', originalWebhookSecret],
       ['SUPPORT_DATA_KEY', originalSupportDataKey],

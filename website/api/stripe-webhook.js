@@ -110,6 +110,9 @@ async function mirrorSubscriptionEvent(event) {
     stripeSubscriptionPlan: plan,
     stripeEventCreated: event.created,
     stripeEventId: event.id,
+    stripeCheckoutUrl: null,
+    stripeCheckoutPlan: null,
+    stripeCheckoutExpiresAt: null,
   });
 }
 

@@ -304,7 +304,10 @@
       if (!/^https:\/\/(?:checkout|billing)\.stripe\.com\//.test(result.url || "")) throw new Error("The billing URL was rejected.");
       window.location.assign(result.url);
     } catch (error) {
-      $("dashboard-error").textContent = message(error);
+      $("dashboard-error").textContent = error.status === 503
+        ? "Secure checkout is temporarily unavailable. Your account is safe and you have not been charged. Please try again."
+        : message(error);
+      $("plan-actions").hidden = Boolean(accountStatus?.subscription);
       button.disabled = false;
       button.textContent = original;
     }

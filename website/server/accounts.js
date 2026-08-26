@@ -1,4 +1,4 @@
-const { get, list, put } = require("@vercel/blob");
+const { BlobPreconditionFailedError, get, head, list, put } = require("@vercel/blob");
 const {
   createCipheriv,
   createDecipheriv,
@@ -57,6 +57,18 @@ function normalizeEmail(value) {
 
 function validAccountId(value) {
   return /^acct_[A-Za-z0-9_-]{32}$/u.test(String(value || ""));
+}
+
+function validCheckoutUrl(value) {
+  if (value === null) return true;
+  if (typeof value !== "string" || value.length > 2048) return false;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.hostname === "checkout.stripe.com" &&
+      !url.username && !url.password;
+  } catch {
+    return false;
+  }
 }
 
 function accountIdForEmail(email) {
@@ -299,13 +311,19 @@ async function mutateAccount(accountId, mutator) {
   for (let attempt = 0; attempt < 3; attempt += 1) {
     const existing = await readAccountById(accountId);
     if (!existing) throw new Error("account_not_found");
+    const metadata = await head(pathname(accountId), { access: "private" });
+    const contentEtag = String(existing.etag || "").replace(/^W\//u, "");
+    const metadataEtag = String(metadata?.etag || "").replace(/^W\//u, "");
+    if (!contentEtag || !metadataEtag || contentEtag !== metadataEtag) continue;
     const updated = await mutator(structuredClone(existing.account));
     updated.updatedAt = new Date().toISOString();
     try {
-      await writeAccount(validateAccount(updated, accountId), { etag: existing.etag });
+      await writeAccount(validateAccount(updated, accountId), { etag: metadata.etag });
       return updated;
     } catch (error) {
-      if (error?.name !== "BlobPreconditionFailedError" || attempt === 2) throw error;
+      const preconditionFailed = error instanceof BlobPreconditionFailedError ||
+        /Precondition failed: ETag mismatch\.?/u.test(String(error?.message || ""));
+      if (!preconditionFailed || attempt === 2) throw error;
     }
   }
   throw new Error("account_update_conflict");
@@ -333,6 +351,9 @@ async function createAccount(emailValue, passwordValue) {
     stripeSubscriptionPlan: null,
     stripeEventCreated: 0,
     stripeEventId: null,
+    stripeCheckoutUrl: null,
+    stripeCheckoutPlan: null,
+    stripeCheckoutExpiresAt: null,
     createdAt,
     updatedAt: createdAt,
     lastLoginAt: createdAt,
@@ -503,6 +524,9 @@ async function updateBillingMetadata(accountId, values) {
     stripeSubscriptionPlan: (value) => value === null || ["core", "pro"].includes(value),
     stripeEventCreated: (value) => Number.isSafeInteger(value) && value >= 0,
     stripeEventId: (value) => value === null || /^evt_[A-Za-z0-9]+$/u.test(String(value)),
+    stripeCheckoutUrl: validCheckoutUrl,
+    stripeCheckoutPlan: (value) => value === null || ["core", "pro"].includes(value),
+    stripeCheckoutExpiresAt: (value) => value === null || (Number.isSafeInteger(value) && value >= 0),
   };
   if (!values || typeof values !== "object" || Array.isArray(values)) throw new Error("invalid_billing_metadata");
   for (const [key, value] of Object.entries(values)) {

@@ -416,8 +416,18 @@ async function adminStats(request, response) {
     console.error("Admin account metrics failed", { code: error.message || "account_metrics_failed" });
     return response.status(503).json({ error: "Account statistics are temporarily unavailable." });
   }
-  const accountList = accountSummary.accounts;
-  const accountStats = accountMetrics(accountSummary);
+  // Reserved example.com accounts with these prefixes are production smoke
+  // probes, never customers. Keep release verification from polluting business
+  // metrics or the recent-user list.
+  const accountList = accountSummary.accounts.filter((account) => (
+    !/^flow-(?:probe|guard)-\d+@example\.com$/u.test(String(account.email || ""))
+  ));
+  const excludedProbeAccounts = accountSummary.accounts.length - accountList.length;
+  const accountStats = accountMetrics({
+    ...accountSummary,
+    accounts: accountList,
+    total: Math.max(0, accountSummary.total - excludedProbeAccounts),
+  });
   let tickets = [];
   let support = { available: false, totalVisible: 0, open: 0, inProgress: 0, resolved: 0, new7d: 0 };
   try {

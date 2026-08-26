@@ -547,14 +547,17 @@ for (const marker of ['accountForRequest', 'storageConfigured', 'validAccountId'
 for (const marker of ['listAccountSummaries', 'listAccountBlobs', 'mapWithConcurrency']) {
   if (!websiteAccountStore.includes(marker)) fail(`Private account statistics requirement is missing: ${marker}`);
 }
+for (const marker of ['BlobPreconditionFailedError', 'head(pathname(accountId)', 'contentEtag', 'metadataEtag']) {
+  if (!websiteAccountStore.includes(marker)) fail(`Private account concurrency protection is missing: ${marker}`);
+}
 if (!read('website/api/account.js').includes('auth.requireAdmin(request, response)') ||
     !read('website/api/account.js').includes('stripeList("/v1/charges"')) {
   fail('Admin statistics must be allowlist-protected and use server-side Stripe reporting.');
 }
 for (const marker of [
-  'customer: customer.id', 'client_reference_id: account.userId',
-  'Idempotency-Key', 'accountSubscription(account)', 'createPortalSession(customer.id)',
-  'openCheckoutForCustomer(customer.id)', 'expires_at'
+  'form.set("customer_email", account.email)', 'client_reference_id: account.userId',
+  'Idempotency-Key', 'existingAccountSubscription(account)', 'createPortalSession(customer.id)',
+  'stripeCheckoutUrl', 'stripeCheckoutExpiresAt', 'updateBillingMetadata', 'expires_at'
 ]) {
   if (!checkoutSource.includes(marker)) fail(`Account-bound checkout protection is missing: ${marker}`);
 }
