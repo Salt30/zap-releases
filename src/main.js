@@ -1298,9 +1298,14 @@ function updateShortcuts(settings = {}) {
 }
 
 function createTray() {
-  const iconPath = path.join(__dirname, '..', 'assets', 'icon.png');
+  const isMac = process.platform === 'darwin';
+  const iconPath = path.join(__dirname, '..', 'assets', isMac ? 'trayTemplate.png' : 'icon.png');
   let icon = nativeImage.createFromPath(iconPath);
-  if (!icon.isEmpty()) icon = icon.resize({ width: 18, height: 18 });
+  if (isMac) {
+    icon.setTemplateImage(true);
+  } else if (!icon.isEmpty()) {
+    icon = icon.resize({ width: 18, height: 18 });
+  }
   tray = new Tray(icon);
   tray.setToolTip('Drip Type');
   createTrayMenuOnly();

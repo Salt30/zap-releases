@@ -40,33 +40,33 @@
   ],
   "redirects": [
     {
-      "source": "/Drip-Type-1.7.0-mac.dmg",
-      "destination": "https://github.com/Salt30/drip-type-releases/releases/download/v1.7.0/Drip-Type-1.7.0-mac.dmg",
+      "source": "/Drip-Type-1.7.1-mac.dmg",
+      "destination": "https://github.com/Salt30/drip-type-releases/releases/download/v1.7.1/Drip-Type-1.7.1-mac.dmg",
       "permanent": false
     },
     {
-      "source": "/Drip-Type-1.7.0-mac.dmg.blockmap",
-      "destination": "https://github.com/Salt30/drip-type-releases/releases/download/v1.7.0/Drip-Type-1.7.0-mac.dmg.blockmap",
+      "source": "/Drip-Type-1.7.1-mac.dmg.blockmap",
+      "destination": "https://github.com/Salt30/drip-type-releases/releases/download/v1.7.1/Drip-Type-1.7.1-mac.dmg.blockmap",
       "permanent": false
     },
     {
-      "source": "/Drip-Type-1.7.0-mac.zip",
-      "destination": "https://github.com/Salt30/drip-type-releases/releases/download/v1.7.0/Drip-Type-1.7.0-mac.zip",
+      "source": "/Drip-Type-1.7.1-mac.zip",
+      "destination": "https://github.com/Salt30/drip-type-releases/releases/download/v1.7.1/Drip-Type-1.7.1-mac.zip",
       "permanent": false
     },
     {
-      "source": "/Drip-Type-1.7.0-mac.zip.blockmap",
-      "destination": "https://github.com/Salt30/drip-type-releases/releases/download/v1.7.0/Drip-Type-1.7.0-mac.zip.blockmap",
+      "source": "/Drip-Type-1.7.1-mac.zip.blockmap",
+      "destination": "https://github.com/Salt30/drip-type-releases/releases/download/v1.7.1/Drip-Type-1.7.1-mac.zip.blockmap",
       "permanent": false
     },
     {
-      "source": "/Drip-Type-1.7.0-windows.exe",
-      "destination": "https://github.com/Salt30/drip-type-releases/releases/download/v1.7.0/Drip-Type-1.7.0-windows.exe",
+      "source": "/Drip-Type-1.7.1-windows.exe",
+      "destination": "https://github.com/Salt30/drip-type-releases/releases/download/v1.7.1/Drip-Type-1.7.1-windows.exe",
       "permanent": false
     },
     {
-      "source": "/Drip-Type-1.7.0-windows.exe.blockmap",
-      "destination": "https://github.com/Salt30/drip-type-releases/releases/download/v1.7.0/Drip-Type-1.7.0-windows.exe.blockmap",
+      "source": "/Drip-Type-1.7.1-windows.exe.blockmap",
+      "destination": "https://github.com/Salt30/drip-type-releases/releases/download/v1.7.1/Drip-Type-1.7.1-windows.exe.blockmap",
       "permanent": false
     }
   ]

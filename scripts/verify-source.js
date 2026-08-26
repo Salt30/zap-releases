@@ -70,6 +70,7 @@ const websitePackage = JSON.parse(read('website/package.json'));
 const websitePackageLock = JSON.parse(read('website/package-lock.json'));
 const appIconSource = read('assets/brand/zap/logo/zap-icon.svg');
 const websiteIconSource = read('website/brand/zap/zap-icon.svg');
+const trayTemplateSource = read('assets/trayTemplate.svg');
 
 if (!websitePackage.private || packageJson.dependencies?.['@clerk/backend'] ||
     websitePackage.dependencies?.['@clerk/backend']) {
@@ -110,6 +111,18 @@ if (!packageJson.private || packageJson.license !== 'UNLICENSED') {
 }
 if (appIconSource !== websiteIconSource || /stroke-opacity|fill="none"\s+stroke=/.test(appIconSource)) {
   fail('The Zap app icon must stay synchronized and free of an outer border.');
+}
+if (/<rect|filter|stroke=/u.test(trayTemplateSource) ||
+    !trayTemplateSource.includes('fill="#000"')) {
+  fail('The macOS menu bar template must be a borderless monochrome mark on transparency.');
+}
+for (const file of ['trayTemplate.png', 'trayTemplate@2x.png']) {
+  if (!fs.existsSync(path.join(root, 'assets', file))) {
+    fail(`The macOS menu bar template asset is missing: ${file}`);
+  }
+}
+for (const marker of ["isMac ? 'trayTemplate.png' : 'icon.png'", 'setTemplateImage(true)']) {
+  if (!mainSource.includes(marker)) fail(`Native macOS template tray behavior is missing: ${marker}`);
 }
 if (packageJson.version !== packageLock.version || packageJson.version !== packageLock.packages[''].version) {
   fail('package.json and package-lock.json versions do not match.');
