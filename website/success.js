@@ -7,7 +7,7 @@
   window.history.replaceState({}, "", "/success");
   const windows = /Windows/i.test(navigator.userAgentData?.platform || navigator.platform || navigator.userAgent || "");
   if (windows) {
-    download.href = "https://drip-type-updates.vercel.app/Drip-Type-1.7.2-windows.exe";
+    download.href = "https://drip-type-updates.vercel.app/Drip-Type-1.7.3-windows.exe";
     download.textContent = "Download for Windows";
   }
 

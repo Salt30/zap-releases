@@ -1,10 +1,10 @@
-version: 1.7.2
+version: 1.7.3
 files:
-  - url: Drip-Type-1.7.2-windows.exe
-    sha512: ufm8iuiDMHcICan+Y7E5isdh0aNTN9tueSE9RRvC01DanKr3AI9bvi7nyqyUPmisEiC3DEtUuqd6+BAH7eOjlA==
-    size: 91258469
-path: Drip-Type-1.7.2-windows.exe
-sha512: ufm8iuiDMHcICan+Y7E5isdh0aNTN9tueSE9RRvC01DanKr3AI9bvi7nyqyUPmisEiC3DEtUuqd6+BAH7eOjlA==
-releaseName: Drip Type by Zap 1.7.2
-releaseNotes: Drip Type 1.7.2 repairs navigation and repeated support submissions, improves keyboard and accessibility behavior, hardens error recovery, and adds response-header protection to native app pages.
-releaseDate: '2026-08-26T03:49:30.769Z'
+  - url: Drip-Type-1.7.3-windows.exe
+    sha512: mtfgiBbMRG+JDO6Xrsd25umxqyEKrZMFlZdbDvasOsHM/15RNIHFd7UsTxurCJA8FtG+Vhml9lp8uEmYgvlYxQ==
+    size: 91258305
+path: Drip-Type-1.7.3-windows.exe
+sha512: mtfgiBbMRG+JDO6Xrsd25umxqyEKrZMFlZdbDvasOsHM/15RNIHFd7UsTxurCJA8FtG+Vhml9lp8uEmYgvlYxQ==
+releaseName: Drip Type by Zap 1.7.3
+releaseNotes: Drip Type 1.7.3 removes free trials, requires a verified paid subscription for app access, retires cached trial-era entitlements, and hardens checkout and activation against unpaid access.
+releaseDate: '2026-08-26T05:25:57.349Z'

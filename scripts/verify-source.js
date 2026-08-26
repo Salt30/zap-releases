@@ -200,17 +200,32 @@ if (!websiteMarkup.includes(`"softwareVersion":"${advertisedVersion}"`) ||
   fail('Website release metadata and download links must match the application version.');
 }
 const releaseMirrorPrefix = `https://github.com/Salt30/drip-type-releases/releases/download/v${advertisedVersion}/`;
+const isVerifiedArtifactDestination = (destination, name) => {
+  if (destination === `${releaseMirrorPrefix}${name}`) return true;
+  let url;
+  try {
+    url = new URL(destination);
+  } catch {
+    return false;
+  }
+  const escapedVersion = advertisedVersion.replaceAll('.', '\\.');
+  const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return url.protocol === 'https:' &&
+    /^[a-z0-9]+\.public\.blob\.vercel-storage\.com$/.test(url.hostname) &&
+    new RegExp(`^/releases/v${escapedVersion}/[a-f0-9]{64}/${escapedName}$`).test(url.pathname) &&
+    !url.search && !url.hash;
+};
 for (const extension of ['dmg', 'dmg.blockmap', 'zip', 'zip.blockmap']) {
   const name = `Drip-Type-${advertisedVersion}-mac.${extension}`;
   const redirect = updateHostConfig.redirects?.find(({ source }) => source === `/${name}`);
-  if (redirect?.destination !== `${releaseMirrorPrefix}${name}` || redirect?.permanent !== false) {
+  if (!isVerifiedArtifactDestination(redirect?.destination, name) || redirect?.permanent !== false) {
     fail(`The public updater fallback is missing or incorrect for ${name}.`);
   }
 }
 for (const extension of ['exe', 'exe.blockmap']) {
   const name = `Drip-Type-${advertisedVersion}-windows.${extension}`;
   const redirect = updateHostConfig.redirects?.find(({ source }) => source === `/${name}`);
-  if (redirect?.destination !== `${releaseMirrorPrefix}${name}` || redirect?.permanent !== false) {
+  if (!isVerifiedArtifactDestination(redirect?.destination, name) || redirect?.permanent !== false) {
     fail(`The public updater fallback is missing or incorrect for ${name}.`);
   }
 }

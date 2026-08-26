@@ -1,13 +1,13 @@
-version: 1.7.2
+version: 1.7.3
 files:
-  - url: Drip-Type-1.7.2-mac.zip
-    sha512: ZzMmOS7JrTvFmqvxdcshLv5M4CY/y4GbiVJp/lIqhyn3RdzsE6EBPJM1sX95xNgP0pGck71L8Jn1jiGqkdgp0A==
-    size: 207933286
-  - url: Drip-Type-1.7.2-mac.dmg
-    sha512: OOuv52hl7eu4nf4HOe4DLQGWd8z2UzxJ6NwjeiRFKFqmcbJOZR7FVLW85hl1vuE2GwFNjpZITLPkQHTatgySKw==
-    size: 189723845
-path: Drip-Type-1.7.2-mac.zip
-sha512: ZzMmOS7JrTvFmqvxdcshLv5M4CY/y4GbiVJp/lIqhyn3RdzsE6EBPJM1sX95xNgP0pGck71L8Jn1jiGqkdgp0A==
-releaseName: Drip Type by Zap 1.7.2
-releaseNotes: Drip Type 1.7.2 repairs navigation and repeated support submissions, improves keyboard and accessibility behavior, hardens error recovery, and adds response-header protection to native app pages.
-releaseDate: '2026-08-26T03:50:04.754Z'
+  - url: Drip-Type-1.7.3-mac.zip
+    sha512: tKUYNgTyMB63auIjjGBAuc3NqV5qldWYFkLivzrIfBjWDD6jxOMGo9i1bLHcwDmlaUpt1MKfw7GKWGuEjSjkTA==
+    size: 207932419
+  - url: Drip-Type-1.7.3-mac.dmg
+    sha512: GTwlHgolqe7buVm+1fkGasqBV7S0aamsCKDtkJh7lSAQyAX5Dwt2zPm41gpiww9bqFa7flOU+hzLM7AHbASXmQ==
+    size: 189733135
+path: Drip-Type-1.7.3-mac.zip
+sha512: tKUYNgTyMB63auIjjGBAuc3NqV5qldWYFkLivzrIfBjWDD6jxOMGo9i1bLHcwDmlaUpt1MKfw7GKWGuEjSjkTA==
+releaseName: Drip Type by Zap 1.7.3
+releaseNotes: Drip Type 1.7.3 removes free trials, requires a verified paid subscription for app access, retires cached trial-era entitlements, and hardens checkout and activation against unpaid access.
+releaseDate: '2026-08-26T05:26:52.679Z'

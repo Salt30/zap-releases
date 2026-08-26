@@ -40,33 +40,33 @@
   ],
   "redirects": [
     {
-      "source": "/Drip-Type-1.7.2-mac.dmg",
-      "destination": "https://github.com/Salt30/drip-type-releases/releases/download/v1.7.2/Drip-Type-1.7.2-mac.dmg",
+      "source": "/Drip-Type-1.7.3-mac.dmg",
+      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.7.3/78bd5f4845895f7225e836363600fa468012e76902b4c418b1bd09f9b1554bba/Drip-Type-1.7.3-mac.dmg",
       "permanent": false
     },
     {
-      "source": "/Drip-Type-1.7.2-mac.dmg.blockmap",
-      "destination": "https://github.com/Salt30/drip-type-releases/releases/download/v1.7.2/Drip-Type-1.7.2-mac.dmg.blockmap",
+      "source": "/Drip-Type-1.7.3-mac.dmg.blockmap",
+      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.7.3/f1c91008cd66cea8c32fb348dfc99a4d59a121e2708804f20cf3a762772bbe3d/Drip-Type-1.7.3-mac.dmg.blockmap",
       "permanent": false
     },
     {
-      "source": "/Drip-Type-1.7.2-mac.zip",
-      "destination": "https://github.com/Salt30/drip-type-releases/releases/download/v1.7.2/Drip-Type-1.7.2-mac.zip",
+      "source": "/Drip-Type-1.7.3-mac.zip",
+      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.7.3/3fa2204a65bc495ceec039752f0d1e61292201d8c9440bf5cf9fd186c22a467d/Drip-Type-1.7.3-mac.zip",
       "permanent": false
     },
     {
-      "source": "/Drip-Type-1.7.2-mac.zip.blockmap",
-      "destination": "https://github.com/Salt30/drip-type-releases/releases/download/v1.7.2/Drip-Type-1.7.2-mac.zip.blockmap",
+      "source": "/Drip-Type-1.7.3-mac.zip.blockmap",
+      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.7.3/a1b8e8ba2e304884a17beee90853acd869319c0229d7b24302c51993215ef50a/Drip-Type-1.7.3-mac.zip.blockmap",
       "permanent": false
     },
     {
-      "source": "/Drip-Type-1.7.2-windows.exe",
-      "destination": "https://github.com/Salt30/drip-type-releases/releases/download/v1.7.2/Drip-Type-1.7.2-windows.exe",
+      "source": "/Drip-Type-1.7.3-windows.exe",
+      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.7.3/9bd5a2041771887eb728a1bb230f61242e92948f56a3150048134e459e61a9ef/Drip-Type-1.7.3-windows.exe",
       "permanent": false
     },
     {
-      "source": "/Drip-Type-1.7.2-windows.exe.blockmap",
-      "destination": "https://github.com/Salt30/drip-type-releases/releases/download/v1.7.2/Drip-Type-1.7.2-windows.exe.blockmap",
+      "source": "/Drip-Type-1.7.3-windows.exe.blockmap",
+      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.7.3/96b642d8408379eb91efa0d3ced81d5863c8ba91f19e3f927f15425e19eeb883/Drip-Type-1.7.3-windows.exe.blockmap",
       "permanent": false
     }
   ]
