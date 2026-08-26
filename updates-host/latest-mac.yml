@@ -1,0 +1,13 @@
+version: 1.7.1
+files:
+  - url: Drip-Type-1.7.1-mac.zip
+    sha512: 4Kun9O3fGvNVgbfhZ5XF7026xbAWjEKDBGrLjWk/SUTNNxXvdjEZh/hm37dBOmT+HZIMq3nUGmEjibliZNV/dQ==
+    size: 207931993
+  - url: Drip-Type-1.7.1-mac.dmg
+    sha512: kqV5oiibmL+w9gV1bsx5QC6oSOAs+GrbOfFEzu23MLV/BVfStK/ZcHnC5ecvtXbel8ACa99UmI9NhnfRI+5D+A==
+    size: 189731273
+path: Drip-Type-1.7.1-mac.zip
+sha512: 4Kun9O3fGvNVgbfhZ5XF7026xbAWjEKDBGrLjWk/SUTNNxXvdjEZh/hm37dBOmT+HZIMq3nUGmEjibliZNV/dQ==
+releaseName: Drip Type by Zap 1.7.1
+releaseNotes: Drip Type 1.7.1 replaces the boxed macOS menu bar artwork with a native transparent template icon. Core, Pro, billing, activation, Windows, and updater behavior remain unchanged.
+releaseDate: '2026-08-26T01:34:07.204Z'

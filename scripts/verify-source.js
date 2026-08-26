@@ -36,6 +36,8 @@ const entitlements = read('build/entitlements.mac.plist');
 const releaseWorkflow = read('.github/workflows/release.yml');
 const blobPublisher = read('scripts/publish-update-blobs.js');
 const updateHostConfig = JSON.parse(read('updates-host/vercel.json'));
+const updateHostMacMetadata = read('updates-host/latest-mac.yml');
+const updateHostWindowsMetadata = read('updates-host/latest.yml');
 const websiteBillingSource = read('website/api/_billing.js');
 const websiteBilling = require('../website/api/_billing');
 const checkoutSource = read('website/api/create-checkout.js');
@@ -200,6 +202,17 @@ for (const extension of ['exe', 'exe.blockmap']) {
   const redirect = updateHostConfig.redirects?.find(({ source }) => source === `/${name}`);
   if (redirect?.destination !== `${releaseMirrorPrefix}${name}` || redirect?.permanent !== false) {
     fail(`The public updater fallback is missing or incorrect for ${name}.`);
+  }
+}
+for (const [platform, metadata, artifact] of [
+  ['macOS', updateHostMacMetadata, `Drip-Type-${packageJson.version}-mac.zip`],
+  ['Windows', updateHostWindowsMetadata, `Drip-Type-${packageJson.version}-windows.exe`],
+]) {
+  if (!metadata.includes(`version: ${packageJson.version}`) ||
+      !metadata.includes(`url: ${artifact}`) ||
+      !metadata.includes(`releaseName: Drip Type by Zap ${packageJson.version}`) ||
+      !metadata.includes('sha512: ') || !metadata.includes('size: ')) {
+    fail(`The deployed ${platform} updater metadata does not match the current release.`);
   }
 }
 
