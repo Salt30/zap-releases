@@ -339,6 +339,28 @@ async function accountSubscription(account) {
   return { customer, subscription: blocking[0] || null };
 }
 
+async function existingAccountSubscription(account) {
+  const customerId = String(account?.stripeCustomerId || "");
+  if (!customerId) return { customer: null, subscription: null };
+  if (!validCustomerId(customerId)) throw new Error("Invalid account customer");
+  const customer = await customerById(customerId);
+  if (
+    customer.metadata?.zap_account_id !== account.userId ||
+    customer.metadata?.zap_account !== accountKey(account.userId)
+  ) {
+    throw new Error("Invalid account customer link");
+  }
+  const subscriptions = await subscriptionsForCustomer(customer.id);
+  const blocking = blockingSubscriptions(subscriptions)
+    .sort((left, right) => Number(right.created || 0) - Number(left.created || 0));
+  if (blocking.length > 1) {
+    const error = new Error("Multiple subscriptions need support review");
+    error.code = "duplicate_subscriptions";
+    throw error;
+  }
+  return { customer, subscription: blocking[0] || null };
+}
+
 async function createPortalSession(customerId, returnPath = "/account") {
   if (!validCustomerId(customerId)) throw new Error("Invalid customer");
   const safePath = /^\/[A-Za-z0-9/_?=&.-]*$/.test(returnPath) ? returnPath : "/account";
@@ -545,6 +567,7 @@ Object.assign(apiNotFound, {
   configuredSiteOrigin,
   createPortalSession,
   ensureAccountCustomer,
+  existingAccountSubscription,
   hasExactKeys,
   isJsonRequest,
   parseBody,

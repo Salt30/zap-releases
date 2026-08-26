@@ -171,6 +171,7 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
   const originalFetch = global.fetch;
   const originalAuthRequireUser = auth.requireUser;
   const originalAccountSubscription = billing.accountSubscription;
+  const originalExistingAccountSubscription = billing.existingAccountSubscription;
   const originalCreatePortalSession = billing.createPortalSession;
   const originalStripeRequest = billing.stripeRequest;
   const originalOpenCheckoutForCustomer = billing.openCheckoutForCustomer;
@@ -313,6 +314,17 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     process.env.STRIPE_CORE_CHECKOUT_ENABLED = 'true';
     process.env.ENTITLEMENT_PRIVATE_KEY = 'A'.repeat(64);
     const testAccount = { userId: `acct_${'f'.repeat(32)}`, email: 'taylor@example.com' };
+    let unexpectedStripeRead = false;
+    global.fetch = async () => {
+      unexpectedStripeRead = true;
+      throw new Error('A new account status check must not contact Stripe.');
+    };
+    assert.deepEqual(
+      await billing.existingAccountSubscription({ ...testAccount, stripeCustomerId: null }),
+      { customer: null, subscription: null },
+    );
+    assert.equal(unexpectedStripeRead, false);
+    global.fetch = originalFetch;
     auth.requireUser = async () => testAccount;
     billing.accountSubscription = async () => ({
       customer: { id: 'cus_fixture' },
@@ -450,6 +462,7 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     auth.requireUser = originalAuthRequireUser;
     auth.requireAdmin = originalRequireAdmin;
     billing.accountSubscription = originalAccountSubscription;
+    billing.existingAccountSubscription = originalExistingAccountSubscription;
     billing.createPortalSession = originalCreatePortalSession;
     billing.stripeRequest = originalStripeRequest;
     billing.openCheckoutForCustomer = originalOpenCheckoutForCustomer;

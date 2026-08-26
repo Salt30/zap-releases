@@ -481,6 +481,10 @@ for (const marker of [
 ]) {
   if (!checkoutSource.includes(marker)) fail(`Account-bound checkout protection is missing: ${marker}`);
 }
+if (!websiteBillingSource.includes('existingAccountSubscription') ||
+    !read('website/api/account.js').includes('billing.existingAccountSubscription(account)')) {
+  fail('Read-only account status must not create a Stripe customer.');
+}
 for (const marker of [
   "handleTrusted('pro:batch-render'", "handleTrusted('pro:transform'",
   "handleTrusted('profiles:save'", "handleTrusted('clipboard-workspace:capture'",

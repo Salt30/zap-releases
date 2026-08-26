@@ -131,7 +131,7 @@ async function accountStatus(request, response) {
   const account = await auth.requireUser(request, response);
   if (!account) return;
   try {
-    const { subscription } = await billing.accountSubscription(account);
+    const { subscription } = await billing.existingAccountSubscription(account);
     let plan = null;
     if (subscription && ["active", "trialing"].includes(subscription.status)) {
       plan = billing.planForSubscription(subscription);
@@ -172,7 +172,7 @@ async function createAccountPortal(request, response) {
   const account = await auth.requireUser(request, response);
   if (!account) return;
   try {
-    const { customer, subscription } = await billing.accountSubscription(account);
+    const { customer, subscription } = await billing.existingAccountSubscription(account);
     if (!subscription) {
       return response.status(404).json({ error: "No subscription was found for this account." });
     }
@@ -202,7 +202,7 @@ async function createAppActivation(request, response) {
   const account = await auth.requireUser(request, response);
   if (!account) return;
   try {
-    const { subscription } = await billing.accountSubscription(account);
+    const { subscription } = await billing.existingAccountSubscription(account);
     if (!subscription || !["active", "trialing"].includes(subscription.status)) {
       return response.status(402).json({ error: "This account does not have an active subscription." });
     }
