@@ -232,6 +232,9 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     assert.equal(accountStore.parseSessionToken(sessionToken, 2_000_000_001).sub, accountId);
     assert.equal(accountStore.parseSessionToken(`${sessionToken.slice(0, -1)}x`, 2_000_000_001), null);
     assert.equal(accountStore.passwordScore('A long Correct-Horse 2026!'), 4);
+    assert.equal(accountStore.PASSWORD_MIN_LENGTH, 6);
+    assert.doesNotThrow(() => accountStore.validatePassword('Zap123', accountEmail));
+    assert.throws(() => accountStore.validatePassword('short', accountEmail), /weak_password/);
     assert.throws(() => accountStore.validatePassword('password1234567', accountEmail), /weak_password/);
 
     await expectStatus(
@@ -313,6 +316,17 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     process.env.STRIPE_CORE_PRICE_ID = `price_${'p'.repeat(24)}`;
     process.env.STRIPE_CORE_CHECKOUT_ENABLED = 'true';
     process.env.ENTITLEMENT_PRIVATE_KEY = 'A'.repeat(64);
+    auth.requireUser = async (_request, response) => {
+      response.status(401).json({ error: 'Sign in to your Zap account to continue.' });
+      return null;
+    };
+    await expectStatus(
+      createCheckout,
+      supportRequest({ plan: 'core' }),
+      401,
+      /Sign in to your Zap account/,
+    );
+    auth.requireUser = originalAuthRequireUser;
     const testAccount = { userId: `acct_${'f'.repeat(32)}`, email: 'taylor@example.com' };
     let unexpectedStripeRead = false;
     global.fetch = async () => {

@@ -65,7 +65,7 @@ async function registerAccount(request, response) {
       return response.status(409).json({ error: "An account already exists for this email. Sign in instead." });
     }
     if (["invalid_email", "weak_password"].includes(error.message)) {
-      return response.status(400).json({ error: "Use a valid email and a strong password with at least 15 characters." });
+      return response.status(400).json({ error: "Use a valid email and a password with 6+ characters using a mix of letters, numbers, or symbols." });
     }
     console.error("Account registration failed", { code: error.message || "register_failed" });
     return response.status(503).json({ error: "Account creation is temporarily unavailable." });
@@ -114,7 +114,7 @@ async function recoverAccount(request, response) {
       return response.status(401).json({ error: "The account or recovery code could not be verified." });
     }
     if (error.message === "weak_password") {
-      return response.status(400).json({ error: "Use a stronger password with at least 15 characters." });
+      return response.status(400).json({ error: "Use a password with 6+ characters using a mix of letters, numbers, or symbols." });
     }
     console.error("Account recovery failed", { code: error.message || "recovery_failed" });
     return response.status(503).json({ error: "Account recovery is temporarily unavailable." });

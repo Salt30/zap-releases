@@ -53,12 +53,12 @@
             <input id="email" name="email" type="email" autocomplete="email" maxlength="254" required placeholder="you@example.com">
           </label>
           <label>Password
-            <span class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" minlength="15" maxlength="128" required placeholder="15+ characters"><button id="toggle-password" type="button" aria-label="Show password">Show</button></span>
+            <span class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" minlength="6" maxlength="128" required placeholder="6+ characters"><button id="toggle-password" type="button" aria-label="Show password">Show</button></span>
           </label>
           <div class="strength" id="strength" hidden>
             <div><span>Password strength</span><output id="strength-label">Too short</output></div>
             <meter id="strength-meter" min="0" max="4" value="0">0 out of 4</meter>
-            <p>Use at least 15 characters. A unique passphrase is safer and easier to remember.</p>
+            <p>Use 6+ characters with a mix of letters, numbers, or symbols. Longer unique passwords are safer.</p>
           </div>
           <p class="form-error" id="auth-error" role="alert"></p>
           <button class="primary" id="auth-submit" type="submit">Sign in</button>
@@ -75,12 +75,12 @@
           </label>
           <p class="form-hint">Use the one-time recovery code shown when the account was created or last recovered.</p>
           <label>New password
-            <span class="password-wrap"><input id="reset-password" type="password" autocomplete="new-password" minlength="15" maxlength="128" required placeholder="15+ characters"><button id="toggle-reset-password" type="button" aria-label="Show new password">Show</button></span>
+            <span class="password-wrap"><input id="reset-password" type="password" autocomplete="new-password" minlength="6" maxlength="128" required placeholder="6+ characters"><button id="toggle-reset-password" type="button" aria-label="Show new password">Show</button></span>
           </label>
           <div class="strength" id="reset-strength">
             <div><span>Password strength</span><output id="reset-strength-label">Too short</output></div>
             <meter id="reset-strength-meter" min="0" max="4" value="0">0 out of 4</meter>
-            <p>Use at least 15 characters. A unique passphrase is safer and easier to remember.</p>
+            <p>Use 6+ characters with a mix of letters, numbers, or symbols. Longer unique passwords are safer.</p>
           </div>
           <p class="form-error" id="reset-error" role="alert"></p>
           <button class="primary" id="reset-submit" type="submit">Reset password</button>

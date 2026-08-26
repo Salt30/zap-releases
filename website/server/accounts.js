@@ -15,7 +15,7 @@ const PREFIX = "zap-accounts/";
 const COOKIE_NAME = "__Host-zap_session";
 const ACCOUNT_VERSION = 1;
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
-const PASSWORD_MIN_LENGTH = 15;
+const PASSWORD_MIN_LENGTH = 6;
 const PASSWORD_MAX_LENGTH = 128;
 const MAX_RECORD_BYTES = 24_000;
 const MAX_LOGIN_FAILURES = 5;
@@ -74,13 +74,15 @@ function pathname(accountId) {
 function passwordScore(value) {
   const password = String(value || "");
   if (password.length < PASSWORD_MIN_LENGTH) return 0;
-  let score = 1;
-  if (password.length >= 16) score += 1;
-  if (/[a-z]/u.test(password) && /[A-Z]/u.test(password) && /\d/u.test(password)) score += 1;
-  if (password.length >= 20 || /[^A-Za-z0-9]/u.test(password)) score += 1;
   if (/^(password|qwerty|123456|letmein|abcdef|driptype|tryzap)/iu.test(password) || /(.)\1{4}/u.test(password)) {
-    score = Math.min(score, 1);
+    return 0;
   }
+  let score = 1;
+  const characterGroups = [/[a-z]/u, /[A-Z]/u, /\d/u, /[^A-Za-z0-9]/u]
+    .filter((pattern) => pattern.test(password)).length;
+  if (password.length >= 8) score += 1;
+  if (characterGroups >= 2) score += 1;
+  if (password.length >= 12 || characterGroups >= 3) score += 1;
   return Math.min(4, score);
 }
 

@@ -46,6 +46,7 @@ const refreshSource = read('website/api/refresh-entitlement.js');
 const portalSource = read('website/api/create-portal.js');
 const checkoutStatusSource = read('website/api/checkout-status.js');
 const websiteMarkup = read('website/index.html');
+const websiteCheckout = read('website/checkout.js');
 const websiteHomeDemo = read('website/home-demo.js');
 const websiteSuccess = read('website/success.html');
 const websiteDownloads = read('website/downloads.js');
@@ -393,7 +394,7 @@ for (const marker of [
 }
 for (const marker of [
   'id="reset-code"', 'id="reset-password"', '/api/recover-account',
-  'reset-strength-meter', 'minlength="15"', 'recoveryCode'
+  'reset-strength-meter', 'minlength="6"', 'recoveryCode'
 ]) {
   if (!websiteAccount.includes(marker) && !websiteAccountClient.includes(marker)) {
     fail(`Account password recovery requirement is missing: ${marker}`);
@@ -459,7 +460,7 @@ for (const [name, source, markers] of [
   }
 }
 for (const marker of [
-  'id="auth-form"', 'type="email"', 'type="password"', 'minlength="15"',
+  'id="auth-form"', 'type="email"', 'type="password"', 'minlength="6"',
   'id="strength-meter"', 'id="connect-app"', '/privacy', '/terms'
 ]) {
   if (!websiteAccount.includes(marker)) fail(`Website account requirement is missing: ${marker}`);
@@ -470,6 +471,9 @@ for (const marker of [
   'credentials: "same-origin"'
 ]) {
   if (!websiteAccountClient.includes(marker)) fail(`Website account flow is missing: ${marker}`);
+}
+if (!websiteCheckout.includes('/account?mode=signup&plan=') || websiteCheckout.includes('/api/create-checkout')) {
+  fail('Public pricing must require account creation before the protected checkout API is used.');
 }
 for (const marker of ['accountForRequest', 'storageConfigured', 'validAccountId']) {
   if (!websiteAccountAuth.includes(marker)) fail(`Website account authentication boundary is missing: ${marker}`);

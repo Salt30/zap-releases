@@ -35,12 +35,14 @@
   }
 
   function passwordScore(value) {
-    if (value.length < 15) return 0;
+    if (value.length < 6) return 0;
+    if (/^(password|qwerty|123456|letmein|abcdef|driptype|tryzap)/i.test(value) || /(.)\1{4}/.test(value)) return 0;
     let score = 1;
-    if (value.length >= 16) score += 1;
-    if (/[a-z]/.test(value) && /[A-Z]/.test(value) && /\d/.test(value)) score += 1;
-    if (value.length >= 20 || /[^A-Za-z0-9]/.test(value)) score += 1;
-    if (/^(password|qwerty|123456|letmein|abcdef|driptype|tryzap)/i.test(value) || /(.)\1{4}/.test(value)) score = Math.min(score, 1);
+    const characterGroups = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/]
+      .filter((pattern) => pattern.test(value)).length;
+    if (value.length >= 8) score += 1;
+    if (characterGroups >= 2) score += 1;
+    if (value.length >= 12 || characterGroups >= 3) score += 1;
     return Math.min(4, score);
   }
 
@@ -117,8 +119,8 @@
     const email = $("email").value.trim().toLowerCase();
     const password = $("password").value;
     $("auth-error").textContent = "";
-    if (!email || password.length < 15 || (mode === "signup" && passwordScore(password) < 2)) {
-      $("auth-error").textContent = "Enter a valid email and a stronger password with at least 15 characters.";
+    if (!email || password.length < 6 || (mode === "signup" && passwordScore(password) < 2)) {
+      $("auth-error").textContent = "Enter a valid email and a password with 6+ characters using a mix of letters, numbers, or symbols.";
       return;
     }
     const button = $("auth-submit");
@@ -183,7 +185,7 @@
     const password = $("reset-password").value;
     $("reset-error").textContent = "";
     if (!email || !/^ZAP-[A-Za-z0-9_-]{32}$/.test(recoveryCode) || passwordScore(password) < 2) {
-      $("reset-error").textContent = "Enter the account email, complete recovery code, and a strong 15+ character password.";
+      $("reset-error").textContent = "Enter the account email, complete recovery code, and a 6+ character password using a mix of letters, numbers, or symbols.";
       return;
     }
     const button = $("reset-submit");
@@ -277,7 +279,7 @@
   async function boot() {
     try {
       const config = await api("/api/account-config");
-      if (!config.configured || config.passwordMinLength !== 15) throw new Error("Accounts are not configured.");
+      if (!config.configured || config.passwordMinLength !== 6) throw new Error("Accounts are not configured.");
       await renderDashboard();
     } catch (error) {
       show("account-unavailable");

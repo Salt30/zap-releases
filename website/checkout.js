@@ -38,7 +38,7 @@
     button.addEventListener("click", () => {
       if (button.disabled) return;
       setError(button);
-      window.location.assign(`/account?plan=${encodeURIComponent(button.dataset.checkoutPlan)}`);
+      window.location.assign(`/account?mode=signup&plan=${encodeURIComponent(button.dataset.checkoutPlan)}`);
     });
   });
 
