@@ -16,6 +16,16 @@ const templateDialog = document.getElementById('template-dialog');
 const variableFields = document.getElementById('variable-fields');
 let templates = [];
 let pendingTemplate = null;
+let quickFullScreen = false;
+
+function renderFullScreenState(value) {
+  quickFullScreen = Boolean(value);
+  document.documentElement.dataset.fullScreen = String(quickFullScreen);
+  const button = document.getElementById('toggle-full-screen');
+  button.textContent = quickFullScreen ? '↙' : '⛶';
+  button.title = quickFullScreen ? 'Exit full screen (⌃⌘F)' : 'Enter full screen (⌃⌘F)';
+  button.setAttribute('aria-label', quickFullScreen ? 'Exit full screen' : 'Enter full screen');
+}
 
 function applyTheme(preference = 'system') {
   const resolved = preference === 'system'
@@ -181,6 +191,14 @@ templateDialog.addEventListener('cancel', (event) => {
   event.preventDefault();
   closeTemplateDialog();
 });
+document.getElementById('toggle-full-screen').addEventListener('click', async () => {
+  try {
+    const result = await window.dripType.toggleQuickFullScreen();
+    renderFullScreenState(result?.fullScreen);
+  } catch {
+    state.textContent = 'Full screen could not be changed.';
+  }
+});
 variableFields.addEventListener('keydown', (event) => {
   if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) insertPendingTemplate();
 });
@@ -193,7 +211,8 @@ clear.addEventListener('click', () => {
 document.addEventListener('keydown', (event) => {
   if (event.key === 'Escape') {
     event.preventDefault();
-    window.dripType.closeQuick();
+    if (quickFullScreen) window.dripType.toggleQuickFullScreen();
+    else window.dripType.closeQuick();
   }
   if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
     event.preventDefault();
@@ -212,6 +231,7 @@ window.dripType.onQuickOpened((data) => {
   setTimeout(() => text.focus(), 30);
 });
 window.dripType.onTheme(({ theme }) => applyTheme(theme));
+window.dripType.onQuickFullScreen(renderFullScreenState);
 window.dripType.onState((data) => {
   if (data.status === 'error') state.textContent = data.message;
 });

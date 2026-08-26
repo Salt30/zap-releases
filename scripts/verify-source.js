@@ -128,6 +128,18 @@ for (const file of ['trayTemplate.png', 'trayTemplate@2x.png']) {
 for (const marker of ["isMac ? 'trayTemplate.png' : 'icon.png'", 'setTemplateImage(true)']) {
   if (!mainSource.includes(marker)) fail(`Native macOS template tray behavior is missing: ${marker}`);
 }
+for (const marker of [
+  "tray.on('click', showMainWindow)", "handleTrusted('quick:toggle-full-screen', ['quick.html']",
+  'fullscreenable: true', 'resizable: true', "{ role: 'togglefullscreen' }"
+]) {
+  if (!mainSource.includes(marker)) fail(`Composer window behavior is missing: ${marker}`);
+}
+for (const marker of ['toggleQuickFullScreen', 'onQuickFullScreen']) {
+  if (!preloadSource.includes(marker)) fail(`Composer full-screen bridge is missing: ${marker}`);
+}
+if (!quickMarkup.includes('id="toggle-full-screen"') || !quickSource.includes('renderFullScreenState')) {
+  fail('Composer full-screen controls are missing.');
+}
 if (packageJson.version !== packageLock.version || packageJson.version !== packageLock.packages[''].version) {
   fail('package.json and package-lock.json versions do not match.');
 }

@@ -14,6 +14,8 @@
     html,body { width:100%; height:100%; margin:0; overflow:hidden; background:transparent; }
     body { padding:12px; font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--text); -webkit-font-smoothing:antialiased; }
     .shell {
+      display:flex;
+      flex-direction:column;
       height:100%;
       overflow:hidden;
       border:1px solid var(--border);
@@ -25,6 +27,8 @@
       -webkit-app-region:drag;
     }
     :root[data-theme="light"] .shell { background:rgba(251,250,246,.82); box-shadow:0 28px 90px rgba(47,43,31,.22),0 1px 0 rgba(255,255,255,.65) inset; }
+    :root[data-full-screen="true"] body { padding:0; }
+    :root[data-full-screen="true"] .shell { border:0; border-radius:0; }
     :root[data-theme="light"] .top, :root[data-theme="light"] .footer { border-color:rgba(28,31,37,.08); }
     .top { display:flex; align-items:center; height:48px; padding:0 16px; border-bottom:1px solid rgba(255,255,255,.08); }
     .mark { width:25px; height:25px; margin-right:9px; border-radius:7px; }
@@ -32,13 +36,15 @@
     .target { min-width:0; margin-left:10px; padding:4px 8px; border:1px solid var(--border); border-radius:999px; color:var(--subtle); font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     .target strong { color:var(--muted); font-weight:600; }
     .top-hint { margin-left:auto; color:var(--subtle); font-size:11px; }
+    .window-action { display:grid; place-items:center; width:30px; height:30px; margin-left:10px; padding:0; border:1px solid var(--border); border-radius:8px; background:rgba(255,255,255,.04); color:var(--muted); font-size:15px; line-height:1; -webkit-app-region:no-drag; }
+    .window-action:hover { background:rgba(255,255,255,.09); color:var(--text); }
     kbd { display:inline-flex; height:20px; padding:0 6px; align-items:center; border:1px solid rgba(255,255,255,.13); border-radius:5px; background:rgba(255,255,255,.05); color:var(--muted); font:10px -apple-system,sans-serif; }
     .tools { display:flex; align-items:center; gap:7px; height:44px; padding:0 12px; border-bottom:1px solid rgba(255,255,255,.08); -webkit-app-region:no-drag; }
     .tools select { min-width:210px; max-width:280px; height:29px; padding:0 28px 0 10px; border:1px solid var(--border); border-radius:7px; outline:0; background:rgba(255,255,255,.05); color:var(--muted); font:600 11px -apple-system,sans-serif; }
     .tool-button { height:29px; padding:0 10px; border-color:var(--border); background:rgba(255,255,255,.04); color:var(--muted); font-size:11px; }
     .tool-button:hover { background:rgba(255,255,255,.09); color:var(--text); }
     .tools-note { margin-left:auto; color:var(--subtle); font-size:10px; }
-    textarea { display:block; width:100%; height:244px; padding:18px 20px; resize:none; border:0; outline:0; background:transparent; color:var(--text); caret-color:var(--accent); font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif; user-select:text; -webkit-app-region:no-drag; }
+    textarea { display:block; flex:1 1 auto; width:100%; min-height:180px; padding:18px 20px; resize:none; border:0; outline:0; background:transparent; color:var(--text); caret-color:var(--accent); font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif; user-select:text; -webkit-app-region:no-drag; }
     textarea::placeholder { color:#6c6f77; }
     .footer { display:flex; align-items:center; height:70px; padding:0 12px 0 18px; border-top:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.018); -webkit-app-region:no-drag; }
     .details { min-width:0; display:grid; gap:4px; }
@@ -71,6 +77,7 @@
       <span class="title">Drip Composer <span style="color:var(--subtle);font-weight:500">by Zap</span></span>
       <span class="target">Returns to <strong id="target">previous app</strong></span>
       <span class="top-hint"><kbd>⌘V</kbd> paste · <kbd>⌘↵</kbd> drip · <kbd>esc</kbd> close</span>
+      <button class="window-action" id="toggle-full-screen" type="button" title="Enter full screen (⌃⌘F)" aria-label="Enter full screen">⛶</button>
     </div>
     <div class="tools">
       <select id="template-picker" aria-label="Insert a template"><option value="">Insert a template…</option></select>

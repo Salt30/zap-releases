@@ -1,6 +1,6 @@
 {
   "name": "drip-type",
-  "version": "1.7.3",
+  "version": "1.7.4",
   "description": "Private, configurable typing for macOS and Windows — Drip Type by Zap.",
   "main": "src/main.js",
   "author": "VegaNext LLC",
@@ -72,8 +72,8 @@
       }
     ],
     "releaseInfo": {
-      "releaseName": "Drip Type by Zap 1.7.3",
-      "releaseNotes": "Drip Type 1.7.3 removes free trials, requires a verified paid subscription for app access, retires cached trial-era entitlements, and hardens checkout and activation against unpaid access."
+      "releaseName": "Drip Type by Zap 1.7.4",
+      "releaseNotes": "Drip Type 1.7.4 makes the menu-bar icon open the main app, adds a responsive full-screen Composer with an in-window control, and preserves Option+5 as the fast Composer shortcut."
     },
     "protocols": [
       {

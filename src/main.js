@@ -1139,13 +1139,15 @@ function createQuickWindow() {
     ...windowOptions(),
     width: 720,
     height: 430,
+    minWidth: 560,
+    minHeight: 360,
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
-    resizable: false,
+    resizable: true,
     movable: true,
-    maximizable: false,
-    fullscreenable: false,
+    maximizable: true,
+    fullscreenable: true,
     alwaysOnTop: true,
     skipTaskbar: true,
     hasShadow: true,
@@ -1159,6 +1161,14 @@ function createQuickWindow() {
   quickWindow.loadURL(appPageUrl('quick.html'));
   quickWindow.setAlwaysOnTop(true, 'floating');
   if (process.platform === 'darwin') quickWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+  quickWindow.on('enter-full-screen', () => {
+    sendToWindow(quickWindow, 'quick:full-screen-changed', true);
+  });
+  quickWindow.on('leave-full-screen', () => {
+    quickWindow.setAlwaysOnTop(true, 'floating');
+    if (process.platform === 'darwin') quickWindow.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+    sendToWindow(quickWindow, 'quick:full-screen-changed', false);
+  });
   quickWindow.on('closed', () => { quickWindow = null; });
   return quickWindow;
 }
@@ -1287,7 +1297,7 @@ function createTray() {
   tray = new Tray(icon);
   tray.setToolTip('Drip Type');
   createTrayMenuOnly();
-  tray.on('click', showQuickComposer);
+  tray.on('click', showMainWindow);
 }
 
 function createApplicationMenu() {
@@ -1319,7 +1329,7 @@ function createApplicationMenu() {
     },
     {
       label: 'Window',
-      submenu: [{ role: 'minimize' }, { role: 'close' }]
+      submenu: [{ role: 'minimize' }, { role: 'close' }, { type: 'separator' }, { role: 'togglefullscreen' }]
     }
   ];
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
@@ -1388,6 +1398,13 @@ onTrusted('drip-type:cancel', ['index.html', 'quick.html'], cancelDripType);
 onTrusted('quick:show', ['index.html'], showQuickComposer);
 onTrusted('quick:close', ['quick.html'], () => quickWindow?.hide());
 onTrusted('main:show', ['quick.html'], showMainWindow);
+handleTrusted('quick:toggle-full-screen', ['quick.html'], () => {
+  if (!quickWindow || quickWindow.isDestroyed()) return { fullScreen: false };
+  const next = !quickWindow.isFullScreen();
+  if (next) quickWindow.setAlwaysOnTop(false);
+  quickWindow.setFullScreen(next);
+  return { fullScreen: next };
+});
 onTrusted('onboarding:replay', ['index.html'], () => {
   mainWindow?.hide();
   createOnboardingWindow();
