@@ -195,8 +195,8 @@ for (let index = 0; index < 3; index += 1) {
 const currentDownload = `Drip-Type-${advertisedVersion}-mac.dmg`;
 const currentWindowsDownload = `Drip-Type-${advertisedVersion}-windows.exe`;
 if (!websiteMarkup.includes(`"softwareVersion":"${advertisedVersion}"`) ||
-    !websiteMarkup.includes(currentDownload) || !websiteMarkup.includes(currentWindowsDownload) ||
-    !websiteSuccess.includes(currentDownload) || !websiteDownloads.includes(currentWindowsDownload)) {
+    !websiteAccount.includes(currentDownload) || !websiteAccountClient.includes(currentWindowsDownload) ||
+    !websiteDownloads.includes(currentDownload) || !websiteDownloads.includes(currentWindowsDownload)) {
   fail('Website release metadata and download links must match the application version.');
 }
 const releaseMirrorPrefix = `https://github.com/Salt30/drip-type-releases/releases/download/v${advertisedVersion}/`;
@@ -329,7 +329,7 @@ for (const marker of [`Pro is live in version ${advertisedVersion.replace(/\.0$/
 }
 for (const marker of [
   'Typing speed', 'Start delay', 'Corrected typos', 'Thinking pauses', 'Speed bursts',
-  'One shortcut. Every app.', 'What ships today', 'Download for Windows', 'Verified releases'
+  'One shortcut. Every app.', 'What ships today', 'Choose a plan', 'Verified releases'
 ]) {
   if (!websiteMarkup.includes(marker)) fail(`Website verified-product showcase is missing: ${marker}`);
 }
@@ -426,7 +426,7 @@ for (const forbidden of ['data-preset=', 'class="preset"', "querySelectorAll('.p
 if (!websiteMarkup.includes('name="google-site-verification"')) {
   fail('Google Search Console ownership verification must remain in the production homepage.');
 }
-for (const marker of ['/legal', 'renew monthly until canceled', 'By completing checkout', '/privacy', '/terms', '/refunds']) {
+for (const marker of ['/legal', 'Monthly subscription.', 'By continuing', '/privacy', '/terms', '/refunds']) {
   if (!websiteMarkup.includes(marker)) fail(`Website legal disclosure is missing: ${marker}`);
 }
 for (const marker of ['/support', 'Support']) {
@@ -517,7 +517,8 @@ for (const [name, source, markers] of [
 }
 for (const marker of [
   'id="auth-form"', 'type="email"', 'type="password"', 'minlength="6"',
-  'id="strength-meter"', 'id="connect-app"', '/privacy', '/terms'
+  'id="strength-meter"', 'id="connect-app"', 'id="purchase-card"',
+  'Three simple steps.', 'continue to checkout', '/privacy', '/terms'
 ]) {
   if (!websiteAccount.includes(marker)) fail(`Website account requirement is missing: ${marker}`);
 }
@@ -535,6 +536,10 @@ if (websiteAccountClient.includes('passwordMinLength !==') ||
 }
 if (!websiteCheckout.includes('/account?mode=signup&plan=') || websiteCheckout.includes('/api/create-checkout')) {
   fail('Public pricing must require account creation before the protected checkout API is used.');
+}
+if (!checkoutSource.includes('&checkout=cancelled') ||
+    !websiteAccountClient.includes('Checkout was canceled. You were not charged.')) {
+  fail('Canceled checkout must return to a clear, non-charging account state.');
 }
 for (const marker of ['accountForRequest', 'storageConfigured', 'validAccountId']) {
   if (!websiteAccountAuth.includes(marker)) fail(`Website account authentication boundary is missing: ${marker}`);

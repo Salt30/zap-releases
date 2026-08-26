@@ -465,6 +465,7 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     assert.equal(checkoutForm['metadata[zap_account_id]'], testAccount.userId);
     assert.equal(checkoutForm['subscription_data[metadata][zap_account_id]'], testAccount.userId);
     assert.equal(checkoutForm['line_items[0][price]'], process.env.STRIPE_CORE_PRICE_ID);
+    assert.match(checkoutForm.cancel_url, /\/account\?plan=core&checkout=cancelled$/);
     assert.equal(checkoutForm.allow_promotion_codes, undefined);
     assert.equal(Object.keys(checkoutForm).some((key) => /trial/i.test(key)), false);
     assert.match(checkoutForm['custom_text[submit][message]'], /No free trial or money-back guarantee/);

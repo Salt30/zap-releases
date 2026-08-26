@@ -4,8 +4,23 @@
   const requestedPlan = ["core", "pro"].includes(params.get("plan")) ? params.get("plan") : "";
   const requestedDevice = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(params.get("connect_device") || "")
     ? params.get("connect_device") : "";
-  let mode = params.get("mode") === "signup" ? "signup" : "signin";
+  const purchaseComplete = params.get("purchase") === "complete";
+  const checkoutCancelled = params.get("checkout") === "cancelled";
+  let mode = params.get("mode") === "signin"
+    ? "signin"
+    : (requestedPlan || params.get("mode") === "signup") ? "signup" : "signin";
   let accountStatus = null;
+
+  const plans = Object.freeze({
+    core: { name: "Core", price: "$9.99/month" },
+    pro: { name: "Pro", price: "$25/month" },
+  });
+
+  function setFlowStep(step) {
+    document.querySelectorAll(".flow-steps li").forEach((item, index) => {
+      item.classList.toggle("active", index + 1 === step);
+    });
+  }
 
   function show(id) {
     ["account-loading", "auth-card", "dashboard", "account-unavailable"].forEach((candidate) => {
@@ -26,14 +41,17 @@
     $("sign-up-tab").setAttribute("aria-selected", String(signup));
     $("sign-in-tab").tabIndex = signup ? -1 : 0;
     $("sign-up-tab").tabIndex = signup ? 0 : -1;
-    $("auth-title").textContent = signup ? "Create your account." : "Welcome back.";
+    $("auth-title").textContent = signup ? "Create your account." : "Sign in.";
     $("auth-copy").textContent = signup
-      ? "Create one private Zap account, then website purchases connect directly to Drip Type."
-      : "Sign in before checkout so your purchase appears in Drip Type.";
-    $("auth-submit").textContent = signup ? "Create account" : "Sign in";
+      ? "Your account connects your purchase to Drip Type."
+      : "Use the account connected to your Drip Type purchase.";
+    $("auth-submit").textContent = signup
+      ? requestedPlan ? "Create account and continue" : "Create account"
+      : requestedPlan ? "Sign in and continue" : "Sign in";
     $("password").autocomplete = signup ? "new-password" : "current-password";
     $("strength").hidden = !signup;
     $("auth-error").textContent = "";
+    setFlowStep(1);
   }
 
   function passwordScore(value) {
@@ -75,8 +93,11 @@
 
   function displayRecovery(code) {
     $("recovery-code-output").textContent = code;
-    $("copy-recovery").textContent = "Copy recovery code";
+    $("copy-recovery").textContent = "Copy backup code";
+    $("dismiss-recovery").textContent = requestedPlan ? "I've saved it — continue to checkout" : "I've saved it";
     $("recovery-card").hidden = false;
+    $("plan-actions").hidden = true;
+    setFlowStep(requestedPlan ? 2 : 1);
   }
 
   async function renderDashboard() {
@@ -101,12 +122,34 @@
         $("subscription-title").textContent = "No paid subscription yet";
         $("subscription-copy").textContent = "Choose Core or Pro. Your account prevents accidental duplicate subscriptions.";
       }
-      $("plan-actions").hidden = Boolean(subscription);
+      $("purchase-card").hidden = !active || Boolean(requestedDevice);
+      $("plan-actions").hidden = Boolean(subscription) || !$("recovery-card").hidden;
       $("manage-actions").hidden = !subscription;
       $("connect-card").hidden = !(requestedDevice && active);
-      if (requestedPlan && !subscription) {
-        $("plan-message").textContent = `Continue with ${requestedPlan === "pro" ? "Pro" : "Core"}. There is no free trial or money-back guarantee. Stripe shows the exact recurring price before you confirm.`;
+      if (active) {
+        $("purchase-title").textContent = purchaseComplete ? "Payment complete." : "Download Drip Type.";
+        $("purchase-copy").textContent = "Install Drip Type, open Billing in the app, and choose Connect Zap account.";
       }
+      if (requestedPlan && !subscription) {
+        const selected = plans[requestedPlan];
+        $("plan-title").textContent = `${selected.name} · ${selected.price}`;
+        $("plan-message").textContent = checkoutCancelled
+          ? "Checkout was canceled. You were not charged. Continue whenever you're ready."
+          : "Next, Stripe will show the final recurring price before you pay.";
+        document.querySelectorAll("[data-account-plan]").forEach((button) => {
+          button.hidden = button.dataset.accountPlan !== requestedPlan;
+          if (!button.hidden) button.textContent = `Continue to secure checkout`;
+        });
+        $("change-plan").hidden = false;
+      } else {
+        document.querySelectorAll("[data-account-plan]").forEach((button) => {
+          button.hidden = false;
+          button.textContent = button.dataset.accountPlan === "pro"
+            ? "Choose Pro · $25/month" : "Choose Core · $9.99/month";
+        });
+        $("change-plan").hidden = true;
+      }
+      setFlowStep(active ? 3 : 2);
     } catch (error) {
       if (error.status === 401) {
         setMode(mode);
@@ -136,7 +179,12 @@
       });
       $("password").value = "";
       await renderDashboard();
-      if (result.recoveryCode) displayRecovery(result.recoveryCode);
+      if (result.recoveryCode) {
+        displayRecovery(result.recoveryCode);
+      } else if (requestedPlan && !accountStatus?.subscription && !checkoutCancelled) {
+        const checkoutButton = document.querySelector(`[data-account-plan="${requestedPlan}"]`);
+        await openCheckout(requestedPlan, checkoutButton);
+      }
     } catch (error) {
       $("auth-error").textContent = message(error);
     } finally {
@@ -238,6 +286,12 @@
   $("dismiss-recovery").addEventListener("click", () => {
     $("recovery-code-output").textContent = "";
     $("recovery-card").hidden = true;
+    if (requestedPlan) {
+      const button = document.querySelector(`[data-account-plan="${requestedPlan}"]`);
+      openCheckout(requestedPlan, button);
+      return;
+    }
+    $("plan-actions").hidden = Boolean(accountStatus?.subscription);
   });
 
   async function openCheckout(plan, button) {
@@ -291,6 +345,16 @@
 
   async function boot() {
     try {
+      if (requestedPlan) {
+        $("auth-plan-name").textContent = plans[requestedPlan].name;
+        $("auth-plan-price").textContent = plans[requestedPlan].price;
+        $("auth-plan").hidden = false;
+      }
+      const windows = /Windows/i.test(navigator.userAgentData?.platform || navigator.platform || navigator.userAgent || "");
+      if (windows) {
+        $("download-app").href = "https://drip-type-updates.vercel.app/Drip-Type-1.7.3-windows.exe";
+        $("download-app").textContent = "Download for Windows";
+      }
       const config = await api("/api/account-config");
       if (!config.configured) throw new Error("Accounts are not configured.");
       await renderDashboard();
@@ -301,5 +365,6 @@
   }
   updateStrength("password", "strength-meter", "strength-label");
   updateStrength("reset-password", "reset-strength-meter", "reset-strength-label");
+  setMode(mode);
   boot();
 })();

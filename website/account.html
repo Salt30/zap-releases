@@ -3,12 +3,12 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Your Zap account | Drip Type</title>
-  <meta name="description" content="Sign in to purchase, activate, and manage Drip Type without duplicate subscriptions.">
+  <title>Get Drip Type | Zap account</title>
+  <meta name="description" content="Create your Zap account, pay securely with Stripe, and download Drip Type.">
   <meta name="robots" content="noindex,follow">
   <link rel="icon" href="/brand/zap/zap-icon.svg" type="image/svg+xml">
-  <link rel="stylesheet" href="/account.css?v=20260826-1">
-  <link rel="stylesheet" href="/account-additions.css?v=20260826-1">
+  <link rel="stylesheet" href="/account.css?v=20260826-3">
+  <link rel="stylesheet" href="/account-additions.css?v=20260826-3">
 </head>
 <body>
   <header class="site-header">
@@ -21,12 +21,17 @@
 
   <main>
     <section class="intro">
-      <span class="eyebrow">One account. One subscription.</span>
-      <h1>Your access follows you.</h1>
-      <p>Buy on the website, connect Drip Type, and manage billing from the same private Zap account. If you already subscribe, we open billing management instead of starting another charge.</p>
+      <span class="eyebrow">Get Drip Type</span>
+      <h1>Three simple steps.</h1>
+      <p>Create your account, pay securely on Stripe, then download Drip Type. Your purchase and app access stay connected automatically.</p>
+      <ol class="flow-steps" aria-label="Purchase steps">
+        <li class="active"><b>1</b><span><strong>Account</strong><small>Create or sign in</small></span></li>
+        <li><b>2</b><span><strong>Checkout</strong><small>Pay securely with Stripe</small></span></li>
+        <li><b>3</b><span><strong>Download</strong><small>Install and connect</small></span></li>
+      </ol>
       <div class="trust-row" aria-label="Account protections">
-        <span><i></i> First-party account</span>
-        <span><i></i> Stripe-hosted payment</span>
+        <span><i></i> One account</span>
+        <span><i></i> No duplicate charges</span>
         <span><i></i> Up to 3 devices</span>
       </div>
     </section>
@@ -39,10 +44,11 @@
 
       <div class="auth-card" id="auth-card" hidden>
         <div class="auth-heading">
-          <span class="card-kicker">Zap account</span>
-          <h2 id="auth-title">Welcome back.</h2>
-          <p id="auth-copy">Sign in before checkout so your purchase appears in Drip Type.</p>
+          <span class="card-kicker">Step 1 of 3</span>
+          <h2 id="auth-title">Create your account.</h2>
+          <p id="auth-copy">Your account connects your purchase to Drip Type.</p>
         </div>
+        <div class="selected-plan" id="auth-plan" hidden><span id="auth-plan-name">Core</span><strong id="auth-plan-price">$9.99/month</strong></div>
         <div class="tabs" role="tablist" aria-label="Account action">
           <button type="button" class="active" id="sign-in-tab" role="tab" aria-selected="true" aria-controls="auth-form" tabindex="0">Sign in</button>
           <button type="button" id="sign-up-tab" role="tab" aria-selected="false" aria-controls="auth-form" tabindex="-1">Create account</button>
@@ -63,7 +69,7 @@
           <p class="form-error" id="auth-error" role="alert"></p>
           <button class="primary" id="auth-submit" type="submit">Sign in</button>
           <button class="text-button forgot-button" id="forgot-password" type="button">Forgot password?</button>
-          <p class="notice">By continuing, you agree to the <a href="/terms">Terms</a> and acknowledge the <a href="/privacy">Privacy Policy</a>. Zap stores only a salted password hash inside encrypted private account storage. Your password is never sent to Stripe.</p>
+          <p class="notice">By continuing, you agree to the <a href="/terms">Terms</a> and acknowledge the <a href="/privacy">Privacy Policy</a>. Payment is handled securely by Stripe.</p>
         </form>
 
         <form id="reset-form" hidden novalidate>
@@ -94,10 +100,15 @@
           <button class="text-button" id="sign-out" type="button">Sign out</button>
         </div>
         <div class="recovery-card" id="recovery-card" hidden>
-          <div><span class="card-kicker">Save this once</span><h3>Account recovery code</h3><p>Store this code in your password manager. It is not emailed or shown again.</p></div>
+          <div><span class="card-kicker">One quick security step</span><h3>Save your backup code</h3><p>Keep this code in your password manager. You will need it only if you forget your password.</p></div>
           <code id="recovery-code-output"></code>
-          <button class="secondary" id="copy-recovery" type="button">Copy recovery code</button>
-          <button class="text-button" id="dismiss-recovery" type="button">I saved it</button>
+          <button class="secondary" id="copy-recovery" type="button">Copy backup code</button>
+          <button class="primary" id="dismiss-recovery" type="button">I've saved it — continue to checkout</button>
+        </div>
+        <div class="purchase-card" id="purchase-card" hidden>
+          <span class="success-mark" aria-hidden="true">✓</span>
+          <div><span class="card-kicker">Step 3 of 3</span><h3 id="purchase-title">You're ready.</h3><p id="purchase-copy">Download Drip Type, install it, then connect this account from the app.</p></div>
+          <a class="primary link-button" id="download-app" href="https://drip-type-updates.vercel.app/Drip-Type-1.7.3-mac.dmg">Download for Mac</a>
         </div>
         <div class="subscription-card">
           <span class="status-dot" id="subscription-dot"></span>
@@ -105,16 +116,19 @@
         </div>
         <div class="connect-card" id="connect-card" hidden>
           <span class="connect-icon" aria-hidden="true">↗</span>
-          <div><h3>Connect this Drip Type app</h3><p>The connection link expires after five minutes and only works for the device that requested it.</p></div>
-          <button class="primary" id="connect-app" type="button">Connect app</button>
+          <div><h3>Connect Drip Type</h3><p>Finish signing in on the app that sent you here.</p></div>
+          <button class="primary" id="connect-app" type="button">Connect this app</button>
         </div>
         <div class="plan-actions" id="plan-actions" hidden>
-          <p id="plan-message">Choose a plan. There is no free trial or money-back guarantee. Stripe shows the exact recurring price before you confirm.</p>
-          <div><button class="primary" type="button" data-account-plan="core">Start Core — $9.99/mo</button><button class="secondary" type="button" data-account-plan="pro">Start Pro — $25/mo</button></div>
+          <span class="card-kicker">Step 2 of 3</span>
+          <h3 id="plan-title">Choose your plan</h3>
+          <p id="plan-message">Stripe shows the exact recurring price before you pay.</p>
+          <div><button class="primary" type="button" data-account-plan="core">Choose Core · $9.99/month</button><button class="secondary" type="button" data-account-plan="pro">Choose Pro · $25/month</button></div>
+          <a class="text-button change-plan" id="change-plan" href="/#pricing" hidden>Change plan</a>
         </div>
         <div class="manage-actions" id="manage-actions" hidden>
           <button class="primary" id="manage-billing" type="button">Manage billing</button>
-          <p>Cancel future renewals, change plans, update payment details, and view invoices in Stripe's Customer Portal. Cancellation does not refund the current paid period.</p>
+          <p>Change plans, update payment details, view invoices, or cancel future renewals.</p>
         </div>
         <p class="form-error" id="dashboard-error" role="alert"></p>
       </div>
@@ -127,6 +141,6 @@
     </section>
   </main>
   <footer><span>© 2026 Zap</span><span><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/refunds">Cancellation policy</a></span></footer>
-  <script src="/account.js?v=20260826-2" defer></script>
+  <script src="/account.js?v=20260826-3" defer></script>
 </body>
 </html>

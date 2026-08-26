@@ -114,7 +114,7 @@ module.exports = async function createCheckout(request, response) {
     const form = new URLSearchParams({
       mode: "subscription",
       success_url: `${origin}/account?purchase=complete`,
-      cancel_url: `${origin}/account?plan=${encodeURIComponent(planId)}`,
+      cancel_url: `${origin}/account?plan=${encodeURIComponent(planId)}&checkout=cancelled`,
       customer: customer.id,
       client_reference_id: account.userId,
       "line_items[0][price]": priceId,

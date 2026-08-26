@@ -21,7 +21,7 @@
       const config = await response.json();
       buttons.forEach((button) => {
         const plan = button.dataset.checkoutPlan;
-        const label = button.dataset.checkoutPlan === "core" ? "Start Core" : "Start Pro";
+        const label = button.dataset.checkoutPlan === "core" ? "Choose Core" : "Choose Pro";
         const enabled = Boolean(config.plans?.[plan]);
         button.textContent = enabled ? label : "Launching soon";
         button.disabled = !enabled;
