@@ -1,13 +1,13 @@
-version: 1.7.3
+version: 1.7.4
 files:
-  - url: Drip-Type-1.7.3-mac.zip
-    sha512: tKUYNgTyMB63auIjjGBAuc3NqV5qldWYFkLivzrIfBjWDD6jxOMGo9i1bLHcwDmlaUpt1MKfw7GKWGuEjSjkTA==
-    size: 207932419
-  - url: Drip-Type-1.7.3-mac.dmg
-    sha512: GTwlHgolqe7buVm+1fkGasqBV7S0aamsCKDtkJh7lSAQyAX5Dwt2zPm41gpiww9bqFa7flOU+hzLM7AHbASXmQ==
-    size: 189733135
-path: Drip-Type-1.7.3-mac.zip
-sha512: tKUYNgTyMB63auIjjGBAuc3NqV5qldWYFkLivzrIfBjWDD6jxOMGo9i1bLHcwDmlaUpt1MKfw7GKWGuEjSjkTA==
-releaseName: Drip Type by Zap 1.7.3
-releaseNotes: Drip Type 1.7.3 removes free trials, requires a verified paid subscription for app access, retires cached trial-era entitlements, and hardens checkout and activation against unpaid access.
-releaseDate: '2026-08-26T05:26:52.679Z'
+  - url: Drip-Type-1.7.4-mac.zip
+    sha512: +L3dgMUWQ1Wqe1C/1nNB+KP8WMx4+wr+4qpbKdD1Ff9kn96y/ZgEMisYb6yQY1nwMHBPSoW5HJubCiMc4O4Fxw==
+    size: 207933704
+  - url: Drip-Type-1.7.4-mac.dmg
+    sha512: LIU3weYzKWn0lUh+bI4+0fZGBYEhGwjVMf8F2slEJCd+H3YTYBYXLB6EV2M9jI1zoPUETBWg5SUz5G2576J5bg==
+    size: 189726117
+path: Drip-Type-1.7.4-mac.zip
+sha512: +L3dgMUWQ1Wqe1C/1nNB+KP8WMx4+wr+4qpbKdD1Ff9kn96y/ZgEMisYb6yQY1nwMHBPSoW5HJubCiMc4O4Fxw==
+releaseName: Drip Type by Zap 1.7.4
+releaseNotes: Drip Type 1.7.4 makes the menu-bar icon open the main app, adds a responsive full-screen Composer with an in-window control, and preserves Option+5 as the fast Composer shortcut.
+releaseDate: '2026-08-26T09:51:11.739Z'

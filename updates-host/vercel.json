@@ -40,33 +40,33 @@
   ],
   "redirects": [
     {
-      "source": "/Drip-Type-1.7.3-mac.dmg",
-      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.7.3/78bd5f4845895f7225e836363600fa468012e76902b4c418b1bd09f9b1554bba/Drip-Type-1.7.3-mac.dmg",
+      "source": "/Drip-Type-1.7.4-mac.dmg",
+      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.7.4/667b92e946d1b2d63f276017f745707d1fb1db79686478dbcbd07edb42b73db9/Drip-Type-1.7.4-mac.dmg",
       "permanent": false
     },
     {
-      "source": "/Drip-Type-1.7.3-mac.dmg.blockmap",
-      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.7.3/f1c91008cd66cea8c32fb348dfc99a4d59a121e2708804f20cf3a762772bbe3d/Drip-Type-1.7.3-mac.dmg.blockmap",
+      "source": "/Drip-Type-1.7.4-mac.dmg.blockmap",
+      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.7.4/d1909b28fda10d5599302312d96f032d9fff64c106c3403ef494bd3901d0b124/Drip-Type-1.7.4-mac.dmg.blockmap",
       "permanent": false
     },
     {
-      "source": "/Drip-Type-1.7.3-mac.zip",
-      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.7.3/3fa2204a65bc495ceec039752f0d1e61292201d8c9440bf5cf9fd186c22a467d/Drip-Type-1.7.3-mac.zip",
+      "source": "/Drip-Type-1.7.4-mac.zip",
+      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.7.4/ed1d51a9bfa4ed04dccc0383fc18360a6aeaa46fea166d488a8cd55d2a51af1a/Drip-Type-1.7.4-mac.zip",
       "permanent": false
     },
     {
-      "source": "/Drip-Type-1.7.3-mac.zip.blockmap",
-      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.7.3/a1b8e8ba2e304884a17beee90853acd869319c0229d7b24302c51993215ef50a/Drip-Type-1.7.3-mac.zip.blockmap",
+      "source": "/Drip-Type-1.7.4-mac.zip.blockmap",
+      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.7.4/5b80c168a6b40f2337e915446b320380c3231818212320acf40af994ddc7b4ac/Drip-Type-1.7.4-mac.zip.blockmap",
       "permanent": false
     },
     {
-      "source": "/Drip-Type-1.7.3-windows.exe",
-      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.7.3/9bd5a2041771887eb728a1bb230f61242e92948f56a3150048134e459e61a9ef/Drip-Type-1.7.3-windows.exe",
+      "source": "/Drip-Type-1.7.4-windows.exe",
+      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.7.4/9e6ba71d933080332b19253919886881c90410d2588004f6164bc171acc00cbc/Drip-Type-1.7.4-windows.exe",
       "permanent": false
     },
     {
-      "source": "/Drip-Type-1.7.3-windows.exe.blockmap",
-      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.7.3/96b642d8408379eb91efa0d3ced81d5863c8ba91f19e3f927f15425e19eeb883/Drip-Type-1.7.3-windows.exe.blockmap",
+      "source": "/Drip-Type-1.7.4-windows.exe.blockmap",
+      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.7.4/26bf0c1df5e2e51fe397e1b896ec5572756d0e90eab1ad1d5741dbe3df3d20fc/Drip-Type-1.7.4-windows.exe.blockmap",
       "permanent": false
     }
   ]
