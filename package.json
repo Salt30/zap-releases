@@ -1,6 +1,6 @@
 {
   "name": "drip-type",
-  "version": "1.7.2",
+  "version": "1.7.3",
   "description": "Private, configurable typing for macOS and Windows — Drip Type by Zap.",
   "main": "src/main.js",
   "author": "VegaNext LLC",
@@ -72,8 +72,8 @@
       }
     ],
     "releaseInfo": {
-      "releaseName": "Drip Type by Zap 1.7.2",
-      "releaseNotes": "Drip Type 1.7.2 repairs navigation and repeated support submissions, improves keyboard and accessibility behavior, hardens error recovery, and adds response-header protection to native app pages."
+      "releaseName": "Drip Type by Zap 1.7.3",
+      "releaseNotes": "Drip Type 1.7.3 removes free trials, requires a verified paid subscription for app access, retires cached trial-era entitlements, and hardens checkout and activation against unpaid access."
     },
     "protocols": [
       {

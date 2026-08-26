@@ -119,7 +119,7 @@ module.exports = async function createCheckout(request, response) {
       client_reference_id: account.userId,
       "line_items[0][price]": priceId,
       "line_items[0][quantity]": "1",
-      allow_promotion_codes: "true",
+      "custom_text[submit][message]": "No free trial or money-back guarantee. Subscription renews monthly until canceled. Cancellation stops future renewals and does not refund the current paid period. Mandatory legal rights still apply.",
       billing_address_collection: "auto",
       "customer_update[address]": "auto",
       "customer_update[name]": "auto",

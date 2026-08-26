@@ -65,7 +65,7 @@
     if (status === "in_progress") return "In progress";
     if (status === "resolved") return "Resolved";
     if (status === "past_due") return "Past due";
-    if (status === "trialing") return "Trial";
+    if (status === "trialing") return "Unsupported trial";
     if (status === "active") return "Active";
     if (status === "canceled") return "Canceled";
     return status === "free" || !status ? "Free" : String(status).replace(/_/gu, " ");
@@ -114,7 +114,7 @@
       ? `conic-gradient(var(--accent) 0 ${corePercent}%, var(--blue) ${corePercent}% 100%)`
       : "conic-gradient(#ffffff12 0 100%)";
     $("plan-note").textContent = billing.available
-      ? "Plan totals include active and trialing subscriptions."
+      ? "Plan totals include active paid subscriptions only."
       : "Plan totals use the latest saved account entitlement state until Stripe reporting is available.";
   }
 

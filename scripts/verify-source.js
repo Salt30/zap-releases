@@ -184,23 +184,31 @@ if (!packageJson.build?.releaseInfo?.releaseName?.includes(packageJson.version) 
 if (!indexMarkup.includes(`Version ${packageJson.version}`)) {
   fail('Native application fallback version must match the package version.');
 }
-const currentDownload = `Drip-Type-${packageJson.version}-mac.dmg`;
-const currentWindowsDownload = `Drip-Type-${packageJson.version}-windows.exe`;
-if (!websiteMarkup.includes(`"softwareVersion":"${packageJson.version}"`) ||
+const advertisedVersion = websiteMarkup.match(/"softwareVersion":"(\d+\.\d+\.\d+)"/)?.[1];
+if (!advertisedVersion) fail('Website release metadata is missing a semantic version.');
+const packageParts = packageJson.version.split('.').map(Number);
+const advertisedParts = advertisedVersion.split('.').map(Number);
+for (let index = 0; index < 3; index += 1) {
+  if (advertisedParts[index] > packageParts[index]) fail('Website must not advertise an unreleased application version.');
+  if (advertisedParts[index] < packageParts[index]) break;
+}
+const currentDownload = `Drip-Type-${advertisedVersion}-mac.dmg`;
+const currentWindowsDownload = `Drip-Type-${advertisedVersion}-windows.exe`;
+if (!websiteMarkup.includes(`"softwareVersion":"${advertisedVersion}"`) ||
     !websiteMarkup.includes(currentDownload) || !websiteMarkup.includes(currentWindowsDownload) ||
     !websiteSuccess.includes(currentDownload) || !websiteDownloads.includes(currentWindowsDownload)) {
   fail('Website release metadata and download links must match the application version.');
 }
-const releaseMirrorPrefix = `https://github.com/Salt30/drip-type-releases/releases/download/v${packageJson.version}/`;
+const releaseMirrorPrefix = `https://github.com/Salt30/drip-type-releases/releases/download/v${advertisedVersion}/`;
 for (const extension of ['dmg', 'dmg.blockmap', 'zip', 'zip.blockmap']) {
-  const name = `Drip-Type-${packageJson.version}-mac.${extension}`;
+  const name = `Drip-Type-${advertisedVersion}-mac.${extension}`;
   const redirect = updateHostConfig.redirects?.find(({ source }) => source === `/${name}`);
   if (redirect?.destination !== `${releaseMirrorPrefix}${name}` || redirect?.permanent !== false) {
     fail(`The public updater fallback is missing or incorrect for ${name}.`);
   }
 }
 for (const extension of ['exe', 'exe.blockmap']) {
-  const name = `Drip-Type-${packageJson.version}-windows.${extension}`;
+  const name = `Drip-Type-${advertisedVersion}-windows.${extension}`;
   const redirect = updateHostConfig.redirects?.find(({ source }) => source === `/${name}`);
   if (redirect?.destination !== `${releaseMirrorPrefix}${name}` || redirect?.permanent !== false) {
     fail(`The public updater fallback is missing or incorrect for ${name}.`);
@@ -301,7 +309,7 @@ if (!claimSource.includes('has been retired') || !checkoutStatusSource.includes(
 if (checkoutSource.includes('{CHECKOUT_SESSION_ID}') || !checkoutSource.includes('/account?purchase=complete')) {
   fail('Checkout success must return to the signed-in account without exposing a session identifier.');
 }
-for (const marker of [`Pro is live in version ${packageJson.version.replace(/\.0$/, '')}`, 'data-checkout-plan="pro"', '>$25<', '/brand/zap/zap-icon-192.png']) {
+for (const marker of [`Pro is live in version ${advertisedVersion.replace(/\.0$/, '')}`, 'data-checkout-plan="pro"', '>$25<', '/brand/zap/zap-icon-192.png']) {
   if (!websiteMarkup.includes(marker)) fail(`Website Pro launch requirement is missing: ${marker}`);
 }
 for (const marker of [
@@ -485,8 +493,8 @@ if (!websiteSitemap.includes('https://tryzap.net/support')) {
 for (const [name, source, markers] of [
   ['legal center', websiteLegal, ['VegaNext LLC', 'Private support form', 'Subscription summary', '/privacy', '/terms', '/refunds']],
   ['privacy policy', websitePrivacy, ['Effective August 25, 2026', 'Version 2.7', 'Information we collect and why', 'support form', 'encrypted private account', 'salted scrypt', 'We do not sell personal information', 'Your privacy rights', 'Windows Data Protection API', 'AES-256-GCM', '90 days', 'VegaNext LLC']],
-  ['terms', websiteTerms, ['Effective August 22, 2026', 'Paid subscriptions and renewal', 'up to three devices', 'Governing law and disputes', 'These Terms do not require arbitration']],
-  ['refund policy', websiteRefunds, ['Effective August 22, 2026', 'Cancel online at any time', '14 calendar days', 'Renewal charges and partial periods', 'private support form']]
+  ['terms', websiteTerms, ['Effective August 25, 2026', 'No free trial', 'Paid subscriptions and renewal', 'up to three devices', 'Governing law and disputes', 'These Terms do not require arbitration']],
+  ['cancellation policy', websiteRefunds, ['Effective August 25, 2026', 'Cancel online at any time', 'No trial, money-back guarantee, or voluntary refunds', 'Mandatory legal rights', 'private support form']]
 ]) {
   for (const marker of markers) {
     if (!source.includes(marker)) fail(`Website ${name} requirement is missing: ${marker}`);
@@ -725,24 +733,13 @@ assert.equal(proTools.transformWriting('I just wanted to maybe share this.', 'di
 assert.equal(proTools.transformWriting('One. Two?', 'outline'), '• One.\n• Two?');
 assert.deepEqual(proTools.searchClipboard([{ text: 'Launch note' }, { text: 'Invoice' }], 'launch'), [{ text: 'Launch note' }]);
 
-const trialStart = Date.now() - 2 * 24 * 60 * 60 * 1000;
-const trialState = subscription.accessState({
+const unpaidState = subscription.accessState({
   token: '',
   deviceId: '3b9d5ef5-b71a-4cc0-a3aa-5ad5da015a2b',
-  trialStartedAt: trialStart,
   now: Date.now()
 });
-assert.equal(trialState.allowed, true);
-assert.equal(trialState.status, 'trial');
-assert.equal(trialState.daysRemaining, 12);
-const expiredTrialState = subscription.accessState({
-  token: '',
-  deviceId: '3b9d5ef5-b71a-4cc0-a3aa-5ad5da015a2b',
-  trialStartedAt: trialStart - subscription.TRIAL_LENGTH_MS,
-  now: Date.now()
-});
-assert.equal(expiredTrialState.allowed, false);
-assert.equal(expiredTrialState.status, 'required');
+assert.equal(unpaidState.allowed, false);
+assert.equal(unpaidState.status, 'required');
 assert.equal(subscription.shouldRevokeEntitlement(401), true);
 assert.equal(subscription.shouldRevokeEntitlement(402), true);
 assert.equal(subscription.shouldRevokeEntitlement(403), true);

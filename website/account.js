@@ -86,7 +86,7 @@
       accountStatus = await api("/api/account-status");
       $("account-email").textContent = accountStatus.email || "Zap account";
       const subscription = accountStatus.subscription;
-      const active = subscription && ["active", "trialing"].includes(subscription.status);
+      const active = subscription?.status === "active";
       $("subscription-dot").classList.toggle("active", Boolean(active));
       if (active) {
         const name = subscription.plan === "pro" ? "Pro" : "Core";
@@ -105,7 +105,7 @@
       $("manage-actions").hidden = !subscription;
       $("connect-card").hidden = !(requestedDevice && active);
       if (requestedPlan && !subscription) {
-        $("plan-message").textContent = `Continue with ${requestedPlan === "pro" ? "Pro" : "Core"}. Stripe shows the exact renewal price before you confirm.`;
+        $("plan-message").textContent = `Continue with ${requestedPlan === "pro" ? "Pro" : "Core"}. There is no free trial or money-back guarantee. Stripe shows the exact recurring price before you confirm.`;
       }
     } catch (error) {
       if (error.status === 401) {

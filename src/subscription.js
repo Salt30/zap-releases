@@ -5,7 +5,6 @@ const { createHash, createPublicKey, verify } = require('node:crypto');
 const ENTITLEMENT_PUBLIC_KEY = 'MCowBQYDK2VwAyEAmvSBJU6YWUoxNHTzpdDgutQdvceW9PBHNupa/JaManE=';
 const ENTITLEMENT_ISSUER = 'https://tryzap.net';
 const ENTITLEMENT_AUDIENCE = 'com.salt30.driptype';
-const TRIAL_LENGTH_MS = 14 * 24 * 60 * 60 * 1000;
 const KNOWN_FEATURES = new Set([
   'composer', 'typing', 'hotkeys', 'templates', 'updates', 'profiles', 'clipboard',
   'template_library', 'batch', 'writing_lab'
@@ -66,7 +65,7 @@ function verifyEntitlement(token, deviceId, now = Date.now(), encodedPublicKey =
   return Object.freeze({ ...payload, features: Object.freeze([...new Set(payload.features)]) });
 }
 
-function accessState({ token, deviceId, trialStartedAt, now = Date.now() }) {
+function accessState({ token, deviceId, now = Date.now() }) {
   try {
     const entitlement = verifyEntitlement(token, deviceId, now);
     return {
@@ -78,20 +77,6 @@ function accessState({ token, deviceId, trialStartedAt, now = Date.now() }) {
       message: `${entitlement.plan === 'pro' ? 'Pro' : 'Core'} subscription active.`
     };
   } catch (_) {
-    const start = Number(trialStartedAt);
-    const trialEndsAt = Number.isFinite(start) ? start + TRIAL_LENGTH_MS : 0;
-    if (trialEndsAt > now) {
-      const daysRemaining = Math.max(1, Math.ceil((trialEndsAt - now) / (24 * 60 * 60 * 1000)));
-      return {
-        allowed: true,
-        status: 'trial',
-        plan: 'core',
-        features: ['composer', 'typing', 'hotkeys', 'templates', 'updates'],
-        trialEndsAt: new Date(trialEndsAt).toISOString(),
-        daysRemaining,
-        message: `${daysRemaining}-day Core trial active.`
-      };
-    }
     return {
       allowed: false,
       status: 'required',
@@ -104,7 +89,6 @@ function accessState({ token, deviceId, trialStartedAt, now = Date.now() }) {
 
 module.exports = {
   ENTITLEMENT_PUBLIC_KEY,
-  TRIAL_LENGTH_MS,
   accessState,
   deviceHash,
   shouldRevokeEntitlement,

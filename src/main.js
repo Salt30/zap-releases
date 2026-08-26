@@ -36,7 +36,7 @@ const APP_ID = 'com.salt30.driptype';
 const BILLING_ORIGIN = 'https://tryzap.net';
 const BILLING_SCHEME = 'driptype';
 const KEYCHAIN_SERVICE = 'com.salt30.driptype.subscription';
-const TRIAL_KEYCHAIN_SERVICE = 'com.salt30.driptype.trial';
+const LEGACY_TRIAL_KEYCHAIN_SERVICE = 'com.salt30.driptype.trial';
 const USER_VAULT_KEY = 'encryptedUserVault';
 const MAX_USER_VAULT_BYTES = 12 * 1024 * 1024;
 const MAX_TEXT_LENGTH = 100000;
@@ -97,11 +97,9 @@ const DEFAULTS = {
   activeProfileId: DEFAULT_PROFILE.id,
   encryptedUserVault: '',
   deviceId: null,
-  trialStartedAt: null,
   entitlementToken: '',
   encryptedRefreshCredential: '',
-  encryptedTrialStartedAt: '',
-  paidAccessSeen: false,
+  paidOnlyMigrationV173: false,
   automationPermissionChecked: false,
   onboardingDone: false
 };
@@ -263,53 +261,30 @@ function ensureDeviceId() {
   return value;
 }
 
-function ensureTrialStartedAt() {
-  const current = Number(store.get('trialStartedAt'));
-  if (Number.isFinite(current) && current > 0) return current;
-  const value = Date.now();
-  store.set('trialStartedAt', value);
-  return value;
-}
-
-async function synchronizeTrialStartedAt() {
-  let protectedStart = 0;
+async function retireLegacyTrialState() {
+  store.delete('trialStartedAt');
+  store.delete('encryptedTrialStartedAt');
+  store.delete('paidAccessSeen');
+  if (!store.get('paidOnlyMigrationV173', false)) {
+    // Invalidate every entitlement cached by a trial-capable build. A paid
+    // account immediately receives a fresh token from its protected refresh
+    // credential; a former trial cannot carry offline access into this build.
+    store.set('entitlementToken', '');
+    store.set('paidOnlyMigrationV173', true);
+  }
   if (process.platform === 'darwin') {
     try {
-      const value = await execFileAsync('/usr/bin/security', [
-        'find-generic-password', '-a', APP_ID, '-s', TRIAL_KEYCHAIN_SERVICE, '-w'
-      ]);
-      if (/^\d{13}$/.test(value)) protectedStart = Number(value);
-    } catch (_) {}
-  } else if (process.platform === 'win32') {
-    const value = readProtectedStoreValue('encryptedTrialStartedAt');
-    if (/^\d{13}$/.test(value)) protectedStart = Number(value);
-  }
-
-  const storedStart = Number(store.get('trialStartedAt'));
-  const candidates = [protectedStart, storedStart].filter((value) => Number.isFinite(value) && value > 0);
-  const trialStartedAt = candidates.length ? Math.min(...candidates) : Date.now();
-  store.set('trialStartedAt', trialStartedAt);
-
-  if (protectedStart !== trialStartedAt) {
-    try {
-      if (process.platform === 'win32') {
-        writeProtectedStoreValue('encryptedTrialStartedAt', String(trialStartedAt));
-      } else if (process.platform === 'darwin') {
       await execFileAsync('/usr/bin/security', [
-        'add-generic-password', '-U', '-a', APP_ID, '-s', TRIAL_KEYCHAIN_SERVICE,
-        '-w', String(trialStartedAt)
+        'delete-generic-password', '-a', APP_ID, '-s', LEGACY_TRIAL_KEYCHAIN_SERVICE
       ]);
-      }
     } catch (_) {}
   }
-  return trialStartedAt;
 }
 
 function currentBillingState() {
   billingState = accessState({
     token: store.get('entitlementToken'),
-    deviceId: ensureDeviceId(),
-    trialStartedAt: store.get('paidAccessSeen') ? 0 : ensureTrialStartedAt()
+    deviceId: ensureDeviceId()
   });
   return { ...billingState };
 }
@@ -400,13 +375,11 @@ function acceptEntitlement(result) {
   const deviceId = ensureDeviceId();
   verifyEntitlement(result.entitlement, deviceId);
   store.set('entitlementToken', result.entitlement);
-  store.set('paidAccessSeen', true);
   return publishBillingState();
 }
 
 async function revokeBillingAccess(message) {
   store.set('entitlementToken', '');
-  store.set('paidAccessSeen', true);
   await deleteRefreshCredential();
   return publishBillingState({
     status: 'required',
@@ -1561,7 +1534,7 @@ app.on('second-instance', (_event, commandLine) => {
 });
 
 app.whenReady().then(async () => {
-  await synchronizeTrialStartedAt();
+  await retireLegacyTrialState();
   migrateUserVault();
   registerAppProtocol();
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));

@@ -133,7 +133,7 @@ async function accountStatus(request, response) {
   try {
     const { subscription } = await billing.existingAccountSubscription(account);
     let plan = null;
-    if (subscription && ["active", "trialing"].includes(subscription.status)) {
+    if (subscription?.status === "active") {
       plan = billing.planForSubscription(subscription);
     }
     return response.status(200).json({
@@ -203,7 +203,7 @@ async function createAppActivation(request, response) {
   if (!account) return;
   try {
     const { subscription } = await billing.existingAccountSubscription(account);
-    if (!subscription || !["active", "trialing"].includes(subscription.status)) {
+    if (subscription?.status !== "active") {
       return response.status(402).json({ error: "This account does not have an active subscription." });
     }
     const plan = billing.planForSubscription(subscription);
@@ -303,7 +303,7 @@ function supportMetrics(tickets) {
 }
 
 function fallbackBillingMetrics(accountList) {
-  const active = accountList.filter((account) => ["active", "trialing"].includes(account.stripeSubscriptionStatus));
+  const active = accountList.filter((account) => account.stripeSubscriptionStatus === "active");
   return {
     available: false,
     message: "Stripe reporting permissions are incomplete. User and support statistics are still current.",
@@ -330,7 +330,7 @@ function fallbackBillingMetrics(accountList) {
 function stripeMetrics(subscriptionsResult, chargesResult, now = Date.now()) {
   const subscriptions = subscriptionsResult.data;
   const charges = chargesResult.data;
-  const active = subscriptions.filter((subscription) => ["active", "trialing"].includes(subscription.status));
+  const active = subscriptions.filter((subscription) => subscription.status === "active");
   const paid = charges.filter((charge) => charge.status === "succeeded" && charge.paid);
   const currencySet = new Set([
     ...paid.map((charge) => charge.currency),

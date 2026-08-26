@@ -313,7 +313,6 @@
     .billing-status { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 11px; font-weight: 650; letter-spacing: .055em; text-transform: uppercase; }
     .billing-status::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 4px rgba(240,125,134,.09); }
     .billing-status[data-state="active"]::before { background: var(--success); box-shadow: 0 0 0 4px rgba(115,201,145,.1); }
-    .billing-status[data-state="trial"]::before { background: var(--accent); box-shadow: 0 0 0 4px rgba(244,200,74,.1); }
     .billing-plan { margin-top: 17px; font-size: 31px; font-weight: 660; letter-spacing: -.04em; }
     .billing-copy { max-width: 480px; margin-top: 8px; color: var(--muted); font-size: 13px; line-height: 1.55; }
     .billing-expiry { margin-top: 15px; color: var(--subtle); font-size: 11px; }
@@ -356,7 +355,7 @@
     <aside class="sidebar">
       <div class="brand">
         <img class="brand-mark" src="zap-icon.svg" alt="">
-        <div><div class="brand-name">Drip Type <span style="color:var(--subtle);font-weight:500">by Zap</span></div><div class="brand-version" id="brand-version">Version 1.7.2</div></div>
+        <div><div class="brand-name">Drip Type <span style="color:var(--subtle);font-weight:500">by Zap</span></div><div class="brand-version" id="brand-version">Version 1.7.3</div></div>
       </div>
 
       <nav class="nav" aria-label="Main navigation">
@@ -489,7 +488,7 @@
           <div class="card billing-hero">
             <div class="billing-top">
               <div>
-                <div class="billing-status" id="billing-status" data-state="trial">Checking access</div>
+                <div class="billing-status" id="billing-status" data-state="required">Checking access</div>
                 <div class="billing-plan" id="billing-plan">Drip Type Core</div>
                 <div class="billing-copy" id="billing-copy">Confirming the access available on this device…</div>
                 <div class="billing-expiry" id="billing-expiry"></div>

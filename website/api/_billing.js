@@ -8,7 +8,7 @@ const {
   verify,
 } = require("node:crypto");
 
-const ACTIVE_SUBSCRIPTION_STATES = new Set(["active", "trialing"]);
+const ACTIVE_SUBSCRIPTION_STATES = new Set(["active"]);
 const BLOCKING_SUBSCRIPTION_STATES = new Set([
   "active",
   "trialing",

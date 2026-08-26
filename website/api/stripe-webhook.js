@@ -1,5 +1,6 @@
 const { createHmac, timingSafeEqual } = require("node:crypto");
 const auth = require("./_auth");
+const billing = require("./_billing");
 
 const MAX_BODY_BYTES = 128 * 1024;
 const SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
@@ -78,13 +79,23 @@ function validEvent(event) {
 
 async function mirrorSubscriptionEvent(event) {
   if (!SUBSCRIPTION_EVENTS.has(event.type)) return;
-  const subscription = event.data.object;
+  let subscription = event.data.object;
   const userId = String(subscription.metadata?.zap_account_id || "");
   if (!/^acct_[A-Za-z0-9_-]{32}$/u.test(userId) || !/^sub_[A-Za-z0-9]+$/.test(String(subscription.id || ""))) {
     return;
   }
   const account = await auth.accountById(userId);
   if (!account) return;
+  // Trials are intentionally unsupported. If one is ever created outside the
+  // approved Checkout path, cancel it immediately so it cannot grant access or
+  // turn into a surprise future charge.
+  if (subscription.status === "trialing") {
+    subscription = await billing.stripeRequest(
+      `/v1/subscriptions/${encodeURIComponent(subscription.id)}`,
+      { method: "DELETE" },
+    );
+    if (subscription?.status !== "canceled") throw new Error("Trial cancellation failed");
+  }
   const previousCreated = Number(account.stripeEventCreated || 0);
   if (Number.isSafeInteger(previousCreated) && previousCreated > event.created) return;
   const plan = ["core", "pro"].includes(subscription.metadata?.plan) ? subscription.metadata.plan : null;

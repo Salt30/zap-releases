@@ -195,21 +195,18 @@ function renderBilling(state = {}) {
   billingState = { ...billingState, ...state };
   const status = billingState.status || 'required';
   const active = status === 'active';
-  const trial = status === 'trial';
   const planName = billingState.plan === 'pro' ? 'Pro' : 'Core';
 
   $('billing-status').dataset.state = status;
-  $('billing-status').textContent = active ? 'Subscription active' : trial ? 'Free trial active' : 'Subscription required';
-  $('billing-plan').textContent = active ? `Drip Type ${planName}` : trial ? 'Drip Type Core trial' : 'Continue with Core';
+  $('billing-status').textContent = active ? 'Subscription active' : 'Subscription required';
+  $('billing-plan').textContent = active ? `Drip Type ${planName}` : 'Continue with Core';
   $('billing-copy').textContent = billingState.message || (active
     ? 'This device is activated and ready to use.'
-    : trial
-      ? 'All Core features are available during your trial.'
-      : 'Choose Core to keep using Drip Composer and natural typing.');
+    : 'Choose Core to keep using Drip Composer and natural typing.');
 
-  const expiry = active ? readableDate(billingState.expiresAt) : readableDate(billingState.trialEndsAt);
+  const expiry = active ? readableDate(billingState.expiresAt) : '';
   $('billing-expiry').textContent = expiry
-    ? active ? `Access verified through ${expiry}. It refreshes automatically.` : `Trial ends ${expiry}.`
+    ? `Access verified through ${expiry}. It refreshes automatically.`
     : '';
   $('billing-manage').disabled = !active;
   $('billing-subscribe').textContent = active ? (billingState.plan === 'pro' ? 'View account' : 'Upgrade or view account') : 'Connect Zap account';

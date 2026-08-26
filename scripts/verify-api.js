@@ -465,6 +465,9 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     assert.equal(checkoutForm['metadata[zap_account_id]'], testAccount.userId);
     assert.equal(checkoutForm['subscription_data[metadata][zap_account_id]'], testAccount.userId);
     assert.equal(checkoutForm['line_items[0][price]'], process.env.STRIPE_CORE_PRICE_ID);
+    assert.equal(checkoutForm.allow_promotion_codes, undefined);
+    assert.equal(Object.keys(checkoutForm).some((key) => /trial/i.test(key)), false);
+    assert.match(checkoutForm['custom_text[submit][message]'], /No free trial or money-back guarantee/);
     assert.match(checkoutCalls[0].options.headers['Idempotency-Key'], /^zap_checkout_[a-f0-9]{64}$/);
     assert.equal(Number(checkoutForm.expires_at) - Math.floor(Date.now() / 1000) <= 30 * 60, true);
 
@@ -515,6 +518,20 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     assert.equal(webhookUpdates.length, 1);
     assert.equal(webhookUpdates[0].userId, testAccount.userId);
     assert.equal(webhookUpdates[0].update.stripeSubscriptionStatus, 'active');
+    const canceledTrials = [];
+    billing.stripeRequest = async (path, options) => {
+      canceledTrials.push({ path, options });
+      return { ...webhookEvent.data.object, status: 'canceled' };
+    };
+    await stripeWebhook.mirrorSubscriptionEvent({
+      ...webhookEvent,
+      id: 'evt_trialfixture',
+      data: { object: { ...webhookEvent.data.object, status: 'trialing' } },
+    });
+    assert.equal(canceledTrials.length, 1);
+    assert.equal(canceledTrials[0].path, '/v1/subscriptions/sub_fixture');
+    assert.equal(canceledTrials[0].options.method, 'DELETE');
+    assert.equal(webhookUpdates.at(-1).update.stripeSubscriptionStatus, 'canceled');
     await expectStatus(
       stripeWebhook,
       { ...webhookRequest, headers: { ...webhookRequest.headers, 'stripe-signature': `t=${webhookTimestamp},v1=${'0'.repeat(64)}` } },
@@ -552,6 +569,15 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     await assert.rejects(
       billing.subscriptionForAppActivation(activationToken, '4b9d5ef5-b71a-4cc0-a3aa-5ad5da015a2b'),
       /Invalid activation credential/,
+    );
+    global.fetch = async () => ({
+      ok: true,
+      status: 200,
+      json: async () => ({ ...subscribed, status: 'trialing' }),
+    });
+    await assert.rejects(
+      billing.subscriptionForAppActivation(activationToken, deviceId),
+      /not active/,
     );
 
     auth.requireUser = async (_request, response) => {
