@@ -66,7 +66,7 @@ const websiteAdmin = read('website/admin.html');
 const websiteAdminClient = read('website/admin.js');
 const websiteNavigation = read('website/navigation.js');
 const websiteNotFound = read('website/404.html');
-const websiteStripeWebhook = read('website/api/stripe-webhook.js');
+const websiteStripeWebhook = `${read('website/api/stripe-webhook.mjs')}\n${read('website/server/stripe-webhook-handler.js')}`;
 const websiteSitemap = read('website/sitemap.xml');
 const websiteVercelConfig = JSON.parse(read('website/vercel.json'));
 const websitePackage = JSON.parse(read('website/package.json'));
@@ -462,7 +462,7 @@ for (const marker of [
 }
 for (const marker of [
   'STRIPE_WEBHOOK_SECRET', 'stripe-signature', 'createHmac("sha256"',
-  'SIGNATURE_TOLERANCE_SECONDS', 'bodyParser: false', 'customer.subscription.deleted',
+  'SIGNATURE_TOLERANCE_SECONDS', 'fetch(request)', 'request.arrayBuffer()', 'customer.subscription.deleted',
   'zap_account_id', 'stripeEventCreated'
 ]) {
   if (!websiteStripeWebhook.includes(marker)) fail(`Stripe webhook security requirement is missing: ${marker}`);

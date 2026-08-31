@@ -1,6 +1,6 @@
 const { createHmac, timingSafeEqual } = require("node:crypto");
-const auth = require("./_auth");
-const billing = require("./_billing");
+const auth = require("../api/_auth");
+const billing = require("../api/_billing");
 
 const MAX_BODY_BYTES = 128 * 1024;
 const SIGNATURE_TOLERANCE_SECONDS = 5 * 60;
@@ -77,6 +77,23 @@ function validEvent(event) {
     event.data.object && typeof event.data.object === "object" && !Array.isArray(event.data.object);
 }
 
+function rejectionReason(error) {
+  const message = error instanceof Error ? error.message : "";
+  if (message === "Webhook body was already parsed") return "body_already_parsed";
+  if (message === "Invalid webhook body") return "invalid_body";
+  if (message === "Invalid webhook signature") return "invalid_signature";
+  if (message === "Webhook is not configured") return "missing_secret";
+  if (error instanceof SyntaxError) return "invalid_json";
+  return "verification_failed";
+}
+
+function parseVerifiedEvent(rawBody, signatureHeader) {
+  verifySignature(rawBody, signatureHeader);
+  const event = JSON.parse(rawBody.toString("utf8"));
+  if (!validEvent(event)) throw new Error("Invalid webhook event");
+  return event;
+}
+
 async function mirrorSubscriptionEvent(event) {
   if (!SUBSCRIPTION_EVENTS.has(event.type)) return;
   let subscription = event.data.object;
@@ -127,10 +144,9 @@ async function stripeWebhook(request, response) {
   let event;
   try {
     const rawBody = await rawRequestBody(request);
-    verifySignature(rawBody, request.headers?.["stripe-signature"]);
-    event = JSON.parse(rawBody.toString("utf8"));
-    if (!validEvent(event)) return response.status(400).json({ error: "Invalid webhook event" });
-  } catch {
+    event = parseVerifiedEvent(rawBody, request.headers?.["stripe-signature"]);
+  } catch (error) {
+    console.warn("Stripe webhook rejected", { reason: rejectionReason(error) });
     return response.status(400).json({ error: "Webhook was rejected" });
   }
   try {
@@ -142,6 +158,11 @@ async function stripeWebhook(request, response) {
   }
 }
 
-stripeWebhook.config = { api: { bodyParser: false } };
-Object.assign(stripeWebhook, { mirrorSubscriptionEvent, rawRequestBody, verifySignature });
 module.exports = stripeWebhook;
+Object.assign(module.exports, {
+  mirrorSubscriptionEvent,
+  parseVerifiedEvent,
+  rawRequestBody,
+  rejectionReason,
+  verifySignature,
+});

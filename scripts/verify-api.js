@@ -15,7 +15,7 @@ const { config: accountConfig, status: accountStatus,
   portal: createAccountPortal, activation: createAppActivation,
   stats: adminStats, tickets: adminTickets } = accountRouter.routes;
 const claimAccountEntitlement = require('../website/api/claim-account-entitlement');
-const stripeWebhook = require('../website/api/stripe-webhook');
+const stripeWebhook = require('../website/server/stripe-webhook-handler');
 const auth = require('../website/api/_auth');
 const billing = require('../website/api/_billing');
 
@@ -570,6 +570,18 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     assert.equal(webhookUpdates[0].update.stripeCheckoutUrl, null);
     assert.equal(webhookUpdates[0].update.stripeCheckoutPlan, null);
     assert.equal(webhookUpdates[0].update.stripeCheckoutExpiresAt, null);
+    const webWebhook = (await import('../website/api/stripe-webhook.mjs')).default;
+    const webWebhookResponse = await webWebhook.fetch(new Request('https://tryzap.net/api/stripe-webhook', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'stripe-signature': `t=${webhookTimestamp},v1=${webhookSignature}`,
+      },
+      body: webhookRaw,
+    }));
+    assert.equal(webWebhookResponse.status, 200);
+    assert.deepEqual(await webWebhookResponse.json(), { received: true });
+    assert.equal(webhookUpdates.length, 2);
     const canceledTrials = [];
     billing.stripeRequest = async (path, options) => {
       canceledTrials.push({ path, options });
