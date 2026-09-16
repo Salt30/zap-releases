@@ -69,11 +69,11 @@ function normalizeAccelerator(value) {
 
 function validateShortcutPair(start, stop) {
   const normalizedStart = normalizeAccelerator(start);
-  if (normalizedStart.error) return { error: `Open Composer: ${normalizedStart.error}` };
+  if (normalizedStart.error) return { error: `Open Drip Type: ${normalizedStart.error}` };
   const normalizedStop = normalizeAccelerator(stop);
   if (normalizedStop.error) return { error: `Stop Typing: ${normalizedStop.error}` };
   if (normalizedStart.accelerator === normalizedStop.accelerator) {
-    return { error: 'Open Composer and Stop Typing need different shortcuts.' };
+    return { error: 'Open Drip Type and Stop Typing need different shortcuts.' };
   }
   return { hotkeyStart: normalizedStart.accelerator, hotkeyStop: normalizedStop.accelerator };
 }
@@ -112,7 +112,7 @@ function registerShortcutPair(registry, pair, actions) {
   registry.unregisterAll();
   const failures = [];
   const shortcuts = [
-    { key: pair.hotkeyStart, action: actions.openComposer, label: 'Open Composer' },
+    { key: pair.hotkeyStart, action: actions.openComposer, label: 'Open Drip Type' },
     { key: pair.hotkeyStop, action: actions.stopTyping, label: 'Stop Typing' }
   ];
   for (const shortcut of shortcuts) {

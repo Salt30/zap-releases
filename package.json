@@ -1,7 +1,7 @@
 {
-  "name": "drip-type",
-  "version": "1.7.4",
-  "description": "Private, configurable typing for macOS and Windows — Drip Type by Zap.",
+  "name": "zap-desktop",
+  "version": "1.8.0",
+  "description": "Zap brings AI tools and Drip Type, your Option+5 typing feature, together for Mac and Windows.",
   "main": "src/main.js",
   "author": "VegaNext LLC",
   "license": "UNLICENSED",
@@ -10,8 +10,10 @@
     "start": "electron .",
     "generate:tray-icons": "node scripts/generate-tray-icons.js",
     "build:app": "node scripts/build-app.js",
-    "check": "node --check src/main.js && node --check src/preload.js && node --check src/index.js && node --check src/quick.js && node --check src/shortcut-utils.js && node --check src/typing-engine.js && node --check src/text-tools.js && node --check src/pro-tools.js && node --check src/subscription.js && node --check src/onboarding.js && node --check website/account.js && node --check website/admin.js && node --check website/home-demo.js && node --check website/navigation.js && node --check website/checkout.js && node --check website/support.js && node --check website/api/_auth.js && node --check website/api/_billing.js && node --check website/api/account.js && node --check website/api/claim-account-entitlement.js && node --check website/api/create-checkout.js && node --check website/api/stripe-webhook.mjs && node --check website/api/support-ticket.js && node --check website/server/accounts.js && node --check website/server/stripe-webhook-handler.js && node --check website/server/tickets.js && node --check scripts/build-app.js && node --check scripts/after-pack.js && node --check scripts/generate-tray-icons.js && node --check scripts/publish-update-blobs.js && node --check scripts/test-home-demo.js && node --check scripts/test-shortcuts.js && node --check scripts/test-typing-engine.js && node --check scripts/verify-api.js && node --check scripts/verify-source.js && node --check scripts/verify-package.js",
-    "test:source": "node scripts/test-home-demo.js && node scripts/test-shortcuts.js && node scripts/test-typing-engine.js && node scripts/verify-source.js && node scripts/verify-api.js",
+    "check": "node --check src/window-recovery.js && node --check src/account-session.js && node --check scripts/test-account-session.js && node --check src/main.js && node --check website/server/zap-service.js && node --check website/server/zap-model.js && node --check website/server/zap-quota.js && node --check scripts/test-zap.js && node --check src/zap-ai.js && node --check src/zap-main.js && node --check src/zap-ui.js && node --check src/zap-pin.js && node --check src/preload.js && node --check src/index.js && node --check src/quick.js && node --check src/shortcut-utils.js && node --check src/typing-engine.js && node --check src/text-tools.js && node --check src/pro-tools.js && node --check src/humanizer-model.js && node --check scripts/test-humanizer-model.js && node --check src/subscription.js && node --check src/onboarding.js && node --check website/account.js && node --check website/admin.js && node --check website/home-demo.js && node --check website/navigation.js && node --check website/checkout.js && node --check website/cookie-banner.js && node --check website/support.js && node --check website/api/_auth.js && node --check website/api/_billing.js && node --check website/api/account.js && node --check website/api/claim-account-entitlement.js && node --check website/api/create-checkout.js && node --check website/api/stripe-webhook.mjs && node --check website/api/support-ticket.js && node --check website/server/accounts.js && node --check website/server/stripe-webhook-handler.js && node --check website/server/tickets.js && node --check scripts/build-app.js && node --check scripts/after-pack.js && node --check scripts/generate-tray-icons.js && node --check scripts/publish-update-blobs.js && node --check scripts/test-home-demo.js && node --check scripts/test-shortcuts.js && node --check scripts/test-typing-engine.js && node --check scripts/verify-api.js && node --check scripts/verify-source.js && node --check scripts/verify-package.js",
+    "test:source": "node scripts/test-window-recovery.js && node scripts/test-account-session.js && node scripts/test-security-boundaries.js && node scripts/test-seo.js && node scripts/test-rate-limit.js && node scripts/test-app-identity.js && node scripts/test-home-demo.js && node scripts/test-shortcuts.js && node scripts/test-typing-engine.js && node scripts/test-humanizer-model.js && node scripts/test-audit-regressions.js && node scripts/test-checkout-attempts.js && node scripts/test-website-output.js && node scripts/test-zap.js && node scripts/verify-source.js && node scripts/verify-api.js",
+    "test:desktop": "npm run build:app && electron scripts/verify-desktop-ui.js",
+    "preview:desktop": "npm run build:app && electron scripts/verify-desktop-ui.js --preview",
     "test:shortcuts:mac": "electron scripts/smoke-shortcuts-electron.js",
     "verify": "npm run check && npm run test:source && npm run build:app",
     "verify:package": "node scripts/verify-package.js",
@@ -19,7 +21,12 @@
     "dist:mac": "npm run build:app && electron-builder --mac dmg zip --universal --publish never",
     "pack:win": "npm run build:app && electron-builder --win --dir --x64",
     "dist:win": "npm run build:app && electron-builder --win nsis --x64 --publish never",
-    "release:mac": "bash scripts/release-mac.sh"
+    "release:mac": "bash scripts/release-mac.sh",
+    "humanizer:serve": ".humanizer/venv/bin/python training/humanizer/runtime.py",
+    "test:zap": "node scripts/test-zap.js",
+    "test:branding:mac": "node scripts/test-mac-brand-storage-runner.js",
+    "audit:secrets": "node scripts/scan-secrets.js --history",
+    "test:background": "npm run build:app && electron scripts/verify-background-window.js"
   },
   "keywords": [
     "electron",
@@ -42,7 +49,7 @@
   },
   "build": {
     "appId": "com.salt30.driptype",
-    "productName": "Drip Type",
+    "productName": "Zap",
     "asar": true,
     "asarUnpack": [
       "build-app/*.ps1"
@@ -72,12 +79,12 @@
       }
     ],
     "releaseInfo": {
-      "releaseName": "Drip Type by Zap 1.7.4",
-      "releaseNotes": "Drip Type 1.7.4 makes the menu-bar icon open the main app, adds a responsive full-screen Composer with an in-window control, and preserves Option+5 as the fast Composer shortcut."
+      "releaseName": "Zap 1.8.0",
+      "releaseNotes": "Zap combines AI text and screenshot tools with Drip Type (Option+5 on Mac, Alt+5 on Windows). Includes secure sign-in and sign-out, background window recovery, updated branding, and security hardening. Hosted AI requires an active subscription and service availability."
     },
     "protocols": [
       {
-        "name": "Drip Type activation",
+        "name": "Zap activation",
         "schemes": [
           "driptype"
         ]
@@ -86,7 +93,7 @@
     "mac": {
       "category": "public.app-category.productivity",
       "icon": "assets/icon.icns",
-      "artifactName": "Drip-Type-${version}-mac.${ext}",
+      "artifactName": "Zap-${version}-mac.${ext}",
       "target": [
         {
           "target": "dmg",
@@ -110,20 +117,21 @@
       "extendInfo": {
         "CFBundleURLTypes": [
           {
-            "CFBundleURLName": "Drip Type activation",
+            "CFBundleURLName": "Zap activation",
             "CFBundleURLSchemes": [
               "driptype"
             ]
           }
         ],
         "LSApplicationCategoryType": "public.app-category.productivity",
-        "NSAppleEventsUsageDescription": "Drip Type uses macOS System Events to type text into the application you choose.",
-        "NSAccessibilityUsageDescription": "Drip Type needs Accessibility access to type text into other applications."
+        "NSAppleEventsUsageDescription": "Zap uses macOS System Events to type text into the application you choose.",
+        "NSAccessibilityUsageDescription": "Zap needs Accessibility access to type text into other applications.",
+        "NSScreenCaptureDescription": "Zap captures a screen only when you choose Capture in Zap. You can preview and crop it before sending it through Zap to NVIDIA."
       }
     },
     "win": {
       "icon": "assets/icon.png",
-      "artifactName": "Drip-Type-${version}-windows.${ext}",
+      "artifactName": "Zap-${version}-windows.${ext}",
       "target": [
         {
           "target": "nsis",
@@ -142,11 +150,11 @@
       "allowToChangeInstallationDirectory": true,
       "createDesktopShortcut": true,
       "createStartMenuShortcut": true,
-      "shortcutName": "Drip Type",
+      "shortcutName": "Zap",
       "deleteAppDataOnUninstall": false
     },
     "dmg": {
-      "title": "Drip Type ${version}",
+      "title": "Zap ${version}",
       "icon": "assets/icon.png",
       "backgroundColor": "#0d0f13",
       "iconSize": 128,

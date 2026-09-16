@@ -3,19 +3,22 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Admin Dashboard | Drip Type by Zap</title>
-  <meta name="description" content="Private Drip Type business and support administration dashboard.">
+  <title>Admin Dashboard | Zap</title>
+  <meta name="description" content="Private Zap business and support administration dashboard.">
   <meta name="robots" content="noindex,nofollow,noarchive">
   <link rel="icon" href="/brand/zap/zap-icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/admin.css?v=20260826-1">
+  <link rel="stylesheet" href="/quiet-theme.css?v=20260901-1">
+  <link rel="stylesheet" href="/cookie-banner.css?v=20260903-1">
 </head>
-<body>
+<body class="quiet-page admin-page">
+  <a class="skip-link" href="#main-content">Skip to content</a>
   <header class="topbar">
-    <a class="brand" href="/" aria-label="Drip Type home"><img src="/brand/zap/zap-icon-192.png" alt="" width="34" height="34"><span><strong>Drip Type</strong><small>Admin Dashboard</small></span></a>
+    <a class="brand" href="/" aria-label="Zap home"><img src="/brand/zap/zap-icon-192.png" alt="" width="34" height="34"><span><strong>Zap</strong><small>Admin Dashboard</small></span></a>
     <div class="admin-actions"><span class="secure-pill"><i></i> Private admin</span><button id="sign-out" type="button" hidden>Sign out</button></div>
   </header>
 
-  <main>
+  <main id="main-content">
     <section class="state-card" id="loading-state">
       <span class="spinner" aria-hidden="true"></span><h1>Verifying admin access…</h1><p>Checking your private Zap session and server-side admin allowlists.</p>
     </section>
@@ -30,7 +33,7 @@
 
     <section class="console" id="admin-console" hidden>
       <div class="console-heading">
-        <div><span class="eyebrow">Drip Type control room</span><h1>Know the business.</h1><p>Accounts, subscriptions, revenue, billing health, and customer issues in one secure view.</p></div>
+        <div><span class="eyebrow">Zap control room</span><h1>Know the business.</h1><p>Accounts, subscriptions, revenue, billing health, and customer issues in one secure view.</p></div>
         <div class="heading-actions"><span id="console-status" role="status" aria-live="polite"></span><button class="secondary-button" id="refresh" type="button">Refresh data</button></div>
       </div>
 
@@ -108,5 +111,6 @@
     </section>
   </main>
   <script src="/admin.js?v=20260826-1" defer></script>
+  <script src="/cookie-banner.js?v=20260903-1" defer></script>
 </body>
 </html>

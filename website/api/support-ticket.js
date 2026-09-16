@@ -1,8 +1,6 @@
+const billing = require('./_billing');
 const ticketStore = require("../server/tickets");
 const MAX_BODY_BYTES = 12_000;
-const RATE_WINDOW_MS = 10 * 60 * 1000;
-const RATE_LIMIT = 5;
-const rateLimits = new Map();
 
 const CATEGORIES = Object.freeze({
   bug: "Bug or broken feature",
@@ -51,30 +49,6 @@ function configuredOrigin() {
     throw new Error("PUBLIC_SITE_URL is not an approved HTTPS origin");
   }
   return url.origin;
-}
-
-function clientAddress(request) {
-  return String(request.headers?.["x-forwarded-for"] || request.socket?.remoteAddress || "unknown")
-    .split(",")[0]
-    .trim()
-    .slice(0, 128);
-}
-
-function rateLimited(request) {
-  const now = Date.now();
-  const key = clientAddress(request);
-  const current = rateLimits.get(key);
-  if (!current || now - current.startedAt >= RATE_WINDOW_MS) {
-    rateLimits.set(key, { startedAt: now, count: 1 });
-    if (rateLimits.size > 2000) {
-      for (const [candidate, value] of rateLimits) {
-        if (now - value.startedAt >= RATE_WINDOW_MS) rateLimits.delete(candidate);
-      }
-    }
-    return false;
-  }
-  current.count += 1;
-  return current.count > RATE_LIMIT;
 }
 
 function parseBody(request) {
@@ -138,6 +112,9 @@ function containsSensitiveData(value) {
   if (
     /-----BEGIN [A-Z ]*PRIVATE KEY-----/u.test(text) ||
     /\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9_-]{12,}\b/u.test(text) ||
+    /\bnvapi-[A-Za-z0-9_-]{20,}\b/u.test(text) ||
+    /\bsk-(?:proj-|ant-)?[A-Za-z0-9_-]{20,}\b/u.test(text) ||
+    /\bgsk_[A-Za-z0-9_-]{20,}\b/u.test(text) ||
     /\bwhsec_[A-Za-z0-9_-]{12,}\b/u.test(text) ||
     /\bvercel_blob_rw_[A-Za-z0-9_-]{12,}\b/u.test(text) ||
     /\b(?:ghp|github_pat)_[A-Za-z0-9_]{20,}\b/u.test(text) ||
@@ -179,10 +156,7 @@ module.exports = async function supportTicket(request, response) {
   if (requestOrigin !== origin || !["same-origin", "none"].includes(fetchSite)) {
     return response.status(403).json({ error: "Request origin was rejected" });
   }
-  if (rateLimited(request)) {
-    response.setHeader("Retry-After", "600");
-    return response.status(429).json({ error: "Too many tickets. Please wait and try again." });
-  }
+  if (!await billing.limitRequest(request, response, "support")) return;
 
   let body;
   try {
@@ -227,7 +201,7 @@ module.exports = async function supportTicket(request, response) {
   ) {
     return response.status(400).json({ error: "Please complete every required field" });
   }
-  if (containsSensitiveData(`${subject}\n${description}`)) {
+  if (containsSensitiveData(`${name}\n${email}\n${appVersion}\n${subject}\n${description}`)) {
     return response.status(400).json({
       error: "Remove passwords, payment-card numbers, private keys, or access tokens before submitting this ticket.",
     });
@@ -250,7 +224,7 @@ module.exports = async function supportTicket(request, response) {
     return response.status(200).json({ ok: true, ticketId: code });
   } catch (error) {
     console.error("Support ticket storage failed", {
-      type: String(error.name || error.message || "storage_failed").slice(0, 80),
+      type: "storage_failed",
     });
     return response.status(503).json({ error: "Your ticket could not be saved. Please try again shortly." });
   }

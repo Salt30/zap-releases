@@ -27,7 +27,7 @@ while IFS= read -r -d '' app_bundle; do
   codesign --verify --deep --strict --verbose=2 "$app_bundle"
   spctl --assess --verbose --type exec "$app_bundle"
   xcrun stapler validate "$app_bundle"
-done < <(find dist -type d -name 'Drip Type.app' -print0)
+done < <(find dist -type d -name 'Zap.app' -print0)
 
 shasum -a 256 dist/*.dmg dist/*.zip > dist/SHA256SUMS.txt
 

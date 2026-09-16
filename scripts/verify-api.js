@@ -1,3 +1,7 @@
+const rateLimit = require('../website/server/rate-limit');
+const originalConsume = rateLimit.consume;
+const testStorage = require('./mock-blob').memoryBlob();
+rateLimit.consume = (bucket, subject) => originalConsume(bucket, subject, { storage: testStorage, secret: Buffer.alloc(32, 17).toString('base64url') });
 const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 
@@ -10,9 +14,11 @@ const checkoutConfig = require('../website/api/checkout-config');
 const supportTicket = require('../website/api/support-ticket');
 const ticketStore = require('../website/server/tickets');
 const accountStore = require('../website/server/accounts');
+const checkoutAttempts = require('../website/server/checkout-attempts');
 const accountRouter = require('../website/api/account');
 const { config: accountConfig, status: accountStatus,
   portal: createAccountPortal, activation: createAppActivation,
+  claim: claimPurchase,
   stats: adminStats, tickets: adminTickets } = accountRouter.routes;
 const claimAccountEntitlement = require('../website/api/claim-account-entitlement');
 const stripeWebhook = require('../website/server/stripe-webhook-handler');
@@ -50,7 +56,7 @@ function postRequest(body, overrides = {}) {
       'content-length': String(Buffer.byteLength(encoded)),
       'x-forwarded-for': `203.0.113.${nextTestAddress++}`,
     },
-    socket: {},
+    socket: { remoteAddress: `203.0.113.${nextTestAddress - 1}` },
     ...overrides,
   };
 }
@@ -76,7 +82,7 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
 
   await expectStatus(
     createCheckout,
-    postRequest({ plan: 'pro', admin: true }),
+    supportRequest({ plan: 'pro', admin: true }),
     400,
     /Invalid checkout request/,
   );
@@ -104,10 +110,10 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
       method: 'GET',
       query: { session_id: sessionId, extra: 'value' },
       headers: { 'x-forwarded-for': '203.0.113.211' },
-      socket: {},
+      socket: { remoteAddress: `203.0.113.${nextTestAddress - 1}` },
     },
-    410,
-    /retired/,
+    400,
+    /Invalid checkout session/,
   );
   await expectStatus(
     checkoutConfig,
@@ -175,6 +181,12 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
   const originalCreatePortalSession = billing.createPortalSession;
   const originalStripeRequest = billing.stripeRequest;
   const originalOpenCheckoutForCustomer = billing.openCheckoutForCustomer;
+  const originalReserveAttempt = checkoutAttempts.reserve;
+  const originalCustomersByEmail = billing.customersByEmail;
+  const originalSubscriptionsForCustomer = billing.subscriptionsForCustomer;
+  const originalPaidCheckoutSession = billing.paidCheckoutSession;
+  const originalLinkCustomerToAccount = billing.linkCustomerToAccount;
+  const originalLinkSubscriptionToAccount = billing.linkSubscriptionToAccount;
   const originalStripeKey = process.env.STRIPE_SECRET_KEY;
   const originalCorePrice = process.env.STRIPE_CORE_PRICE_ID;
   const originalCoreEnabled = process.env.STRIPE_CORE_CHECKOUT_ENABLED;
@@ -186,6 +198,7 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
   const originalAuthMasterKey = process.env.AUTH_MASTER_KEY;
   const originalListAccountSummaries = accountStore.listAccountSummaries;
   const originalAccountById = auth.accountById;
+  const originalStoreAccountById = accountStore.accountById;
   const originalUpdateBillingMetadata = auth.updateBillingMetadata;
   const originalRequireAdmin = auth.requireAdmin;
   const originalCreateTicket = ticketStore.createTicket;
@@ -235,8 +248,9 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     assert.equal(accountStore.parseSessionToken(sessionToken, 2_000_000_001).sub, accountId);
     assert.equal(accountStore.parseSessionToken(`${sessionToken.slice(0, -1)}x`, 2_000_000_001), null);
     assert.equal(accountStore.passwordScore('A long Correct-Horse 2026!'), 4);
-    assert.equal(accountStore.PASSWORD_MIN_LENGTH, 6);
-    assert.doesNotThrow(() => accountStore.validatePassword('Zap123', accountEmail));
+    assert.equal(accountStore.PASSWORD_MIN_LENGTH, 12);
+    assert.throws(() => accountStore.validatePassword('Zap123', accountEmail), /weak_password/);
+    assert.doesNotThrow(() => accountStore.validatePassword('A long Correct-Horse 2026!', accountEmail));
     assert.throws(() => accountStore.validatePassword('short', accountEmail), /weak_password/);
     assert.throws(() => accountStore.validatePassword('password1234567', accountEmail), /weak_password/);
 
@@ -298,7 +312,7 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
       method: 'GET',
       headers: { 'x-forwarded-for': '203.0.113.240' },
       query: {},
-      socket: {},
+      socket: { remoteAddress: `203.0.113.${nextTestAddress - 1}` },
     }, adminListResponse);
     assert.equal(adminListResponse.statusCode, 200);
     assert.equal(adminListResponse.body.tickets.length, 1);
@@ -379,7 +393,7 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
       method: 'GET',
       headers: { 'x-forwarded-for': '203.0.113.241' },
       query: {},
-      socket: {},
+      socket: { remoteAddress: `203.0.113.${nextTestAddress - 1}` },
     }, adminStatsResponse);
     assert.equal(adminStatsResponse.statusCode, 200);
     assert.equal(adminStatsResponse.headers['cache-control'], 'no-store');
@@ -402,7 +416,7 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
       method: 'GET',
       headers: { 'x-forwarded-for': '203.0.113.242' },
       query: {},
-      socket: {},
+      socket: { remoteAddress: `203.0.113.${nextTestAddress - 1}` },
     }, degradedStatsResponse);
     assert.equal(degradedStatsResponse.statusCode, 200);
     assert.equal(degradedStatsResponse.body.accounts.total, 2);
@@ -415,17 +429,12 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     process.env.STRIPE_PRO_PRICE_ID = `price_${'q'.repeat(24)}`;
     process.env.STRIPE_PRO_CHECKOUT_ENABLED = 'true';
     process.env.ENTITLEMENT_PRIVATE_KEY = 'A'.repeat(64);
-    auth.requireUser = async (_request, response) => {
-      response.status(401).json({ error: 'Sign in to your Zap account to continue.' });
-      return null;
-    };
     await expectStatus(
       createCheckout,
-      supportRequest({ plan: 'core' }),
-      401,
-      /Sign in to your Zap account/,
+      postRequest({ plan: 'core', email: 'buyer@example.com', checkoutNonce: crypto.randomUUID() }),
+      403,
+      /origin was rejected/,
     );
-    auth.requireUser = originalAuthRequireUser;
     const testAccount = { userId: `acct_${'f'.repeat(32)}`, email: 'taylor@example.com' };
     let unexpectedStripeRead = false;
     global.fetch = async () => {
@@ -464,22 +473,24 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     assert.equal(storedSubscriptionCalls.length, 1);
     assert.match(storedSubscriptionCalls[0], /\/v1\/subscriptions\/sub_fixture$/);
     global.fetch = originalFetch;
-    auth.requireUser = async () => testAccount;
-    billing.existingAccountSubscription = async () => ({
-      customer: { id: 'cus_fixture' },
-      subscription: { id: 'sub_fixture', status: 'active' },
-    });
-    billing.createPortalSession = async () => ({ url: 'https://billing.stripe.com/p/session_fixture' });
+    const checkoutNonce = crypto.randomUUID();
+    accountStore.accountById = async () => null;
+    billing.customersByEmail = async () => [{ id: 'cus_fixture', metadata: {}, email: testAccount.email }];
+    billing.subscriptionsForCustomer = async () => [{ id: 'sub_existing', status: 'active' }];
     const duplicateResponse = mockResponse();
-    await createCheckout(supportRequest({ plan: 'core' }), duplicateResponse);
+    await createCheckout(supportRequest({ plan: 'core', email: testAccount.email, checkoutNonce }), duplicateResponse);
     assert.equal(duplicateResponse.statusCode, 200);
-    assert.equal(duplicateResponse.body.kind, 'portal');
-    assert.match(duplicateResponse.body.message, /instead of charging again/);
+    assert.equal(duplicateResponse.body.kind, 'account');
+    assert.match(duplicateResponse.body.message, /instead of paying again/);
 
     const checkoutCalls = [];
-    const checkoutMetadataUpdates = [];
-    billing.existingAccountSubscription = async () => ({ customer: null, subscription: null });
-    auth.updateBillingMetadata = async (userId, update) => checkoutMetadataUpdates.push({ userId, update });
+    billing.openCheckoutForCustomer = async () => null;
+    checkoutAttempts.reserve = async (_accountId, plan, customerId, priceId, nonce) => ({
+      plan, customerId, priceId, proof: crypto.createHash('sha256').update(nonce).digest('hex'),
+      createdAt: Math.floor(Date.now() / 1000), expiresAt: Math.floor(Date.now() / 1000) + 35 * 60,
+      integration: 'abcdefgh',
+    });
+    billing.subscriptionsForCustomer = async () => [];
     billing.stripeRequest = async (path, options) => {
       checkoutCalls.push({ path, options });
       return {
@@ -489,47 +500,112 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
       };
     };
     const checkoutResponse = mockResponse();
-    await createCheckout(supportRequest({ plan: 'core' }), checkoutResponse);
+    await createCheckout(supportRequest({ plan: 'core', email: testAccount.email, checkoutNonce }), checkoutResponse);
     assert.equal(checkoutResponse.statusCode, 200);
     assert.equal(checkoutResponse.body.kind, 'checkout');
     assert.equal(checkoutCalls.length, 1);
     assert.equal(checkoutCalls[0].path, '/v1/checkout/sessions');
     const checkoutForm = Object.fromEntries(checkoutCalls[0].options.body);
-    assert.equal(checkoutForm.customer, undefined);
-    assert.equal(checkoutForm.customer_email, testAccount.email);
-    assert.equal(checkoutForm.client_reference_id, testAccount.userId);
-    assert.equal(checkoutForm['metadata[zap_account_id]'], testAccount.userId);
-    assert.equal(checkoutForm['subscription_data[metadata][zap_account_id]'], testAccount.userId);
+    assert.equal(checkoutForm.customer, 'cus_fixture');
+    assert.match(checkoutForm.client_reference_id, /^purchase_[a-f0-9]{32}$/);
+    assert.equal(checkoutForm['metadata[purchase_flow]'], 'payment_first_v1');
+    assert.equal(checkoutForm['subscription_data[metadata][purchase_flow]'], 'payment_first_v1');
     assert.equal(checkoutForm['line_items[0][price]'], process.env.STRIPE_CORE_PRICE_ID);
-    assert.match(checkoutForm.cancel_url, /\/account\?plan=core&checkout=cancelled$/);
+    assert.match(checkoutForm.success_url, /\/account\?purchase=complete&session_id=\{CHECKOUT_SESSION_ID\}$/);
+    assert.match(checkoutForm.cancel_url, /\/#pricing$/);
     assert.equal(checkoutForm.allow_promotion_codes, undefined);
     assert.equal(Object.keys(checkoutForm).some((key) => /trial/i.test(key)), false);
     assert.match(checkoutForm['custom_text[submit][message]'], /No free trial or money-back guarantee/);
     assert.match(checkoutCalls[0].options.headers['Idempotency-Key'], /^zap_checkout_[a-f0-9]{64}$/);
-    assert.equal(Number(checkoutForm.expires_at) - Math.floor(Date.now() / 1000) <= 30 * 60, true);
-    assert.equal(checkoutMetadataUpdates.length, 1);
-    assert.equal(checkoutMetadataUpdates[0].userId, testAccount.userId);
-    assert.equal(checkoutMetadataUpdates[0].update.stripeCheckoutPlan, 'core');
-    assert.equal(checkoutMetadataUpdates[0].update.stripeCheckoutUrl, 'https://checkout.stripe.com/c/pay_fixture');
+    assert.equal(Number(checkoutForm.expires_at) - Math.floor(Date.now() / 1000) <= 35 * 60, true);
+    assert.equal(checkoutForm['metadata[checkout_proof]'], crypto.createHash('sha256').update(checkoutNonce).digest('hex'));
 
-    auth.requireUser = async () => ({
-      ...testAccount,
-      stripeCheckoutUrl: 'https://checkout.stripe.com/c/pay_existing',
-      stripeCheckoutPlan: 'core',
-      stripeCheckoutExpiresAt: Math.floor(Date.now() / 1000) + 900,
+    billing.openCheckoutForCustomer = async () => ({ url: 'https://checkout.stripe.com/c/pay_private', metadata: { plan: 'core', checkout_proof: 'different-browser' } });
+    const privateResponse = mockResponse();
+    await createCheckout(supportRequest({ plan: 'core', email: testAccount.email, checkoutNonce }), privateResponse);
+    assert.equal(privateResponse.statusCode, 409);
+    assert.equal(privateResponse.body.url, undefined);
+    assert.equal(checkoutCalls.length, 1);
+
+    const paidSubscription = {
+      id: 'sub_fixture', status: 'active', customer: 'cus_fixture',
+      metadata: { plan: 'core' },
+      items: { data: [{ price: { id: process.env.STRIPE_CORE_PRICE_ID } }] },
+    };
+    let paidLookupUrl = '';
+    global.fetch = async (url) => {
+      paidLookupUrl = String(url);
+      return {
+        ok: true,
+        status: 200,
+        json: async () => ({
+          id: sessionId, mode: 'subscription', status: 'complete', payment_status: 'paid',
+          metadata: { plan: 'core' },
+          customer: { id: 'cus_fixture', email: testAccount.email, metadata: {} },
+          customer_details: { email: testAccount.email },
+          subscription: paidSubscription,
+        }),
+      };
+    };
+    const verifiedPaid = await originalPaidCheckoutSession(sessionId);
+    assert.equal(verifiedPaid.plan, 'core');
+    assert.equal(verifiedPaid.subscription.id, 'sub_fixture');
+    assert.match(paidLookupUrl, /\/v1\/checkout\/sessions\/cs_live_/);
+    assert.match(paidLookupUrl, /expand%5B%5D=customer/);
+    assert.match(paidLookupUrl, /expand%5B%5D=subscription/);
+    global.fetch = originalFetch;
+
+    billing.subscriptionsForCustomer = async () => [{ id: 'sub_incomplete', status: 'incomplete' }];
+    billing.openCheckoutForCustomer = async () => ({
+      url: 'https://checkout.stripe.com/c/pay_existing',
+      metadata: { plan: 'core', checkout_proof: crypto.createHash('sha256').update(checkoutNonce).digest('hex') },
     });
     const resumedCheckoutResponse = mockResponse();
-    await createCheckout(supportRequest({ plan: 'core' }), resumedCheckoutResponse);
+    await createCheckout(supportRequest({ plan: 'core', email: testAccount.email, checkoutNonce }), resumedCheckoutResponse);
     assert.equal(resumedCheckoutResponse.statusCode, 200);
     assert.equal(resumedCheckoutResponse.body.url, 'https://checkout.stripe.com/c/pay_existing');
-    assert.match(resumedCheckoutResponse.body.message, /instead of creating another/);
+    assert.equal(resumedCheckoutResponse.body.resumed, true);
     assert.equal(checkoutCalls.length, 1);
 
-    const conflictingCheckoutResponse = mockResponse();
-    await createCheckout(supportRequest({ plan: 'pro' }), conflictingCheckoutResponse);
-    assert.equal(conflictingCheckoutResponse.statusCode, 409);
-    assert.match(conflictingCheckoutResponse.body.error, /Core checkout is already open/);
-    assert.equal(checkoutCalls.length, 1);
+    const paidFixture = {
+      session: {
+        id: sessionId,
+        customer: { id: 'cus_fixture', email: testAccount.email, metadata: {} },
+        customer_details: { email: testAccount.email },
+      },
+      subscription: { id: 'sub_fixture', status: 'active', metadata: {} },
+      plan: 'core',
+    };
+    billing.paidCheckoutSession = async () => paidFixture;
+    const statusResponse = mockResponse();
+    await checkoutStatus({
+      method: 'GET', query: { session_id: sessionId },
+      headers: { 'x-forwarded-for': '203.0.113.243' }, socket: { remoteAddress: `203.0.113.${nextTestAddress - 1}` },
+    }, statusResponse);
+    assert.equal(statusResponse.statusCode, 200);
+    assert.deepEqual(statusResponse.body, { paid: true, plan: 'core', email: testAccount.email });
+
+    const claimUpdates = [];
+    auth.requireUser = async () => testAccount;
+    billing.linkCustomerToAccount = async (customer) => customer;
+    billing.linkSubscriptionToAccount = async (subscription) => subscription;
+    auth.updateBillingMetadata = async (userId, update) => claimUpdates.push({ userId, update });
+    const claimResponse = mockResponse();
+    await claimPurchase(supportRequest({ sessionId }), claimResponse);
+    assert.equal(claimResponse.statusCode, 200);
+    assert.deepEqual(claimResponse.body, { claimed: true, plan: 'core', status: 'active' });
+    assert.equal(claimUpdates.length, 1);
+    assert.equal(claimUpdates[0].update.stripeCustomerId, 'cus_fixture');
+    assert.equal(claimUpdates[0].update.stripeSubscriptionId, 'sub_fixture');
+
+    billing.paidCheckoutSession = async () => ({
+      ...paidFixture,
+      session: { ...paidFixture.session, customer_details: { email: 'other@example.com' } },
+    });
+    const mismatchedClaim = mockResponse();
+    await claimPurchase(supportRequest({ sessionId }), mismatchedClaim);
+    assert.equal(mismatchedClaim.statusCode, 403);
+    assert.match(mismatchedClaim.body.error, /same email address/);
 
     process.env.STRIPE_WEBHOOK_SECRET = `whsec_${'w'.repeat(32)}`;
     const webhookUpdates = [];
@@ -665,7 +741,14 @@ async function expectStatus(handler, request, expectedStatus, expectedMessage) {
     billing.createPortalSession = originalCreatePortalSession;
     billing.stripeRequest = originalStripeRequest;
     billing.openCheckoutForCustomer = originalOpenCheckoutForCustomer;
+    checkoutAttempts.reserve = originalReserveAttempt;
+    billing.customersByEmail = originalCustomersByEmail;
+    billing.subscriptionsForCustomer = originalSubscriptionsForCustomer;
+    billing.paidCheckoutSession = originalPaidCheckoutSession;
+    billing.linkCustomerToAccount = originalLinkCustomerToAccount;
+    billing.linkSubscriptionToAccount = originalLinkSubscriptionToAccount;
     auth.accountById = originalAccountById;
+    accountStore.accountById = originalStoreAccountById;
     auth.updateBillingMetadata = originalUpdateBillingMetadata;
     ticketStore.createTicket = originalCreateTicket;
     ticketStore.listTickets = originalListTickets;

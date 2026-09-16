@@ -3,30 +3,34 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Get Drip Type | Zap account</title>
-  <meta name="description" content="Create your Zap account, pay securely with Stripe, and download Drip Type.">
-  <meta name="robots" content="noindex,follow">
+  <title>Get Zap | Zap account</title>
+  <meta name="description" content="After secure Stripe payment, create your Zap account and download Zap.">
+  <meta name="referrer" content="no-referrer">
+  <meta name="robots" content="noindex,nofollow,noarchive">
   <link rel="icon" href="/brand/zap/zap-icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="/account.css?v=20260826-3">
-  <link rel="stylesheet" href="/account-additions.css?v=20260826-3">
+  <link rel="stylesheet" href="/account-additions.css?v=20260901-1">
+  <link rel="stylesheet" href="/quiet-theme.css?v=20260901-1">
+  <link rel="stylesheet" href="/cookie-banner.css?v=20260903-1">
 </head>
-<body>
+<body class="quiet-page account-page">
+  <a class="skip-link" href="#main-content">Skip to content</a>
   <header class="site-header">
-    <a class="brand" href="/" aria-label="Drip Type home">
+    <a class="brand" href="/" aria-label="Zap home">
       <img src="/brand/zap/zap-icon-192.png" alt="" width="34" height="34">
-      <span><strong>Drip Type</strong><small>by Zap</small></span>
+      <span><strong>Zap</strong></span>
     </a>
     <a class="quiet-link" href="/support">Support</a>
   </header>
 
-  <main>
+  <main id="main-content">
     <section class="intro">
-      <span class="eyebrow">Get Drip Type</span>
-      <h1>Three simple steps.</h1>
-      <p>Create your account, pay securely on Stripe, then download Drip Type. Your purchase and app access stay connected automatically.</p>
+      <span class="eyebrow">Get Zap</span>
+      <h1>Pay. Create. Download.</h1>
+      <p>Choose a plan and pay securely on Stripe. Then create the account that receives your paid access and download Zap.</p>
       <ol class="flow-steps" aria-label="Purchase steps">
-        <li class="active"><b>1</b><span><strong>Account</strong><small>Create or sign in</small></span></li>
-        <li><b>2</b><span><strong>Checkout</strong><small>Pay securely with Stripe</small></span></li>
+        <li class="active"><b>1</b><span><strong>Payment</strong><small>Secure Stripe checkout</small></span></li>
+        <li><b>2</b><span><strong>Account</strong><small>Create or sign in</small></span></li>
         <li><b>3</b><span><strong>Download</strong><small>Install and connect</small></span></li>
       </ol>
       <div class="trust-row" aria-label="Account protections">
@@ -44,9 +48,9 @@
 
       <div class="auth-card" id="auth-card" hidden>
         <div class="auth-heading">
-          <span class="card-kicker">Step 1 of 3</span>
+          <span class="card-kicker" id="auth-step">Account access</span>
           <h2 id="auth-title">Create your account.</h2>
-          <p id="auth-copy">Your account connects your purchase to Drip Type.</p>
+          <p id="auth-copy">Sign in to manage your Zap access.</p>
         </div>
         <div class="selected-plan" id="auth-plan" hidden><span id="auth-plan-name">Core</span><strong id="auth-plan-price">$9.99/month</strong></div>
         <div class="tabs" role="tablist" aria-label="Account action">
@@ -59,12 +63,12 @@
             <input id="email" name="email" type="email" autocomplete="email" maxlength="254" required placeholder="you@example.com">
           </label>
           <label>Password
-            <span class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" minlength="6" maxlength="128" required placeholder="6+ characters"><button id="toggle-password" type="button" aria-label="Show password">Show</button></span>
+            <span class="password-wrap"><input id="password" name="password" type="password" autocomplete="current-password" minlength="12" maxlength="128" required placeholder="12+ characters"><button id="toggle-password" type="button" aria-label="Show password">Show</button></span>
           </label>
           <div class="strength" id="strength" hidden>
             <div><span>Password strength</span><output id="strength-label">Too short</output></div>
             <meter id="strength-meter" min="0" max="4" value="0">0 out of 4</meter>
-            <p>Use 6+ characters with a mix of letters, numbers, or symbols. Longer unique passwords are safer.</p>
+            <p>Use 12+ characters with a mix of letters, numbers, or symbols. Longer unique passwords are safer.</p>
           </div>
           <p class="form-error" id="auth-error" role="alert"></p>
           <button class="primary" id="auth-submit" type="submit">Sign in</button>
@@ -81,12 +85,12 @@
           </label>
           <p class="form-hint">Use the one-time recovery code shown when the account was created or last recovered.</p>
           <label>New password
-            <span class="password-wrap"><input id="reset-password" type="password" autocomplete="new-password" minlength="6" maxlength="128" required placeholder="6+ characters"><button id="toggle-reset-password" type="button" aria-label="Show new password">Show</button></span>
+            <span class="password-wrap"><input id="reset-password" type="password" autocomplete="new-password" minlength="12" maxlength="128" required placeholder="12+ characters"><button id="toggle-reset-password" type="button" aria-label="Show new password">Show</button></span>
           </label>
           <div class="strength" id="reset-strength">
             <div><span>Password strength</span><output id="reset-strength-label">Too short</output></div>
             <meter id="reset-strength-meter" min="0" max="4" value="0">0 out of 4</meter>
-            <p>Use 6+ characters with a mix of letters, numbers, or symbols. Longer unique passwords are safer.</p>
+            <p>Use 12+ characters with a mix of letters, numbers, or symbols. Longer unique passwords are safer.</p>
           </div>
           <p class="form-error" id="reset-error" role="alert"></p>
           <button class="primary" id="reset-submit" type="submit">Reset password</button>
@@ -103,11 +107,11 @@
           <div><span class="card-kicker">One quick security step</span><h3>Save your backup code</h3><p>Keep this code in your password manager. You will need it only if you forget your password.</p></div>
           <code id="recovery-code-output"></code>
           <button class="secondary" id="copy-recovery" type="button">Copy backup code</button>
-          <button class="primary" id="dismiss-recovery" type="button">I've saved it — continue to checkout</button>
+          <button class="primary" id="dismiss-recovery" type="button">I've saved it — continue</button>
         </div>
         <div class="purchase-card" id="purchase-card" hidden>
           <span class="success-mark" aria-hidden="true">✓</span>
-          <div><span class="card-kicker">Step 3 of 3</span><h3 id="purchase-title">You're ready.</h3><p id="purchase-copy">Download Drip Type, install it, then connect this account from the app.</p></div>
+          <div><span class="card-kicker">Step 3 of 3</span><h3 id="purchase-title">You're ready.</h3><p id="purchase-copy">Download Zap, install it, then connect this account from the app.</p></div>
           <a class="primary link-button" id="download-app" href="https://drip-type-updates.vercel.app/Drip-Type-1.7.4-mac.dmg">Download for Mac</a>
         </div>
         <div class="subscription-card">
@@ -116,15 +120,14 @@
         </div>
         <div class="connect-card" id="connect-card" hidden>
           <span class="connect-icon" aria-hidden="true">↗</span>
-          <div><h3>Connect Drip Type</h3><p>Finish signing in on the app that sent you here.</p></div>
+          <div><h3>Connect Zap</h3><p>Finish signing in on the app that sent you here.</p></div>
           <button class="primary" id="connect-app" type="button">Connect this app</button>
         </div>
         <div class="plan-actions" id="plan-actions" hidden>
-          <span class="card-kicker">Step 2 of 3</span>
-          <h3 id="plan-title">Choose your plan</h3>
-          <p id="plan-message">Stripe shows the exact recurring price before you pay.</p>
-          <div><button class="primary" type="button" data-account-plan="core">Choose Core · $9.99/month</button><button class="secondary" type="button" data-account-plan="pro">Choose Pro · $25/month</button></div>
-          <a class="text-button change-plan" id="change-plan" href="/#pricing" hidden>Change plan</a>
+          <span class="card-kicker">No paid access</span>
+          <h3 id="plan-title">Choose a plan first</h3>
+          <p id="plan-message">Payment comes first. After Stripe checkout, you return here to create or connect your account.</p>
+          <a class="primary link-button" id="change-plan" href="/#pricing">See plans and pay</a>
         </div>
         <div class="manage-actions" id="manage-actions" hidden>
           <button class="primary" id="manage-billing" type="button">Manage billing</button>
@@ -141,6 +144,7 @@
     </section>
   </main>
   <footer><span>© 2026 Zap</span><span><a href="/privacy">Privacy</a> · <a href="/terms">Terms</a> · <a href="/refunds">Cancellation policy</a></span></footer>
-  <script src="/account.js?v=20260826-3" defer></script>
+  <script src="/account.js?v=20260901-1" defer></script>
+  <script src="/cookie-banner.js?v=20260903-1" defer></script>
 </body>
 </html>

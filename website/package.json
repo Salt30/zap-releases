@@ -1,8 +1,11 @@
 {
-  "name": "drip-type-website",
+  "name": "zap-website",
   "version": "1.0.0",
   "private": true,
   "license": "UNLICENSED",
+  "scripts": {
+    "build": "node build-static.js"
+  },
   "engines": {
     "node": "22.x"
   },

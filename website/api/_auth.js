@@ -34,7 +34,7 @@ async function requireUser(request, response) {
     }
     return account;
   } catch (error) {
-    console.error("Account authentication failed", { code: error.message || "auth_failed" });
+    console.error("Account authentication failed", { code: "auth_failed" });
     response.status(401).json({ error: "Your sign-in could not be verified. Please sign in again." });
     return null;
   }

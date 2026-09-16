@@ -1,5 +1,8 @@
 const $ = (id) => document.getElementById(id);
 const { acceleratorFromKeyboardEvent, formatAccelerator } = require('./shortcut-utils');
+const { createAppearance } = require('./appearance');
+const { setSavedRangeValue } = require('./settings-controls');
+const { initZap } = require('./zap-ui');
 const controls = {
   wpm: $('wpm'),
   delay: $('delay'),
@@ -11,13 +14,8 @@ const controls = {
 let typing = false;
 let saveTimer = null;
 let updateState = { status: 'idle' };
-let themePreference = 'system';
 let launchAtLogin = true;
-let templates = [];
-let editingTemplateId = null;
-let billingState = { allowed: true, status: 'checking', plan: 'core' };
-let profiles = [];
-let activeProfileId = null;
+let billingState = { allowed: false, status: 'checking', plan: null };
 let savedShortcuts = { hotkeyStart: 'Alt+5', hotkeyStop: 'Alt+0' };
 let currentPlatform = 'darwin';
 
@@ -29,20 +27,18 @@ function hasFeature(feature) {
   return Array.isArray(billingState.features) && billingState.features.includes(feature);
 }
 
-function applyTheme(preference = 'system') {
-  themePreference = ['system', 'light', 'dark'].includes(preference) ? preference : 'system';
-  const resolved = themePreference === 'system'
-    ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
-    : themePreference;
-  document.documentElement.dataset.theme = resolved;
+const applyTheme = createAppearance((themePreference) => {
   document.querySelectorAll('.theme-option').forEach((button) => {
     button.classList.toggle('active', button.dataset.themeValue === themePreference);
     button.setAttribute('aria-pressed', String(button.dataset.themeValue === themePreference));
   });
-}
+});
 
 function setPage(name) {
   const button = document.querySelector(`.nav-button[data-page="${name}"]`);
+  if (!button) return;
+  $('page-title').textContent = button.querySelector('span').textContent;
+  document.querySelector('.content').scrollTop = 0;
   if (button?.dataset.feature && !hasFeature(button.dataset.feature)) {
     document.querySelectorAll('.nav-button').forEach((item) => {
       const active = item.dataset.page === name;
@@ -68,103 +64,7 @@ function renderLaunchAtLogin(enabled) {
   $('launch-login-label').textContent = launchAtLogin ? 'On' : 'Off';
   $('launch-login-copy').textContent = launchAtLogin
     ? `Starts quietly in the ${currentPlatform === 'win32' ? 'system tray' : 'menu bar'} so the global composer shortcut is always available.`
-    : 'Drip Type must be opened manually before its global shortcuts can work.';
-}
-
-function clearTemplateEditor() {
-  editingTemplateId = null;
-  $('template-name').value = '';
-  $('template-body').value = '';
-  $('save-template').textContent = 'Save template';
-  $('cancel-template').hidden = true;
-}
-
-function editTemplate(template) {
-  editingTemplateId = template.id;
-  $('template-name').value = template.name;
-  $('template-body').value = template.body;
-  $('save-template').textContent = 'Update template';
-  $('cancel-template').hidden = false;
-  $('template-name').focus();
-}
-
-function renderTemplates(nextTemplates = []) {
-  templates = Array.isArray(nextTemplates) ? nextTemplates : [];
-  const list = $('template-list');
-  list.replaceChildren();
-  if (!templates.length) {
-    const empty = document.createElement('div');
-    empty.className = 'template-empty';
-    empty.textContent = 'No templates yet. Create one above and it will appear in Drip Composer.';
-    list.appendChild(empty);
-    return;
-  }
-  for (const template of templates) {
-    const item = document.createElement('article');
-    item.className = 'template-item';
-    const copy = document.createElement('div');
-    const title = document.createElement('strong');
-    title.textContent = template.category ? `${template.name} · ${template.category}` : template.name;
-    const preview = document.createElement('p');
-    preview.textContent = template.body.replace(/\s+/g, ' ').trim();
-    copy.append(title, preview);
-    const actions = document.createElement('div');
-    actions.className = 'template-item-actions';
-    const edit = document.createElement('button');
-    edit.type = 'button';
-    edit.textContent = 'Edit';
-    edit.addEventListener('click', () => editTemplate(template));
-    const remove = document.createElement('button');
-    remove.type = 'button';
-    remove.textContent = 'Delete';
-    remove.addEventListener('click', async () => {
-      if (!window.confirm(`Delete “${template.name}”?`)) return;
-      const result = await window.dripType.deleteTemplate(template.id);
-      renderTemplates(result.templates);
-      if (editingTemplateId === template.id) clearTemplateEditor();
-      $('template-note').textContent = result.error || 'Deleted';
-      setTimeout(() => { $('template-note').textContent = ''; }, 2200);
-    });
-    actions.append(edit, remove);
-    item.append(copy, actions);
-    list.appendChild(item);
-  }
-  renderBatchTemplatePicker();
-}
-
-function renderBatchTemplatePicker() {
-  const picker = $('batch-template');
-  if (!picker) return;
-  const previous = picker.value;
-  picker.replaceChildren();
-  for (const template of templates) {
-    const option = document.createElement('option');
-    option.value = template.id;
-    option.textContent = template.name;
-    picker.appendChild(option);
-  }
-  if (templates.some((template) => template.id === previous)) picker.value = previous;
-}
-
-async function saveTemplate() {
-  const name = $('template-name').value.trim();
-  const body = $('template-body').value.replace(/\r\n?/g, '\n');
-  if (!name || !body.trim()) {
-    $('template-note').textContent = 'Add a name and template body.';
-    return;
-  }
-  $('save-template').disabled = true;
-  try {
-    const result = await window.dripType.saveTemplate({ id: editingTemplateId, name, body });
-    renderTemplates(result.templates);
-    $('template-note').textContent = result.error || (editingTemplateId ? 'Updated' : 'Saved');
-    if (!result.error) clearTemplateEditor();
-    setTimeout(() => { $('template-note').textContent = ''; }, 2200);
-  } catch (error) {
-    $('template-note').textContent = errorMessage(error, 'The template could not be saved.');
-  } finally {
-    $('save-template').disabled = false;
-  }
+    : 'Zap must be opened manually before its global shortcuts can work.';
 }
 
 function rangeFill(input) {
@@ -199,30 +99,19 @@ function renderBilling(state = {}) {
 
   $('billing-status').dataset.state = status;
   $('billing-status').textContent = active ? 'Subscription active' : 'Subscription required';
-  $('billing-plan').textContent = active ? `Drip Type ${planName}` : 'Continue with Core';
+  $('billing-plan').textContent = active ? `Zap ${planName}` : 'Continue with Core';
   $('billing-copy').textContent = billingState.message || (active
     ? 'This device is activated and ready to use.'
-    : 'Choose Core to keep using Drip Composer and natural typing.');
+    : 'Choose Core to keep using Drip Type and natural typing.');
 
   const expiry = active ? readableDate(billingState.expiresAt) : '';
   $('billing-expiry').textContent = expiry
     ? `Access verified through ${expiry}. It refreshes automatically.`
     : '';
   $('billing-manage').disabled = !active;
-  $('billing-subscribe').textContent = active ? (billingState.plan === 'pro' ? 'View account' : 'Upgrade or view account') : 'Connect Zap account';
-  renderProAccess();
+  $('billing-subscribe').textContent = billingState.signedIn ? 'View account' : 'Sign in';
+  $('account-sign-out').hidden = !billingState.signedIn && !billingState.cleanupPending;
   refreshTextMeta();
-}
-
-function renderProAccess() {
-  const pro = billingState.status === 'active' && billingState.plan === 'pro';
-  document.querySelectorAll('.nav-button[data-feature]').forEach((button) => {
-    button.classList.toggle('locked', !hasFeature(button.dataset.feature));
-  });
-  document.querySelectorAll('[data-pro-lock]').forEach((element) => { element.hidden = pro; });
-  document.querySelectorAll('[data-pro-content]').forEach((element) => element.setAttribute('aria-disabled', String(!pro)));
-  $('install-library').disabled = !hasFeature('template_library');
-  $('install-library').textContent = hasFeature('template_library') ? 'Install Pro library' : 'Pro library';
 }
 
 function sendToComposer(value) {
@@ -232,78 +121,11 @@ function sendToComposer(value) {
   $('text').focus();
 }
 
-async function runBatch() {
-  const template = templates.find((item) => item.id === $('batch-template').value);
-  if (!template) { $('batch-note').textContent = 'Choose a template first.'; return; }
-  const result = await window.dripType.renderBatch(template.body, $('batch-data').value);
-  if (result?.code === 'PRO_REQUIRED') { $('batch-note').textContent = result.error; return; }
-  $('batch-note').textContent = result.errors?.length ? result.errors.join(' ') : `Generated ${result.outputs.length} messages locally.`;
-  const list = $('batch-results');
-  list.replaceChildren();
-  for (const output of result.outputs || []) {
-    const item = document.createElement('article'); item.className = 'result-item';
-    const head = document.createElement('div'); head.className = 'item-head';
-    const title = document.createElement('strong'); title.textContent = `Row ${output.index}`;
-    const actions = document.createElement('div'); actions.className = 'row';
-    const copy = document.createElement('button'); copy.type = 'button'; copy.className = 'mini'; copy.textContent = 'Copy'; copy.addEventListener('click', () => window.dripType.writeClipboardText(output.text));
-    const compose = document.createElement('button'); compose.type = 'button'; compose.className = 'mini'; compose.textContent = 'Compose'; compose.addEventListener('click', () => sendToComposer(output.text));
-    actions.append(copy, compose); head.append(title, actions);
-    const pre = document.createElement('pre'); pre.textContent = output.text;
-    item.append(head, pre); list.appendChild(item);
+function applyTypingControls(profile) {
+  for (const [name, key] of Object.entries({ wpm: 'dripWPM', delay: 'dripDelay', typos: 'typoRate', pauses: 'dripPauseChance', bursts: 'dripBurstChance' })) {
+    setSavedRangeValue(controls[name], profile[key]);
   }
-}
-
-async function runTransform() {
-  const result = await window.dripType.transformWriting($('transform-input').value, $('transform-mode').value);
-  if (result?.error) { $('transform-note').textContent = result.error; return; }
-  $('transform-output').value = result.text;
-  $('transform-note').textContent = 'Transformed locally. No network service was used.';
-}
-
-function renderProfiles(result = {}) {
-  profiles = Array.isArray(result.profiles) ? result.profiles : [];
-  activeProfileId = result.activeProfileId || activeProfileId;
-  const list = $('profile-list'); list.replaceChildren();
-  for (const profile of profiles) {
-    const item = document.createElement('article'); item.className = 'profile-item';
-    const head = document.createElement('div'); head.className = 'item-head';
-    const title = document.createElement('strong'); title.textContent = `${profile.name}${profile.id === activeProfileId ? ' · Active' : ''}`;
-    const actions = document.createElement('div'); actions.className = 'row';
-    const activate = document.createElement('button'); activate.type = 'button'; activate.className = 'mini'; activate.textContent = 'Activate'; activate.disabled = profile.id === activeProfileId;
-    activate.addEventListener('click', async () => { const next = await window.dripType.activateProfile(profile.id); renderProfiles(next); if (next.profile) applyProfileControls(next.profile); });
-    const remove = document.createElement('button'); remove.type = 'button'; remove.className = 'mini'; remove.textContent = 'Delete'; remove.addEventListener('click', async () => renderProfiles(await window.dripType.deleteProfile(profile.id)));
-    actions.append(activate, remove); head.append(title, actions);
-    const detail = document.createElement('div'); detail.className = 'pro-note'; detail.textContent = `${profile.dripWPM} WPM · ${profile.dripDelay}s delay · ${Math.round(profile.typoRate * 100)}% corrected typos`;
-    item.append(head, detail); list.appendChild(item);
-  }
-}
-
-function applyProfileControls(profile) {
-  controls.wpm.value = profile.dripWPM; controls.delay.value = profile.dripDelay;
-  controls.typos.value = profile.typoRate; controls.pauses.value = profile.dripPauseChance; controls.bursts.value = profile.dripBurstChance;
   refreshValues();
-}
-
-async function renderClipboard(query = '') {
-  const result = await window.dripType.listClipboardItems(query);
-  const list = $('clipboard-list'); list.replaceChildren();
-  if (result?.error) { $('clipboard-note').textContent = result.error; return; }
-  for (const clip of result.items || []) {
-    const item = document.createElement('article'); item.className = 'clipboard-item';
-    const head = document.createElement('div'); head.className = 'item-head';
-    const title = document.createElement('strong'); title.textContent = `${clip.pinned ? 'Pinned · ' : ''}${new Date(clip.createdAt).toLocaleString()}`;
-    const actions = document.createElement('div'); actions.className = 'row';
-    for (const [label, action] of [['Copy', 'copy'], [clip.pinned ? 'Unpin' : 'Pin', 'pin'], ['Delete', 'delete']]) {
-      const button = document.createElement('button'); button.type = 'button'; button.className = 'mini'; button.textContent = label;
-      button.addEventListener('click', async () => {
-        if (action === 'copy') await window.dripType.writeClipboardText(clip.text);
-        else { const next = await window.dripType.updateClipboardItem(clip.id, action); if (!next.error) renderClipboard($('clipboard-search').value); }
-      }); actions.appendChild(button);
-    }
-    const compose = document.createElement('button'); compose.type = 'button'; compose.className = 'mini'; compose.textContent = 'Compose'; compose.addEventListener('click', () => sendToComposer(clip.text)); actions.appendChild(compose);
-    head.append(title, actions); const copy = document.createElement('p'); copy.textContent = clip.text;
-    item.append(head, copy); list.appendChild(item);
-  }
 }
 
 function refreshValues() {
@@ -328,7 +150,7 @@ function currentBehavior() {
 
 function saveBehavior() {
   clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => window.dripType.saveSettings(currentBehavior()), 180);
+  saveTimer = setTimeout(() => flushBehavior().catch(reportActionError), 180);
 }
 
 async function flushBehavior() {
@@ -346,7 +168,7 @@ function renderCurrentShortcuts(shortcuts = savedShortcuts) {
   const start = formatAccelerator(shortcuts.hotkeyStart, currentPlatform);
   const stop = formatAccelerator(shortcuts.hotkeyStop, currentPlatform);
   $('quick-shortcut').textContent = start;
-  $('setup-shortcut-copy').textContent = `${start} opens Composer and ${stop} stops typing.`;
+  $('setup-shortcut-copy').textContent = `${start} opens Drip Type and ${stop} stops typing.`;
 }
 
 function shortcutMessage(message, error = false) {
@@ -357,6 +179,8 @@ function shortcutMessage(message, error = false) {
 
 function captureShortcut(input) {
   input.addEventListener('keydown', (event) => {
+    // Keep keyboard users able to leave the recorder without trapping focus.
+    if (event.key === 'Tab' && !event.metaKey && !event.ctrlKey && !event.altKey) return;
     event.preventDefault();
     event.stopPropagation();
     if (event.key === 'Escape') {
@@ -396,9 +220,9 @@ async function refreshPermission(prompt = false) {
   $('permission-card').classList.toggle('ready', trusted);
   const windows = currentPlatform === 'win32';
   $('permission-title').textContent = windows ? 'Windows typing ready' : trusted ? 'Accessibility enabled' : 'Accessibility needed';
-  $('permission-copy').textContent = windows ? 'Drip Type is ready in every editable app.' : trusted ? 'Drip Type is ready.' : 'Click to enable typing access.';
+  $('permission-copy').textContent = windows ? 'Zap is ready in every editable app.' : trusted ? 'Zap is ready.' : 'Click to enable typing access.';
   $('setup-permission-copy').textContent = trusted
-    ? windows ? 'Ready. Windows can send local input to the focused app.' : 'Enabled. Drip Type can type into other applications.'
+    ? windows ? 'Ready. Windows can send local input to the focused app.' : 'Enabled. Zap can type into other applications.'
     : 'Required to type into other applications.';
   $('request-access').textContent = windows ? 'Ready' : trusted ? 'Permission enabled' : 'Open permission prompt';
   $('request-access').disabled = trusted;
@@ -419,7 +243,7 @@ async function refreshPermissionChecklist() {
   shortcutState.classList.toggle('ready', checklist.shortcuts);
   $('automation-copy').textContent = checklist.automation
     ? windows ? 'Ready. The native Windows input engine stays on this device.' : 'Allowed. System Events is ready for secure local typing.'
-    : 'Required so Drip Type can use macOS System Events.';
+    : 'Required so Zap can use macOS System Events.';
   $('request-automation').textContent = windows ? 'Ready' : checklist.automation ? 'Permission enabled' : 'Allow automation';
   $('request-automation').disabled = checklist.automation;
   return checklist;
@@ -514,6 +338,7 @@ $('request-automation').addEventListener('click', async () => {
 });
 $('open-shortcut-settings').addEventListener('click', () => setPage('shortcuts'));
 $('preview-quick').addEventListener('click', () => window.dripType.showQuick());
+$('toolbar-composer').addEventListener('click', () => window.dripType.showQuick());
 $('launch-login').addEventListener('click', async () => {
   renderLaunchAtLogin(!launchAtLogin);
   await window.dripType.saveSettings({ launchAtLogin });
@@ -521,13 +346,31 @@ $('launch-login').addEventListener('click', async () => {
 $('replay-onboarding').addEventListener('click', () => window.dripType.replayOnboarding());
 $('update-action').addEventListener('click', runUpdateAction);
 $('billing-subscribe').addEventListener('click', async () => {
-  $('billing-note').textContent = 'Opening secure checkout…';
+  $('billing-subscribe').disabled = true;
+  $('billing-note').textContent = 'Opening your secure account…';
   try {
-    const result = await window.dripType.subscribe();
-    $('billing-note').textContent = result?.error || 'Complete checkout in your browser, then return here.';
+    if (billingState.signedIn) await window.dripType.openAccount();
+    else await window.dripType.signIn();
+    $('billing-note').textContent = billingState.signedIn ? 'Account opened in your browser.' : 'Sign in at tryzap.net, then choose Connect app.';
   } catch (error) {
-    $('billing-note').textContent = errorMessage(error, 'Secure checkout could not be opened.');
-  }
+    $('billing-note').textContent = errorMessage(error, 'Sign-in could not be opened.');
+  } finally { $('billing-subscribe').disabled = false; }
+});
+$('account-sign-out').addEventListener('click', async () => {
+  $('account-sign-out').disabled = true;
+  $('billing-subscribe').disabled = true;
+  $('billing-note').textContent = 'Signing out…';
+  try {
+    const state = await window.dripType.signOut();
+    renderBilling(state);
+    $('billing-note').textContent = state.warning || 'Signed out of Zap on this device.';
+  } catch { $('billing-note').textContent = 'Sign-out could not finish. Please try again.'; }
+  finally { $('account-sign-out').disabled = false; $('billing-subscribe').disabled = false; }
+});
+window.dripType.onSignedOut(() => {
+  $('text').value = '';
+  refreshTextMeta();
+  setPage('billing');
 });
 $('billing-refresh').addEventListener('click', async () => {
   $('billing-refresh').disabled = true;
@@ -554,44 +397,11 @@ $('billing-manage').addEventListener('click', async () => {
     $('billing-manage').disabled = billingState.status !== 'active';
   }
 });
-$('save-template').addEventListener('click', saveTemplate);
-$('cancel-template').addEventListener('click', clearTemplateEditor);
-$('install-library').addEventListener('click', async () => {
-  const result = await window.dripType.installTemplateLibrary();
-  renderTemplates(result.templates || templates);
-  $('template-note').textContent = result.error || `${result.installed} Pro templates installed.`;
-});
-$('batch-run').addEventListener('click', runBatch);
-$('transform-run').addEventListener('click', runTransform);
-$('transform-copy').addEventListener('click', async () => {
-  const result = await window.dripType.writeClipboardText($('transform-output').value);
-  $('transform-note').textContent = result.error || 'Copied.';
-});
-$('transform-compose').addEventListener('click', () => sendToComposer($('transform-output').value));
-$('profile-save').addEventListener('click', async () => {
-  const result = await window.dripType.saveProfile({ name: $('profile-name').value.trim(), ...currentBehavior() });
-  renderProfiles(result);
-  $('profile-note').textContent = result.error || 'Profile saved.';
-  if (!result.error) $('profile-name').value = '';
-});
-$('clipboard-capture').addEventListener('click', async () => {
-  const result = await window.dripType.captureClipboardItem();
-  $('clipboard-note').textContent = result.error || 'Clipboard text saved locally.';
-  if (!result.error) renderClipboard($('clipboard-search').value);
-});
-$('clipboard-search').addEventListener('input', () => renderClipboard($('clipboard-search').value));
-document.querySelectorAll('[data-upgrade]').forEach((button) => button.addEventListener('click', async () => {
-  $('billing-note').textContent = 'Opening secure plan selection…';
-  await window.dripType.subscribe();
-}));
 document.querySelectorAll('.theme-option').forEach((button) => {
   button.addEventListener('click', async () => {
     applyTheme(button.dataset.themeValue);
-    await window.dripType.saveSettings({ theme: themePreference });
+    await window.dripType.saveSettings({ theme: button.dataset.themeValue });
   });
-});
-window.matchMedia('(prefers-color-scheme: light)').addEventListener('change', () => {
-  if (themePreference === 'system') applyTheme('system');
 });
 
 $('start').addEventListener('click', async () => {
@@ -632,7 +442,7 @@ $('save-shortcuts').addEventListener('click', async () => {
     renderCurrentShortcuts();
     shortcutMessage(result.shortcutFailures?.length
       ? result.shortcutFailures.join(' ')
-      : `${formatAccelerator(savedShortcuts.hotkeyStart, currentPlatform)} opens Composer; ${formatAccelerator(savedShortcuts.hotkeyStop, currentPlatform)} stops typing.`,
+      : `${formatAccelerator(savedShortcuts.hotkeyStart, currentPlatform)} opens Drip Type; ${formatAccelerator(savedShortcuts.hotkeyStop, currentPlatform)} stops typing.`,
     Boolean(result.shortcutFailures?.length));
     await refreshPermissionChecklist();
   } catch (error) {
@@ -645,30 +455,26 @@ $('save-shortcuts').addEventListener('click', async () => {
 window.dripType.onState(setStatus);
 window.dripType.onUpdate(renderUpdate);
 window.dripType.onBilling(renderBilling);
-window.dripType.onTheme(({ theme }) => applyTheme(theme));
 window.dripType.onNavigate(({ page, focus } = {}) => {
   if (page) setPage(page);
   if (focus === 'updates') {
     $('update-card').scrollIntoView({ behavior: 'smooth', block: 'center' });
     $('update-action').focus({ preventScroll: true });
   }
+  if (focus === 'zap-input') $('zap-input').focus();
 });
 
+initZap({ sendToComposer, getComposerText: () => $('text').value });
+
 async function load() {
-  const [settings, info, updater, savedTemplates, subscription, savedProfiles] = await Promise.all([
+  const [settings, info, updater, subscription] = await Promise.all([
     window.dripType.getSettings(),
     window.dripType.getAppInfo(),
     window.dripType.getUpdateState(),
-    window.dripType.listTemplates(),
-    window.dripType.getBillingState(),
-    window.dripType.listProfiles()
+    window.dripType.getBillingState()
   ]);
   currentPlatform = info.platform;
-  controls.wpm.value = settings.dripWPM;
-  controls.delay.value = settings.dripDelay;
-  controls.typos.value = settings.typoRate;
-  controls.pauses.value = settings.dripPauseChance;
-  controls.bursts.value = settings.dripBurstChance;
+  applyTypingControls(settings);
   savedShortcuts = { hotkeyStart: settings.hotkeyStart, hotkeyStop: settings.hotkeyStop };
   renderShortcutInput($('start-key'), savedShortcuts.hotkeyStart);
   renderShortcutInput($('stop-key'), savedShortcuts.hotkeyStop);
@@ -680,7 +486,7 @@ async function load() {
   $('about-id').textContent = info.appId;
   document.documentElement.dataset.platform = currentPlatform;
   if (currentPlatform === 'win32') {
-    $('setup-lead').textContent = 'Drip Type uses the native Windows input engine to send keystrokes. Your text and settings stay on this device.';
+    $('setup-lead').textContent = 'Zap uses the native Windows input engine to send keystrokes. Your text and settings stay on this device.';
     $('accessibility-label').textContent = 'Windows input engine';
     $('automation-label').textContent = 'Private local typing';
     $('appearance-copy').textContent = 'Match Windows automatically or choose a permanent theme.';
@@ -692,13 +498,18 @@ async function load() {
   refreshPermission(false);
   refreshPermissionChecklist();
   renderUpdate(updater);
-  renderTemplates(savedTemplates);
   renderBilling(subscription);
-  renderProfiles(savedProfiles);
-  if (subscription.plan === 'pro') renderClipboard();
 }
 
+function reportActionError() {
+  $('app-alert').hidden = false;
+  $('app-alert').textContent = 'That change could not be completed. Please try again. If the problem continues, reopen Zap. Your existing saved data has been preserved.';
+}
+window.addEventListener('unhandledrejection', (event) => {
+  event.preventDefault();
+  reportActionError();
+});
 load().catch((error) => {
-  setStatus({ status: 'error', message: errorMessage(error, 'Drip Type settings could not be loaded.') });
-  $('permission-copy').textContent = 'Setup status could not be loaded. Reopen Drip Type and try again.';
+  setStatus({ status: 'error', message: errorMessage(error, 'Zap settings could not be loaded.') });
+  $('permission-copy').textContent = 'Setup status could not be loaded. Reopen Zap and try again.';
 });

@@ -6,7 +6,7 @@
   <meta name="color-scheme" content="dark light">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <link rel="icon" href="zap-icon.svg" type="image/svg+xml">
-  <title>Drip Type</title>
+  <title>Zap</title>
   <style>
     :root {
       color-scheme: dark;
@@ -349,31 +349,26 @@
       .page { width: calc(100% - 40px); }
     }
   </style>
+  <link rel="stylesheet" href="native.css">
+  <link rel="stylesheet" href="zap.css">
 </head>
-<body>
+<body class="desktop-app">
   <div class="app">
     <aside class="sidebar">
       <div class="brand">
         <img class="brand-mark" src="zap-icon.svg" alt="">
-        <div><div class="brand-name">Drip Type <span style="color:var(--subtle);font-weight:500">by Zap</span></div><div class="brand-version" id="brand-version">Version 1.7.4</div></div>
+        <div><div class="brand-name">Zap</div><div class="brand-version" id="brand-version">Version 1.8.0</div></div>
       </div>
 
       <nav class="nav" aria-label="Main navigation">
+        <div class="nav-label">Workspace</div>
+        <button class="nav-button" type="button" data-page="zap">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m13 2-2 8H4l7 12 2-8h7L13 2Z"/></svg><span>Zap AI</span>
+        </button>
         <button class="nav-button active" type="button" data-page="composer" aria-current="page">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v11H8l-4 4V5Z"/></svg><span>Composer</span>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v11H8l-4 4V5Z"/></svg><span>Drip Type</span>
         </button>
-        <button class="nav-button" type="button" data-page="templates">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h4"/></svg><span>Templates</span>
-        </button>
-        <button class="nav-button" type="button" data-page="studio" data-feature="batch">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m13 2-2 8H4l7 12 2-8h7L13 2Z"/></svg><span>Pro Studio</span>
-        </button>
-        <button class="nav-button" type="button" data-page="profiles" data-feature="profiles">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c1-5 4-7 8-7s7 2 8 7"/></svg><span>Profiles</span>
-        </button>
-        <button class="nav-button" type="button" data-page="clipboard" data-feature="clipboard">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="5" width="14" height="16" rx="2"/><path d="M9 5V3h6v2M8 10h8M8 14h8"/></svg><span>Clipboard</span>
-        </button>
+        <div class="nav-label">Preferences</div>
         <button class="nav-button" type="button" data-page="typing">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 7h16M7 12h10M9 17h6"/></svg><span>Typing</span>
         </button>
@@ -393,18 +388,20 @@
           <span class="permission-dot"></span>
           <span><span class="permission-title" id="permission-title">Accessibility needed</span><span class="permission-copy" id="permission-copy">Click to enable typing access.</span></span>
         </button>
-        <div class="quick-hint">Press <kbd id="quick-shortcut">⌥5</kbd> from any app to open Drip Composer.</div>
+        <div class="quick-hint">Press <kbd id="quick-shortcut">⌥5</kbd> from any app to open Drip Type.</div>
       </div>
     </aside>
 
     <main class="content">
+      <header class="window-toolbar"><strong id="page-title">Drip Type</strong><button class="toolbar-action" id="toolbar-composer" type="button" aria-label="Open Drip Type" title="Open Drip Type"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><path d="M14 4H4v16h16V10M13 11l8-8M15 3h6v6"/></svg></button></header>
+      <div class="app-alert" id="app-alert" role="alert" hidden></div>
       <section class="page active" id="page-composer">
-        <div class="eyebrow">Composer</div>
-        <h1>Write it once. Type it anywhere.</h1>
-        <p class="lead">Paste or draft text here, then switch to the destination during the countdown. For the fastest workflow, use Drip Composer from any app.</p>
+        <div class="eyebrow">Drip Type</div>
+        <h1>A little space for your words.</h1>
+        <p class="lead">Write or paste your text. Press Start, then click the destination field during the countdown.</p>
 
         <div class="card composer">
-          <textarea id="text" spellcheck="true" placeholder="Paste or write something to type…"></textarea>
+          <textarea id="text" spellcheck="true" maxlength="100000" aria-label="Text to type" placeholder="Paste or write something to type…"></textarea>
           <div class="composer-footer">
             <div class="text-meta"><span id="word-count">0 words</span><span id="char-count">0 characters</span><span id="estimate">—</span></div>
             <div class="composer-actions">
@@ -413,47 +410,43 @@
             </div>
           </div>
         </div>
-        <div class="status-line" id="status" data-status="idle">
+        <div class="status-line" id="status" data-status="idle" role="status" aria-live="polite">
           <span class="status-icon"></span><span id="status-copy">Ready</span>
           <span class="progress"><span id="progress-bar"></span></span>
         </div>
       </section>
 
-      <section class="page" id="page-templates">
-        <div class="eyebrow">Templates</div>
-        <h1>Write once. Personalize in seconds.</h1>
-        <p class="lead">Create reusable local templates, then insert them from Drip Composer. Wrap a field in double braces—such as <strong>{{name}}</strong>—and Drip Type will ask for its value before insertion.</p>
-        <div class="card template-editor">
-          <input class="template-input" id="template-name" maxlength="60" placeholder="Template name" aria-label="Template name">
-          <textarea class="template-body" id="template-body" maxlength="20000" placeholder="Hi {{name}},&#10;&#10;Following up about {{topic}}…" aria-label="Template body"></textarea>
-          <div class="template-help">Templates and filled values stay on this device. Filled values are never saved to the template.</div>
-          <div class="template-actions"><button class="button primary" id="save-template" type="button">Save template</button><button class="button secondary" id="cancel-template" type="button" hidden>Cancel edit</button><button class="button secondary" id="install-library" type="button">Install Pro library</button><span class="save-note" id="template-note"></span></div>
+      <section class="page" id="page-zap">
+        <div class="zap-heading"><div><h1>See it. Understand it. Write it.</h1><p class="lead">Zap’s AI tools and Drip Type, in one place.</p></div><button class="button secondary" id="zap-settings-open" type="button">AI settings</button></div>
+        <div class="zap-tools" role="group" aria-label="Zap tools">
+          <button type="button" class="zap-tool active" data-zap-mode="answer" aria-pressed="true">Answer</button>
+          <button type="button" class="zap-tool" data-zap-mode="simple" aria-pressed="false">Quick answer</button>
+          <button type="button" class="zap-tool" data-zap-mode="translate" aria-pressed="false">Translate</button>
+          <button type="button" class="zap-tool" data-zap-mode="rewrite" aria-pressed="false">Rewrite</button>
+          <button type="button" class="zap-tool" data-zap-mode="summarize" aria-pressed="false">Summarize</button>
+          <button type="button" class="zap-tool" data-zap-mode="explain" aria-pressed="false">Explain</button>
+          <button type="button" class="zap-tool" data-zap-mode="solve" aria-pressed="false">Solve</button>
+          <button type="button" class="zap-tool" data-zap-mode="code" aria-pressed="false">Code</button>
+          <button type="button" class="zap-tool" data-zap-mode="research" aria-pressed="false">Research</button>
+          <button type="button" class="zap-tool" data-zap-mode="flashcards" aria-pressed="false">Flashcards</button>
+          <button type="button" class="zap-tool" data-zap-mode="form" aria-pressed="false">Form assistant</button>
         </div>
-        <div class="template-list" id="template-list"></div>
-      </section>
-
-      <section class="page" id="page-studio">
-        <div class="eyebrow">Pro Studio</div>
-        <h1>Personalize and polish, entirely on-device.</h1>
-        <p class="lead">Generate one message per CSV or tab-separated row, or apply transparent writing transforms. No text leaves this device.</p>
-        <div class="pro-lock" data-pro-lock><strong>Unlock Pro Studio</strong><p>Batch personalization and the local Writing Lab are included with Pro.</p><button class="button primary" type="button" data-upgrade>Choose Pro</button></div>
-        <div class="pro-grid pro-only" data-pro-content aria-disabled="true">
-          <div class="card pro-card stack"><h2>Batch personalization</h2><p>Select a template, then paste CSV/TSV whose headers match the {{fields}}.</p><select class="select" id="batch-template" aria-label="Batch template"></select><textarea class="pro-textarea" id="batch-data" aria-label="Batch CSV or tab-separated data" placeholder="name,topic&#10;Maya,launch plan&#10;Devon,renewal"></textarea><button class="button primary" id="batch-run" type="button">Generate locally</button><div class="pro-note" id="batch-note"></div></div>
-          <div class="card pro-card stack"><h2>Writing Lab</h2><p>Rule-based transforms are predictable, fast, and private—no generative service is called.</p><select class="select" id="transform-mode" aria-label="Writing transform"><option value="tighten">Tighten</option><option value="direct">Make direct</option><option value="warm">Warm up</option><option value="outline">Turn into outline</option></select><textarea class="pro-textarea" id="transform-input" aria-label="Text to transform" placeholder="Paste text to transform locally…"></textarea><button class="button primary" id="transform-run" type="button">Transform locally</button><textarea class="pro-textarea" id="transform-output" aria-label="Transformed result" readonly placeholder="Result appears here"></textarea><div class="row"><button class="button secondary" id="transform-copy" type="button">Copy</button><button class="button secondary" id="transform-compose" type="button">Send to Composer</button></div><div class="pro-note" id="transform-note"></div></div>
+        <p id="zap-mode-help" class="zap-hint">Ask a question or attach a screenshot for context.</p>
+        <div class="card zap-input-card">
+          <textarea id="zap-input" maxlength="100000" aria-label="Ask Zap" placeholder="Ask a question, paste text, or capture something on your screen…"></textarea>
+          <div class="zap-attachments" id="zap-attachments" aria-label="Attached screenshots"></div>
+          <div class="zap-input-footer"><div class="row"><button type="button" class="button secondary" id="zap-capture-open">Capture screen</button><button type="button" class="button secondary" id="zap-from-composer">Use Drip Type text</button></div><div class="row"><button type="button" class="button danger" id="zap-cancel" hidden>Cancel</button><button type="button" class="button primary" id="zap-run">Ask Zap</button></div></div>
         </div>
-        <div class="batch-results" id="batch-results"></div>
-      </section>
-
-      <section class="page" id="page-profiles">
-        <div class="eyebrow">Pro Profiles</div><h1>Switch typing styles in one click.</h1><p class="lead">Save different speeds and rhythms for email, support, outreach, or long-form work.</p>
-        <div class="pro-lock" data-pro-lock><strong>Unlock writing profiles</strong><p>Multiple reusable local profiles are included with Pro.</p><button class="button primary" type="button" data-upgrade>Choose Pro</button></div>
-        <div class="pro-only" data-pro-content aria-disabled="true"><div class="card pro-card stack"><input class="field" id="profile-name" maxlength="40" placeholder="Profile name" aria-label="Profile name"><button class="button primary" id="profile-save" type="button">Save current typing settings</button><div class="pro-note" id="profile-note"></div></div><div class="profile-list" id="profile-list"></div></div>
-      </section>
-
-      <section class="page" id="page-clipboard">
-        <div class="eyebrow">Private Clipboard</div><h1>Keep useful text close.</h1><p class="lead">Capture clipboard text only when you press the button. Search, pin, reuse, and delete it locally.</p>
-        <div class="pro-lock" data-pro-lock><strong>Unlock the clipboard workspace</strong><p>A bounded, searchable, local text workspace is included with Pro.</p><button class="button primary" type="button" data-upgrade>Choose Pro</button></div>
-        <div class="pro-only" data-pro-content aria-disabled="true"><div class="row"><input class="field" id="clipboard-search" placeholder="Search saved clipboard text" aria-label="Search saved clipboard text"><button class="button primary" id="clipboard-capture" type="button">Capture clipboard</button></div><div class="pro-note" id="clipboard-note"></div><div class="clipboard-list" id="clipboard-list"></div></div>
+        <div class="zap-privacy" id="zap-privacy">Only submitted text and screenshots are sent through Zap to NVIDIA.</div>
+        <div class="zap-status" id="zap-status" role="status" aria-live="polite">AI is provided by Zap. Connect your account in Billing to get started.</div>
+        <div class="card zap-result" id="zap-result" hidden>
+          <div class="zap-result-head"><strong id="zap-result-title">Zap’s response</strong><span id="zap-result-model" class="zap-hint"></span></div>
+          <pre id="zap-output" tabindex="0" aria-label="Zap response"></pre>
+          <div id="zap-sources" class="zap-sources"></div>
+          <div class="zap-flashcards" id="zap-flashcards" hidden><div class="zap-card-count" id="zap-card-count"></div><button type="button" id="zap-card-flip" class="zap-study-card" aria-label="Flip flashcard"><span id="zap-card-side">Question</span><strong id="zap-card-text"></strong><small>Click to flip</small></button><div class="row"><button type="button" class="button secondary" id="zap-card-prev">Previous</button><button type="button" class="button secondary" id="zap-card-next">Next</button><button type="button" class="button secondary" id="zap-card-shuffle">Shuffle</button></div></div>
+          <div class="zap-result-actions"><button class="button primary" type="button" id="zap-compose">Send to Drip Type</button><button class="button secondary" type="button" id="zap-copy">Copy</button><button class="button secondary" type="button" id="zap-pin">Pin answer</button><button class="button secondary" type="button" id="zap-follow-up">Use as context</button></div>
+        </div>
+        <details class="zap-history"><summary>Session history <span id="zap-history-count">0</span></summary><p class="zap-hint">Kept in memory for this window only. Screenshots are never saved in history.</p><div id="zap-history-list"></div><button class="button secondary" id="zap-clear-history" type="button">Clear history</button></details>
       </section>
 
       <section class="page" id="page-typing">
@@ -462,7 +455,7 @@
         <p class="lead">Tune each behavior directly. Changes are saved locally on this device.</p>
         <div class="section-list">
           <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Typing speed</div><div class="settings-description">Average pace before natural character variation.</div></div><output class="value" id="wpm-out">45 WPM</output></div><input id="wpm" type="range" min="15" max="120" step="5" aria-label="Typing speed in words per minute"></div>
-          <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Start delay</div><div class="settings-description">Time to focus a destination after pressing Start.</div></div><output class="value" id="delay-out">3 seconds</output></div><input id="delay" type="range" min="1" max="15" step="1" aria-label="Start delay in seconds"></div>
+          <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Start delay</div><div class="settings-description">Time to click the exact destination field after pressing Start.</div></div><output class="value" id="delay-out">10 seconds</output></div><input id="delay" type="range" min="1" max="15" step="1" aria-label="Start delay in seconds"></div>
           <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Corrected typos</div><div class="settings-description">Nearby-key mistakes followed by a short pause and correction.</div></div><output class="value" id="typos-out">3%</output></div><input id="typos" type="range" min="0" max="0.15" step="0.01" aria-label="Corrected typo frequency"></div>
           <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Thinking pauses</div><div class="settings-description">Occasional longer pauses between thoughts.</div></div><output class="value" id="pauses-out">3%</output></div><input id="pauses" type="range" min="0" max="0.12" step="0.01" aria-label="Thinking pause frequency"></div>
           <div class="settings-card"><div class="settings-header"><div><div class="settings-title">Speed bursts</div><div class="settings-description">Brief acceleration through familiar phrases.</div></div><output class="value" id="bursts-out">8%</output></div><input id="bursts" type="range" min="0" max="0.25" step="0.01" aria-label="Speed burst frequency"></div>
@@ -472,9 +465,9 @@
       <section class="page" id="page-shortcuts">
         <div class="eyebrow">Shortcuts</div>
         <h1>Stay in the flow.</h1>
-        <p class="lead">Click a shortcut, then press the combination you want. Drip Type checks that your operating system can register it before replacing the working shortcut.</p>
+        <p class="lead">Click a shortcut, then press the combination you want. Zap checks that your operating system can register it before replacing the working shortcut.</p>
         <div class="card">
-          <div class="shortcut-card"><div><div class="shortcut-name">Open Drip Composer</div><div class="shortcut-description">Show the translucent composer above the current app without opening settings. Default: ⌥5.</div></div><input class="shortcut-input" id="start-key" value="⌥5" readonly aria-label="Open Drip Composer shortcut; press a key combination to change it"></div>
+          <div class="shortcut-card"><div><div class="shortcut-name">Open Drip Type</div><div class="shortcut-description">Show the translucent composer above the current app without opening settings. Default: ⌥5.</div></div><input class="shortcut-input" id="start-key" value="⌥5" readonly aria-label="Open Drip Type shortcut; press a key combination to change it"></div>
           <div class="shortcut-card"><div><div class="shortcut-name">Stop typing</div><div class="shortcut-description">Immediately cancels the current typing session. Default: ⌥0.</div></div><input class="shortcut-input" id="stop-key" value="⌥0" readonly aria-label="Stop typing shortcut; press a key combination to change it"></div>
         </div>
         <div class="save-row"><button class="button primary" id="save-shortcuts" type="button">Save shortcuts</button><button class="button secondary" id="reset-shortcuts" type="button">Use defaults</button><span class="save-note" id="shortcut-note" aria-live="polite"></span></div>
@@ -482,25 +475,27 @@
 
       <section class="page" id="page-billing">
         <div class="eyebrow">Billing</div>
-        <h1>Your Drip Type access.</h1>
-        <p class="lead">Connect your private Zap account so a website purchase activates in Drip Type. One account maps to one Stripe customer to prevent accidental duplicate subscriptions.</p>
+        <h1>Your Zap account.</h1>
+        <p class="lead">Sign in securely in your browser to connect this device. Your password stays in your browser. Signing out stops current work and clears this device’s access.</p>
         <div class="section-list">
           <div class="card billing-hero">
             <div class="billing-top">
               <div>
                 <div class="billing-status" id="billing-status" data-state="required">Checking access</div>
-                <div class="billing-plan" id="billing-plan">Drip Type Core</div>
+                <div class="billing-plan" id="billing-plan">Zap Core</div>
                 <div class="billing-copy" id="billing-copy">Confirming the access available on this device…</div>
                 <div class="billing-expiry" id="billing-expiry"></div>
               </div>
             </div>
             <div class="billing-actions">
-              <button class="button primary" id="billing-subscribe" type="button">Connect Zap account</button>
+              <button class="button primary" id="billing-subscribe" type="button">Sign in</button>
+              <button class="button secondary" id="account-sign-out" type="button" hidden>Sign out</button>
               <button class="button secondary" id="billing-manage" type="button" disabled>Manage billing</button>
               <button class="button secondary" id="billing-refresh" type="button">Refresh access</button>
-              <span class="billing-note" id="billing-note"></span>
+              <span class="billing-note" id="billing-note" role="status" aria-live="polite"></span>
             </div>
           </div>
+          <p class="billing-copy">Sign out applies to this device. Your browser session and subscription stay separate; use Sign out on the account website to end that session.</p>
           <div class="billing-facts" aria-label="Subscription security">
             <div class="billing-fact"><span>01</span><strong>Stripe-hosted checkout</strong><p>Card and payment details never enter the app.</p></div>
             <div class="billing-fact"><span>02</span><strong id="billing-security-title">Keychain protected</strong><p id="billing-security-copy">The private activation credential stays in macOS Keychain.</p></div>
@@ -512,7 +507,8 @@
       <section class="page" id="page-setup">
         <div class="eyebrow">Setup</div>
         <h1>Ready for every app.</h1>
-        <p class="lead" id="setup-lead">Drip Type needs two macOS permissions to send keystrokes. Your text and settings stay on this device.</p>
+        <p class="lead" id="setup-lead">Zap needs two macOS permissions to send keystrokes. Your text and settings stay on this device.</p>
+        <p class="lead">Closing the Zap window keeps it running in the menu bar. Work can continue behind other apps. Use Quit Zap to stop it completely. If the window crashes, Zap attempts to recover it without restarting interrupted work.</p>
         <div class="section-list">
           <div class="card setup-card">
             <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M8 10V7a4 4 0 0 1 8 0v3M12 14v2"/></svg></div>
@@ -522,19 +518,19 @@
           </div>
           <div class="card setup-card">
             <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M7 7h10v10H7z"/><path d="M4 9V5a1 1 0 0 1 1-1h4M15 4h4a1 1 0 0 1 1 1v4M20 15v4a1 1 0 0 1-1 1h-4M9 20H5a1 1 0 0 1-1-1v-4"/></svg></div>
-            <div class="setup-copy"><div class="setup-title" id="automation-label">Automation access</div><div class="setup-description" id="automation-copy">Required so Drip Type can use macOS System Events.</div></div>
+            <div class="setup-copy"><div class="setup-title" id="automation-label">Automation access</div><div class="setup-description" id="automation-copy">Required so Zap can use macOS System Events.</div></div>
             <span class="check-state" id="automation-state">Required</span>
             <button class="button secondary" id="request-automation" type="button">Allow automation</button>
           </div>
           <div class="card setup-card">
             <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="6" width="18" height="12" rx="2"/><path d="M7 10h.01M11 10h.01M15 10h.01M18 10h.01M8 14h8"/></svg></div>
-            <div class="setup-copy"><div class="setup-title">Global shortcuts</div><div class="setup-description" id="setup-shortcut-copy">⌥5 opens Composer and ⌥0 stops typing.</div></div>
+            <div class="setup-copy"><div class="setup-title">Global shortcuts</div><div class="setup-description" id="setup-shortcut-copy">⌥5 opens Drip Type and ⌥0 stops typing.</div></div>
             <span class="check-state" id="shortcut-state">Checking</span>
             <button class="button secondary" id="open-shortcut-settings" type="button">Customize</button>
           </div>
           <div class="card setup-card">
             <div class="setup-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 5h16v14H4zM8 9h8M8 13h5"/></svg></div>
-            <div class="setup-copy"><div class="setup-title">Drip Composer</div><div class="setup-description">Open the translucent composer now. Paste or write text, then return it to any app.</div></div>
+            <div class="setup-copy"><div class="setup-title">Drip Type</div><div class="setup-description">Open the translucent composer now. Paste or write text, then return it to any app.</div></div>
             <button class="button secondary" id="preview-quick" type="button">Open composer</button>
           </div>
           <div class="card setup-card">
@@ -567,7 +563,27 @@
       </section>
     </main>
   </div>
-
+  <dialog id="zap-settings-dialog" aria-labelledby="zap-settings-title">
+    <div class="zap-dialog-head"><h2 id="zap-settings-title">Zap AI settings</h2><button class="button secondary" id="zap-settings-close" type="button">Done</button></div>
+    <p>AI is provided by Zap and powered by NVIDIA. Connect your Zap account in Billing to use it. No API key is needed. Requests are subject to service availability and a daily usage limit.</p>
+    <form id="zap-settings-form" class="zap-settings-form">
+      <label>Translate into<input class="field" id="zap-language" required maxlength="80"></label>
+      <label>Maximum response tokens<input class="field" id="zap-max-tokens" type="number" min="256" max="4096" step="1" required></label>
+      <label>Open Zap shortcut<input class="field" id="zap-shortcut" readonly aria-describedby="zap-shortcut-help" placeholder="Click and press a shortcut"></label>
+      <div class="zap-hint" id="zap-shortcut-help">Press a key combination to change it. Backspace disables the shortcut. Default: Option/Alt+3.</div>
+      <label class="zap-settings-wide">Custom instructions<textarea class="pro-textarea" id="zap-context" maxlength="4000" placeholder="Preferred tone, background, or formatting…"></textarea></label>
+      <div class="zap-settings-wide row"><button class="button primary" id="zap-settings-save" type="submit">Save preferences</button><span class="zap-hint" id="zap-settings-note" role="status" aria-live="polite"></span></div>
+    </form>
+  </dialog>
+  <dialog id="zap-capture-dialog" aria-labelledby="zap-capture-title">
+    <div class="zap-dialog-head"><h2 id="zap-capture-title">Capture a screen</h2><button class="button secondary" id="zap-capture-close" type="button">Cancel</button></div>
+    <p>Choose a display. Zap briefly hides while taking the screenshot. Preview it, then drag to select a region before attaching it.</p>
+    <div class="row"><select id="zap-display" class="select" aria-label="Display to capture"></select><button type="button" class="button secondary" id="zap-capture-refresh">Refresh</button><button type="button" class="button primary" id="zap-capture-take">Capture</button></div>
+    <div class="zap-canvas-wrap" id="zap-canvas-wrap" hidden><canvas id="zap-canvas" aria-label="Screenshot preview. Drag to select a region, or use the full screenshot with Attach." tabindex="0"></canvas></div>
+    <fieldset class="zap-crop-controls" id="zap-crop-controls" hidden><legend>Crop region (pixels)</legend><label>Left<input class="field" id="zap-crop-x" type="number" min="0" value="0"></label><label>Top<input class="field" id="zap-crop-y" type="number" min="0" value="0"></label><label>Width<input class="field" id="zap-crop-width" type="number" min="1"></label><label>Height<input class="field" id="zap-crop-height" type="number" min="1"></label></fieldset>
+    <p class="zap-hint" id="zap-capture-note" role="status" aria-live="polite">Nothing is uploaded when you capture. Screenshots are sent only when you ask Zap.</p>
+    <div class="row"><button class="button secondary" id="zap-crop-reset" type="button" disabled>Use full screenshot</button><button class="button primary" id="zap-capture-attach" type="button" disabled>Attach screenshot</button><button class="button secondary" id="zap-screen-settings" type="button">Screen Recording settings</button></div>
+  </dialog>
   <script src="index.js"></script>
 </body>
 </html>

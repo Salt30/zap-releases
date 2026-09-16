@@ -9,7 +9,7 @@ const proTools = require('../src/pro-tools');
 const subscription = require('../src/subscription');
 const {
   requestProjectOidcToken,
-  supersededReleaseUrls,
+  mergeReleaseRedirects,
   resolveBlobAuthentication,
   resolveBlobStoreId,
   resolveBlobToken,
@@ -65,6 +65,8 @@ const websiteAccountAuth = read('website/api/_auth.js');
 const websiteAdmin = read('website/admin.html');
 const websiteAdminClient = read('website/admin.js');
 const websiteNavigation = read('website/navigation.js');
+const websiteCookieBanner = read('website/cookie-banner.js');
+const websiteCookieStyles = read('website/cookie-banner.css');
 const websiteNotFound = read('website/404.html');
 const websiteStripeWebhook = `${read('website/api/stripe-webhook.mjs')}\n${read('website/server/stripe-webhook-handler.js')}`;
 const websiteSitemap = read('website/sitemap.xml');
@@ -97,10 +99,12 @@ for (const [source, destination] of Object.entries({
   '/api/register': '/api/account?action=register',
   '/api/login': '/api/account?action=login',
   '/api/logout': '/api/account?action=logout',
+  '/api/disconnect-device': '/api/account?action=disconnect',
   '/api/recover-account': '/api/account?action=recover',
   '/api/account-status': '/api/account?action=status',
   '/api/create-account-portal': '/api/account?action=portal',
   '/api/create-app-activation': '/api/account?action=activation',
+  '/api/claim-purchase': '/api/account?action=claim',
   '/api/admin-stats': '/api/account?action=stats',
   '/api/admin-tickets': '/api/account?action=tickets',
 })) {
@@ -130,7 +134,9 @@ for (const marker of ["isMac ? 'trayTemplate.png' : 'icon.png'", 'setTemplateIma
 }
 for (const marker of [
   "tray.on('click', showMainWindow)", "handleTrusted('quick:toggle-full-screen', ['quick.html']",
-  'fullscreenable: true', 'resizable: true', "{ role: 'togglefullscreen' }"
+  'fullscreenable: true', 'resizable: true', "{ role: 'togglefullscreen' }",
+  "if (process.platform === 'darwin') app.hide()",
+  "process.platform === 'win32' && startedFromQuickComposer"
 ]) {
   if (!mainSource.includes(marker)) fail(`Composer window behavior is missing: ${marker}`);
 }
@@ -167,7 +173,7 @@ if (packageJson.build?.mac?.icon !== 'assets/icon.icns') {
 }
 if (packageJson.build?.win?.target?.[0]?.target !== 'nsis' ||
     !packageJson.build?.win?.target?.[0]?.arch?.includes('x64') ||
-    packageJson.build?.win?.artifactName !== 'Drip-Type-${version}-windows.${ext}') {
+    packageJson.build?.win?.artifactName !== 'Zap-${version}-windows.${ext}') {
   fail('Windows x64 NSIS packaging must remain enabled with the stable artifact name.');
 }
 if (!packageJson.build?.protocols?.some(({ schemes }) => schemes?.includes('driptype')) ||
@@ -204,8 +210,9 @@ for (let index = 0; index < 3; index += 1) {
   if (advertisedParts[index] > packageParts[index]) fail('Website must not advertise an unreleased application version.');
   if (advertisedParts[index] < packageParts[index]) break;
 }
-const currentDownload = `Drip-Type-${advertisedVersion}-mac.dmg`;
-const currentWindowsDownload = `Drip-Type-${advertisedVersion}-windows.exe`;
+const downloadBrand = websiteAccount.includes(`/Zap-${advertisedVersion}-mac.dmg`) ? 'Zap' : 'Drip-Type';
+const currentDownload = `${downloadBrand}-${advertisedVersion}-mac.dmg`;
+const currentWindowsDownload = `${downloadBrand}-${advertisedVersion}-windows.exe`;
 if (!websiteMarkup.includes(`"softwareVersion":"${advertisedVersion}"`) ||
     !websiteAccount.includes(currentDownload) || !websiteAccountClient.includes(currentWindowsDownload) ||
     !websiteDownloads.includes(currentDownload) || !websiteDownloads.includes(currentWindowsDownload)) {
@@ -228,14 +235,14 @@ const isVerifiedArtifactDestination = (destination, name) => {
     !url.search && !url.hash;
 };
 for (const extension of ['dmg', 'dmg.blockmap', 'zip', 'zip.blockmap']) {
-  const name = `Drip-Type-${advertisedVersion}-mac.${extension}`;
+  const name = `${downloadBrand}-${advertisedVersion}-mac.${extension}`;
   const redirect = updateHostConfig.redirects?.find(({ source }) => source === `/${name}`);
   if (!isVerifiedArtifactDestination(redirect?.destination, name) || redirect?.permanent !== false) {
     fail(`The public updater fallback is missing or incorrect for ${name}.`);
   }
 }
 for (const extension of ['exe', 'exe.blockmap']) {
-  const name = `Drip-Type-${advertisedVersion}-windows.${extension}`;
+  const name = `${downloadBrand}-${advertisedVersion}-windows.${extension}`;
   const redirect = updateHostConfig.redirects?.find(({ source }) => source === `/${name}`);
   if (!isVerifiedArtifactDestination(redirect?.destination, name) || redirect?.permanent !== false) {
     fail(`The public updater fallback is missing or incorrect for ${name}.`);
@@ -247,10 +254,12 @@ for (const [platform, metadata, artifactSuffix] of [
   ['Windows', updateHostWindowsMetadata, 'windows.exe'],
 ]) {
   const publishedVersion = metadata.match(/^version: ([0-9]+\.[0-9]+\.[0-9]+)$/m)?.[1];
-  const artifact = publishedVersion && `Drip-Type-${publishedVersion}-${artifactSuffix}`;
+  const publishedBrand = metadata.includes('path: Zap-') ? 'Zap' : 'Drip-Type';
+  const artifact = publishedVersion && `${publishedBrand}-${publishedVersion}-${artifactSuffix}`;
+  const releaseBrand = publishedBrand === 'Zap' ? 'Zap' : 'Drip Type by Zap';
   if (!publishedVersion || versionNumber(publishedVersion) > versionNumber(packageJson.version) ||
       !metadata.includes(`url: ${artifact}`) ||
-      !metadata.includes(`releaseName: Drip Type by Zap ${publishedVersion}`) ||
+      !metadata.includes(`releaseName: ${releaseBrand} ${publishedVersion}`) ||
       !metadata.includes('sha512: ') || !metadata.includes('size: ')) {
     fail(`The deployed ${platform} updater metadata is invalid or newer than the application source.`);
   }
@@ -296,7 +305,7 @@ if (windowsHostSource.includes('PlanPath') || mainSource.includes("mkdtempSync(p
 for (const marker of ['app.enableSandbox()', ".replace(/\\r\\n?/g, '\\n')", 'Rejected untrusted IPC sender.', 'APP_CONTENT_SECURITY_POLICY', "headers.set('Content-Security-Policy'"]) {
   if (!mainSource.includes(marker)) fail(`Application hardening requirement is missing: ${marker}`);
 }
-for (const marker of ['encryptedUserVault', 'safeStorage.encryptString', 'publicSettings()', "child.stdin.end(input, 'utf8')"]) {
+for (const marker of ['safeStorage.encryptString', 'publicSettings()', "child.stdin.end(input, 'utf8')"]) {
   if (!mainSource.includes(marker)) fail(`Local privacy hardening requirement is missing: ${marker}`);
 }
 if (mainSource.includes('store.store') || mainSource.includes("store.set('clipboardWorkspace'") ||
@@ -330,18 +339,22 @@ for (const [name, source] of [
 ]) {
   if (!source.includes('hasExactKeys')) fail(`Website ${name} API must reject unexpected fields.`);
 }
-if (!claimSource.includes('has been retired') || !checkoutStatusSource.includes('has been retired')) {
-  fail('Legacy checkout-session activation and public status lookup must remain retired.');
+if (!claimSource.includes('has been retired') ||
+    !checkoutStatusSource.includes('paidCheckoutSession') ||
+    !checkoutStatusSource.includes('validCheckoutSessionId')) {
+  fail('Legacy app activation must stay retired while the payment-first status lookup remains server-verified.');
 }
-if (checkoutSource.includes('{CHECKOUT_SESSION_ID}') || !checkoutSource.includes('/account?purchase=complete')) {
-  fail('Checkout success must return to the signed-in account without exposing a session identifier.');
+if (!checkoutSource.includes('session_id={CHECKOUT_SESSION_ID}') ||
+    !checkoutSource.includes('/account?purchase=complete')) {
+  fail('Payment-first checkout must return a Stripe session identifier to the account claim flow.');
 }
-for (const marker of [`Pro is live in version ${advertisedVersion.replace(/\.0$/, '')}`, 'data-checkout-plan="pro"', '>$25<', '/brand/zap/zap-icon-192.png']) {
-  if (!websiteMarkup.includes(marker)) fail(`Website Pro launch requirement is missing: ${marker}`);
+for (const marker of ['Zap AI + Drip Type', 'data-checkout-plan="core"', '/brand/zap/zap-icon-192.png']) {
+  if (!websiteMarkup.includes(marker)) fail(`Zap product identity is missing: ${marker}`);
 }
+if (websiteMarkup.includes('data-checkout-plan="pro"')) fail('Retired Pro features must not be sold as a new plan.');
 for (const marker of [
   'Typing speed', 'Start delay', 'Corrected typos', 'Thinking pauses', 'Speed bursts',
-  'One shortcut. Every app.', 'What ships today', 'Choose a plan', 'Verified releases'
+  'One shortcut. Every app.', 'Inside Zap', 'Get Zap Core', 'Verified releases'
 ]) {
   if (!websiteMarkup.includes(marker)) fail(`Website verified-product showcase is missing: ${marker}`);
 }
@@ -368,6 +381,9 @@ const websiteDirectory = path.join(root, 'website');
 const websiteHtmlFiles = fs.readdirSync(websiteDirectory).filter((name) => name.endsWith('.html'));
 for (const htmlName of websiteHtmlFiles) {
   const html = read(`website/${htmlName}`);
+  if (!html.includes('/cookie-banner.css?v=') || !html.includes('/cookie-banner.js?v=')) {
+    fail(`Website ${htmlName} is missing the necessary-storage notice assets.`);
+  }
   const idList = [...html.matchAll(/\bid="([^"]+)"/g)].map((match) => match[1]);
   const ids = new Set(idList);
   if (ids.size !== idList.length) {
@@ -454,7 +470,7 @@ for (const marker of [
 }
 for (const marker of [
   'id="reset-code"', 'id="reset-password"', '/api/recover-account',
-  'reset-strength-meter', 'minlength="6"', 'recoveryCode'
+  'reset-strength-meter', 'minlength="12"', 'recoveryCode'
 ]) {
   if (!websiteAccount.includes(marker) && !websiteAccountClient.includes(marker)) {
     fail(`Account password recovery requirement is missing: ${marker}`);
@@ -467,10 +483,10 @@ for (const marker of [
 ]) {
   if (!websiteStripeWebhook.includes(marker)) fail(`Stripe webhook security requirement is missing: ${marker}`);
 }
-for (const marker of ['metadata[zap_account_id]', 'subscription_data[metadata][zap_account_id]']) {
-  if (!checkoutSource.includes(marker)) fail(`Checkout account-link metadata is missing: ${marker}`);
+for (const marker of ['metadata[zap_account_id]', 'metadata[zap_account]', 'metadata[plan]']) {
+  if (!websiteBillingSource.includes(marker)) fail(`Post-payment account-link metadata is missing: ${marker}`);
 }
-for (const marker of ['hasExactKeys', 'RATE_LIMIT', 'configuredOrigin', 'ticketStore.createTicket']) {
+for (const marker of ['hasExactKeys', 'billing.limitRequest', 'configuredOrigin', 'ticketStore.createTicket']) {
   if (!websiteSupportApi.includes(marker)) fail(`Secure support intake requirement is missing: ${marker}`);
 }
 for (const marker of ['access: "private"', 'allowOverwrite: false', 'ifMatch:', 'support-tickets/']) {
@@ -517,26 +533,35 @@ if (websiteSupport.includes('support@tryzap.net') || websiteSupportClient.includ
 if (!websiteSitemap.includes('https://tryzap.net/support')) {
   fail('The support page is missing from the sitemap.');
 }
+for (const marker of [
+  'zap_cookie_notice_acknowledged_v1', 'Necessary only', 'No advertising or cross-site tracking',
+  'localStorage', '/privacy#cookies', 'role", "region"'
+]) {
+  if (!websiteCookieBanner.includes(marker)) fail(`Cookie notice behavior is missing: ${marker}`);
+}
+for (const marker of ['env(safe-area-inset-bottom)', '@media (max-width: 620px)', 'min-height: 48px']) {
+  if (!websiteCookieStyles.includes(marker)) fail(`Responsive cookie notice styling is missing: ${marker}`);
+}
 for (const [name, source, markers] of [
-  ['legal center', websiteLegal, ['VegaNext LLC', 'Private support form', 'Subscription summary', '/privacy', '/terms', '/refunds']],
-  ['privacy policy', websitePrivacy, ['Effective August 25, 2026', 'Version 2.7', 'Information we collect and why', 'support form', 'encrypted private account', 'salted scrypt', 'We do not sell personal information', 'Your privacy rights', 'Windows Data Protection API', 'AES-256-GCM', '90 days', 'VegaNext LLC']],
-  ['terms', websiteTerms, ['Effective August 25, 2026', 'No free trial', 'Paid subscriptions and renewal', 'up to three devices', 'Governing law and disputes', 'These Terms do not require arbitration']],
-  ['cancellation policy', websiteRefunds, ['Effective August 25, 2026', 'Cancel online at any time', 'No trial, money-back guarantee, or voluntary refunds', 'Mandatory legal rights', 'private support form']]
+  ['legal center', websiteLegal, ['Updated September 3, 2026', 'VegaNext LLC', 'Private support form', 'Subscription summary', 'Cookies and browser storage', 'Risk and liability boundary', '/privacy', '/terms', '/refunds']],
+  ['privacy policy', websitePrivacy, ['Effective September 3, 2026', 'Version 2.8', 'The short version:', 'Information we collect and why', 'Cookies, local storage, and analytics', '__Host-zap_session', 'do not currently run advertising analytics', 'support form', 'encrypted private account', 'salted scrypt', 'We do not sell personal information', 'Your privacy rights', 'Windows Data Protection API', 'AES-256-GCM', '90 days', 'VegaNext LLC']],
+  ['terms', websiteTerms, ['Effective September 3, 2026', 'Version 2.4', 'No free trial', 'Paid subscriptions and renewal', 'up to three devices', 'MISDIRECTED TEXT', 'Governing law and disputes', 'These Terms do not require arbitration']],
+  ['cancellation policy', websiteRefunds, ['Effective September 3, 2026', 'Version 3.1', 'Cancel online at any time', 'No trial, money-back guarantee, or voluntary refunds', 'Mandatory legal rights', 'private support form']]
 ]) {
   for (const marker of markers) {
     if (!source.includes(marker)) fail(`Website ${name} requirement is missing: ${marker}`);
   }
 }
 for (const marker of [
-  'id="auth-form"', 'type="email"', 'type="password"', 'minlength="6"',
+  'id="auth-form"', 'type="email"', 'type="password"', 'minlength="12"',
   'id="strength-meter"', 'id="connect-app"', 'id="purchase-card"',
-  'Three simple steps.', 'continue to checkout', '/privacy', '/terms'
+  'Pay. Create. Download.', '<strong>Payment</strong>', '<strong>Account</strong>', '/privacy', '/terms'
 ]) {
   if (!websiteAccount.includes(marker)) fail(`Website account requirement is missing: ${marker}`);
 }
 for (const marker of [
   '/api/register', '/api/login', '/api/logout', '/api/recover-account',
-  '/api/account-status', '/api/create-checkout', '/api/create-app-activation',
+  '/api/account-status', '/api/checkout-status', '/api/claim-purchase', '/api/create-app-activation',
   'credentials: "same-origin"'
 ]) {
   if (!websiteAccountClient.includes(marker)) fail(`Website account flow is missing: ${marker}`);
@@ -546,12 +571,13 @@ if (websiteAccountClient.includes('passwordMinLength !==') ||
     !JSON.stringify(websiteVercelConfig).includes('public, max-age=0, must-revalidate')) {
   fail('Account startup must tolerate password-policy rollouts and bypass stale cached assets.');
 }
-if (!websiteCheckout.includes('/account?mode=signup&plan=') || websiteCheckout.includes('/api/create-checkout')) {
-  fail('Public pricing must require account creation before the protected checkout API is used.');
+if (!websiteCheckout.includes('/api/create-checkout') ||
+    !websiteCheckout.includes('Continue to secure payment') ||
+    !websiteCheckout.includes('checkoutNonce')) {
+  fail('Public pricing must start the payment-first Checkout flow with a stable browser nonce.');
 }
-if (!checkoutSource.includes('&checkout=cancelled') ||
-    !websiteAccountClient.includes('Checkout was canceled. You were not charged.')) {
-  fail('Canceled checkout must return to a clear, non-charging account state.');
+if (!checkoutSource.includes('cancel_url: `${origin}/#pricing`')) {
+  fail('Canceled checkout must return to pricing without creating an account.');
 }
 for (const marker of ['accountForRequest', 'storageConfigured', 'validAccountId']) {
   if (!websiteAccountAuth.includes(marker)) fail(`Website account authentication boundary is missing: ${marker}`);
@@ -567,22 +593,24 @@ if (!read('website/api/account.js').includes('auth.requireAdmin(request, respons
   fail('Admin statistics must be allowlist-protected and use server-side Stripe reporting.');
 }
 for (const marker of [
-  'form.set("customer_email", account.email)', 'client_reference_id: account.userId',
-  'Idempotency-Key', 'existingAccountSubscription(account)', 'createPortalSession(customer.id)',
-  'stripeCheckoutUrl', 'stripeCheckoutExpiresAt', 'updateBillingMetadata', 'expires_at'
+  'customersByEmail(email)', 'accountIdForEmail(email)', 'client_reference_id: `purchase_',
+  'Idempotency-Key', 'blockingSubscriptions', 'openCheckoutForCustomer(customer.id)',
+  'payment_first_v1', 'expires_at', 'customer: customer.id'
 ]) {
-  if (!checkoutSource.includes(marker)) fail(`Account-bound checkout protection is missing: ${marker}`);
+  if (!checkoutSource.includes(marker)) fail(`Payment-first checkout protection is missing: ${marker}`);
+}
+for (const marker of ['paidCheckoutSession(body.sessionId)', 'linkCustomerToAccount', 'linkSubscriptionToAccount', 'purchaseEmail !== account.email']) {
+  if (!read('website/api/account.js').includes(marker)) fail(`One-time purchase claim protection is missing: ${marker}`);
 }
 if (!websiteBillingSource.includes('existingAccountSubscription') ||
     !read('website/api/account.js').includes('billing.existingAccountSubscription(account)')) {
   fail('Read-only account status must not create a Stripe customer.');
 }
-for (const marker of [
-  "handleTrusted('pro:batch-render'", "handleTrusted('pro:transform'",
-  "handleTrusted('profiles:save'", "handleTrusted('clipboard-workspace:capture'",
-  "proRequired('clipboard')", 'MAX_CLIPBOARD_COUNT'
-]) {
-  if (!mainSource.includes(marker)) fail(`Pro enforcement requirement is missing: ${marker}`);
+for (const prefix of ['templates:', 'profiles:', 'clipboard-workspace:', 'pro:']) {
+  if (mainSource.includes(`handleTrusted('${prefix}`) || preloadSource.includes(`ipcRenderer.invoke('${prefix}`)) fail(`Retired feature API is still exposed: ${prefix}`);
+}
+for (const page of ['templates', 'studio', 'profiles', 'clipboard']) {
+  if (indexMarkup.includes(`data-page="${page}"`) || indexMarkup.includes(`id="page-${page}"`)) fail(`Retired feature page remains: ${page}`);
 }
 for (const marker of ['ENTITLEMENT_PUBLIC_KEY', 'createPublicKey', 'verifyEntitlement', 'deviceHash']) {
   if (!subscriptionSource.includes(marker)) fail(`Signed entitlement verification is missing: ${marker}`);
@@ -604,9 +632,9 @@ for (const marker of [
   'runs-on: windows-2025',
   'npm run dist:win',
   'CSC_IDENTITY_AUTO_DISCOVERY: "false"',
-  'dist/win-unpacked/Drip Type.exe',
+  'dist/win-unpacked/Zap.exe',
   'dist/latest.yml',
-  'Drip-Type-*-windows.exe.blockmap',
+  'Zap-*-windows.exe.blockmap',
   'needs: [mac, windows]'
 ]) {
   if (!releaseWorkflow.includes(marker)) fail(`Native Windows release verification is missing: ${marker}`);
@@ -623,7 +651,7 @@ for (const marker of [
   'requestProjectOidcToken',
   'resolveBlobAuthentication',
   'resolveBlobStoreId',
-  'pruneSupersededReleases'
+  'mergeReleaseRedirects'
 ]) {
   if (!blobPublisher.includes(marker)) fail(`Blob publisher requirement is missing: ${marker}`);
 }
@@ -644,15 +672,12 @@ assert.throws(
   /multiple read-write token variables are configured/,
 );
 
-assert.deepEqual(
-  supersededReleaseUrls([
-    { pathname: `releases/v${packageJson.version}/current.dmg`, url: 'https://blob.invalid/current' },
-    { pathname: 'releases/v1.5.0/old.dmg', url: 'https://blob.invalid/old-dmg' },
-    { pathname: 'releases/v1.5.0/old.zip', url: 'https://blob.invalid/old-zip' },
-    { pathname: 'unrelated/file.bin', url: 'https://blob.invalid/unrelated' }
-  ]),
-  ['https://blob.invalid/old-dmg', 'https://blob.invalid/old-zip']
-);
+const oldRedirect = { source: '/Zap-1.8.0-mac.dmg', destination: 'https://blob.invalid/old', permanent: false };
+const newRedirect = { source: '/Zap-1.9.0-mac.dmg', destination: 'https://blob.invalid/new', permanent: false };
+assert.deepEqual(mergeReleaseRedirects([oldRedirect], [newRedirect]), [oldRedirect, newRedirect]);
+assert.deepEqual(mergeReleaseRedirects([oldRedirect], [oldRedirect]), [oldRedirect]);
+assert.throws(() => mergeReleaseRedirects([oldRedirect], [{ ...oldRedirect, destination: 'https://blob.invalid/replaced' }]), /refusing to replace/);
+if (blobPublisher.includes('blobApi.del(')) fail('Publishing must preserve existing release downloads.');
 assert.throws(() => resolveBlobToken({}), /no Blob read-write token is configured/);
 assert.equal(resolveBlobStoreId({ BLOB_STORE_ID: ' store_main ' }), 'store_main');
 assert.equal(resolveBlobStoreId({ DRIP_TYPE_BLOB_STORE_ID: ' store_prefixed ' }), 'store_prefixed');
@@ -697,14 +722,17 @@ const blobTestRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'dt-update-publish-te
 try {
   const blobTestDist = path.join(blobTestRoot, 'dist');
   const blobTestSite = path.join(blobTestRoot, 'site');
+  const blobTestBase = path.join(blobTestRoot, 'base.json');
+  const previousDownload = { source: '/Drip-Type-1.7.4-mac.dmg', destination: 'https://blob.invalid/previous', permanent: false };
+  fs.writeFileSync(blobTestBase, JSON.stringify({ redirects: [previousDownload] }));
   fs.mkdirSync(blobTestDist);
   for (const name of [
-    `Drip-Type-${packageJson.version}-mac.dmg`,
-    `Drip-Type-${packageJson.version}-mac.dmg.blockmap`,
-    `Drip-Type-${packageJson.version}-mac.zip`,
-    `Drip-Type-${packageJson.version}-mac.zip.blockmap`,
-    `Drip-Type-${packageJson.version}-windows.exe`,
-    `Drip-Type-${packageJson.version}-windows.exe.blockmap`
+    `Zap-${packageJson.version}-mac.dmg`,
+    `Zap-${packageJson.version}-mac.dmg.blockmap`,
+    `Zap-${packageJson.version}-mac.zip`,
+    `Zap-${packageJson.version}-mac.zip.blockmap`,
+    `Zap-${packageJson.version}-windows.exe`,
+    `Zap-${packageJson.version}-windows.exe.blockmap`
   ]) {
     fs.writeFileSync(path.join(blobTestDist, name), `fixture:${name}`);
   }
@@ -714,22 +742,21 @@ try {
       ...process.env,
       DIST_DIR: blobTestDist,
       UPDATE_SITE_DIR: blobTestSite,
+      UPDATE_BASE_CONFIG: blobTestBase,
       PUBLISH_UPDATE_DRY_RUN: '1'
     },
     stdio: 'pipe'
   });
   const generatedConfig = JSON.parse(fs.readFileSync(path.join(blobTestSite, 'vercel.json'), 'utf8'));
-  assert.equal(generatedConfig.redirects.length, 6);
-  assert(generatedConfig.redirects.every(({ destination }) =>
+  assert.equal(generatedConfig.redirects.length, 7);
+  assert.deepEqual(generatedConfig.redirects[0], previousDownload);
+  assert(generatedConfig.redirects.slice(1).every(({ destination }) =>
     destination.startsWith(`https://dry-run.invalid/releases/v${packageJson.version}/`)));
 } finally {
   fs.rmSync(blobTestRoot, { recursive: true, force: true });
 }
 if (!preloadSource.includes("ipcRenderer.invoke('clipboard:read-text')")) {
   fail('The isolated clipboard bridge is missing.');
-}
-for (const marker of ["ipcRenderer.invoke('templates:list')", "ipcRenderer.invoke('templates:save'", "ipcRenderer.invoke('templates:delete'"]) {
-  if (!preloadSource.includes(marker)) fail(`The isolated template bridge is missing: ${marker}`);
 }
 for (const marker of [
   "ipcRenderer.invoke('billing:get-state')",
@@ -739,17 +766,17 @@ for (const marker of [
 ]) {
   if (!preloadSource.includes(marker)) fail(`The isolated billing bridge is missing: ${marker}`);
 }
-for (const marker of ['Drip Composer', 'Private draft · stored in memory only', 'id="paste"']) {
+for (const marker of ['Drip Type', 'Private draft · kept in memory only', 'id="focus-hint"', 'id="submit"']) {
   if (!quickMarkup.includes(marker)) fail(`Composer interface requirement is missing: ${marker}`);
 }
-if (!quickSource.includes('readClipboardText') || !quickSource.includes('100000')) {
-  fail('Composer clipboard input must use the bounded preload bridge.');
+if (!quickMarkup.includes('maxlength="100000"') || !quickSource.includes('Click the destination field')) {
+  fail('Composer focus workflow or input bound is missing.');
 }
-for (const marker of ['MAX_CORE_TEMPLATE_COUNT', 'MAX_PRO_TEMPLATE_COUNT', "handleTrusted('templates:list'", 'sanitizeTemplate']) {
-  if (!mainSource.includes(marker)) fail(`Local template safety requirement is missing: ${marker}`);
+for (const marker of ['template-picker', 'template-dialog', 'tool-clean', 'tool-bullets', 'id="paste"', 'id="clear"']) {
+  if (quickMarkup.includes(marker)) fail(`The quick composer still contains old UI clutter: ${marker}`);
 }
-for (const marker of ['template-picker', 'template-dialog', 'tool-clean', 'tool-bullets']) {
-  if (!quickMarkup.includes(`id="${marker}"`)) fail(`Composer local tool is missing: ${marker}`);
+for (const marker of ['focusDelayMigratedToOldStyle', 'dripDelay: 10']) {
+  if (!mainSource.includes(marker)) fail(`Original Drip Type focus timing is missing: ${marker}`);
 }
 
 assert.equal(textTools.cleanSpacing('  Hello   world  \r\n\r\n\r\n Next  '), 'Hello world\n\nNext');
@@ -766,6 +793,16 @@ assert.equal(proTools.renderBatch('Hi {{name}}', 'person\nSam').outputs.length, 
 assert.match(proTools.renderBatch('Hi {{name}}', 'person\nSam').errors[0], /Missing columns/);
 assert.equal(proTools.transformWriting('I just wanted to maybe share this.', 'direct'), 'share this.');
 assert.equal(proTools.transformWriting('One. Two?', 'outline'), '• One.\n• Two?');
+assert.equal(proTools.transformWriting('I am ready. We will not delay in order to review this.', 'humanize'), "I'm ready. We won't delay to review this.");
+assert.equal(proTools.transformWriting('Due to the fact that we are ready, you are next.', 'humanize'), "Because we're ready, you're next.");
+assert.equal(proTools.transformWriting('  I am ready.\n\n• We are here.\n', 'humanize'), "  I'm ready.\n\n• We're here.\n");
+for (const protectedText of ['{{ I am }}', '`I am`', '```text\nI am\n```', '"I am"', '“I am”', 'https://example.com/in-order-to', '[I am](https://example.com)']) {
+  assert.equal(proTools.transformWriting(protectedText, 'humanize'), protectedText);
+}
+assert.equal(proTools.transformWriting('I have a car. Amount: $42.50. Deadline: 2026-10-01.', 'humanize'), 'I have a car. Amount: $42.50. Deadline: 2026-10-01.');
+assert.equal(proTools.transformWriting('WE ARE READY', 'humanize'), "WE'RE READY");
+assert.equal(proTools.transformWriting('', 'humanize'), '');
+assert.equal(proTools.transformWriting('Yes, I am. I will.', 'humanize'), 'Yes, I am. I will.');
 assert.deepEqual(proTools.searchClipboard([{ text: 'Launch note' }, { text: 'Invoice' }], 'launch'), [{ text: 'Launch note' }]);
 
 const unpaidState = subscription.accessState({
@@ -873,8 +910,9 @@ for (const [htmlPath, jsPath] of pages) {
 
 const forbiddenExtensions = new Set(['.p12', '.pfx', '.cer', '.pem', '.key', '.mobileprovision']);
 const forbiddenNames = new Set(['.env', '.env.local', '.npmrc', 'project.json']);
-const excludedDirectories = new Set(['node_modules', 'dist', 'build-app', '.git', '.vercel']);
+const excludedDirectories = new Set(['node_modules', 'dist', 'build-app', '.git', '.vercel', '.humanizer']);
 const secretPatterns = [
+  ['NVIDIA API key', /\bnvapi-[A-Za-z0-9_-]{40,}\b/],
   ['Stripe live key', new RegExp(['[rs]k', 'live', '[A-Za-z0-9_]{16,}'].join('[_]'))],
   ['Stripe webhook secret', new RegExp(['whsec', '[A-Za-z0-9]{16,}'].join('[_]'))],
   ['GitHub token', /\bgh[pousr]_[A-Za-z0-9]{30,}\b/],

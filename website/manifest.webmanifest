@@ -1,6 +1,6 @@
 {
-  "name": "Drip Type by Zap",
-  "short_name": "Drip Type",
+  "name": "Zap",
+  "short_name": "Zap",
   "description": "Private, local-first writing, reusable templates, and natural typing across macOS and Windows.",
   "start_url": "/",
   "display": "standalone",

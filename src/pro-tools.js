@@ -66,7 +66,39 @@ function splitSentences(value) {
   return cleanSpacing(value).split(/(?<=[.!?])\s+/).filter(Boolean);
 }
 
+function humanizeWriting(value) {
+  const replacements = [
+    ['in order to', 'to'],
+    ['due to the fact that', 'because'],
+    ['at this point in time', 'now'],
+    ['in the event that', 'if'],
+    ['with regard to', 'about'],
+    ['prior to', 'before'],
+    ['I am', "I'm"], ['I will', "I'll"],
+    ['you are', "you're"], ['we are', "we're"], ['they are', "they're"],
+    ['do not', "don't"], ['does not', "doesn't"], ['did not', "didn't"],
+    ['cannot', "can't"], ['will not', "won't"],
+    ['is not', "isn't"], ['are not', "aren't"]
+  ];
+  // Keep templates, code, links, and quoted language exactly as supplied.
+  const protectedText = /(```[\s\S]*?(?:```|$)|`[^`\n]*`|{{[\s\S]*?}}|https?:\/\/[^\s]+|\[[^\]\n]*\]\([^\n)]*\)|"[^"\n]*"|“[^”\n]*”)/g;
+  return String(value || '').split(protectedText).map((part, index) => {
+    if (index % 2) return part;
+    for (const [phrase, replacement] of replacements) {
+      // Subject contractions need a following complement: keep "Yes, I am."
+      const continuation = /^(I|you|we|they) /.test(phrase) ? '(?=[ \\t]+[A-Za-z])' : '';
+      part = part.replace(new RegExp(`\\b${phrase}\\b${continuation}`, 'gi'), (match) => {
+        if (match === match.toUpperCase()) return replacement.toUpperCase();
+        if (/^[A-Z]/.test(match)) return replacement[0].toUpperCase() + replacement.slice(1);
+        return replacement;
+      });
+    }
+    return part;
+  }).join('');
+}
+
 function transformWriting(value, mode) {
+  if (mode === 'humanize') return humanizeWriting(value);
   const text = cleanSpacing(String(value || '').slice(0, 100000));
   if (!text) return '';
   if (mode === 'tighten') {

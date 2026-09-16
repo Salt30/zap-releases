@@ -32,10 +32,11 @@ async function main() {
     bundle('preload.js', 'preload.js', 'node'),
     bundle('index.js', 'index.js', 'browser'),
     bundle('quick.js', 'quick.js', 'browser'),
-    bundle('onboarding.js', 'onboarding.js', 'browser')
+    bundle('onboarding.js', 'onboarding.js', 'browser'),
+    bundle('zap-pin.js', 'zap-pin.js', 'browser')
   ]);
 
-  for (const file of ['index.html', 'quick.html', 'onboarding.html']) {
+  for (const file of ['index.html', 'quick.html', 'onboarding.html', 'native.css', 'zap.css', 'zap-pin.html']) {
     fs.copyFileSync(path.join(source, file), path.join(output, file));
   }
   fs.copyFileSync(path.join(source, 'windows-host.ps1'), path.join(output, 'windows-host.ps1'));
