@@ -5,36 +5,66 @@
     {
       "source": "/latest-mac.yml",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
       ]
     },
     {
       "source": "/latest.yml",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
       ]
     },
     {
       "source": "/(.*).exe",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
       ]
     },
     {
       "source": "/(.*).zip",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
       ]
     },
     {
       "source": "/(.*).blockmap",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=31536000, immutable" },
-        { "key": "X-Content-Type-Options", "value": "nosniff" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        }
       ]
     }
   ],
@@ -67,6 +97,36 @@
     {
       "source": "/Drip-Type-1.7.4-windows.exe.blockmap",
       "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.7.4/26bf0c1df5e2e51fe397e1b896ec5572756d0e90eab1ad1d5741dbe3df3d20fc/Drip-Type-1.7.4-windows.exe.blockmap",
+      "permanent": false
+    },
+    {
+      "source": "/Zap-1.8.0-mac.dmg",
+      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.8.0/240f1305e32fe1d984cb49a60cafc2d01fe4b385b0ea2b3bb6074e882ed10bb6/Zap-1.8.0-mac.dmg",
+      "permanent": false
+    },
+    {
+      "source": "/Zap-1.8.0-mac.dmg.blockmap",
+      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.8.0/fe28d423a26556719c95b6652c7658035f0acbffdf0e6618a26ef36d16718341/Zap-1.8.0-mac.dmg.blockmap",
+      "permanent": false
+    },
+    {
+      "source": "/Zap-1.8.0-mac.zip",
+      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.8.0/d150ddc885509177dc3bdd61edeca25dc285af90e416446696272298b39faa10/Zap-1.8.0-mac.zip",
+      "permanent": false
+    },
+    {
+      "source": "/Zap-1.8.0-mac.zip.blockmap",
+      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.8.0/7951d7f161d9b00b0d25ad87208db1da8eba0d869ce775ec842bd725b89b93ac/Zap-1.8.0-mac.zip.blockmap",
+      "permanent": false
+    },
+    {
+      "source": "/Zap-1.8.0-windows.exe",
+      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.8.0/b5919f6c15e6ed1a4d272110fb85b85ca129b1d45d3328a1e0daeadb7360d915/Zap-1.8.0-windows.exe",
+      "permanent": false
+    },
+    {
+      "source": "/Zap-1.8.0-windows.exe.blockmap",
+      "destination": "https://bxga0o8akguzzqzw.public.blob.vercel-storage.com/releases/v1.8.0/d6ed2e747d5cb43be48802bfbfd1f688ed1f368d5067a0ca7a88484f5fdf6fff/Zap-1.8.0-windows.exe.blockmap",
       "permanent": false
     }
   ]

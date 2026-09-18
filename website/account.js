@@ -343,7 +343,7 @@
     try {
       const windows = /Windows/i.test(navigator.userAgentData?.platform || navigator.platform || navigator.userAgent || "");
       if (windows) {
-        $("download-app").href = "https://drip-type-updates.vercel.app/Drip-Type-1.7.4-windows.exe";
+        $("download-app").href = "https://drip-type-updates.vercel.app/Zap-1.8.0-windows.exe";
         $("download-app").textContent = "Download for Windows";
       }
       const config = await api("/api/account-config");

@@ -1,10 +1,10 @@
-version: 1.7.4
+version: 1.8.0
 files:
-  - url: Drip-Type-1.7.4-windows.exe
-    sha512: EvMl75JTmPxvxMa7ctCpEvYqGY2VdPmpJ83HMkI7St3FrtBYJhAK4tSj7hKFKFzJ5lCTmE+3uvkVcwCNSEMhxw==
-    size: 91258626
-path: Drip-Type-1.7.4-windows.exe
-sha512: EvMl75JTmPxvxMa7ctCpEvYqGY2VdPmpJ83HMkI7St3FrtBYJhAK4tSj7hKFKFzJ5lCTmE+3uvkVcwCNSEMhxw==
-releaseName: Drip Type by Zap 1.7.4
-releaseNotes: Drip Type 1.7.4 makes the menu-bar icon open the main app, adds a responsive full-screen Composer with an in-window control, and preserves Option+5 as the fast Composer shortcut.
-releaseDate: '2026-08-26T09:50:10.068Z'
+  - url: Zap-1.8.0-windows.exe
+    sha512: FPpGazXP//69Ich4ue3X0AXGLN8l3FJ6AZMmf4VIEvEgOAFxo3yuVFjzV8xoNwhJmhD9Anq7B6UXrDmTOFNTAA==
+    size: 91269051
+path: Zap-1.8.0-windows.exe
+sha512: FPpGazXP//69Ich4ue3X0AXGLN8l3FJ6AZMmf4VIEvEgOAFxo3yuVFjzV8xoNwhJmhD9Anq7B6UXrDmTOFNTAA==
+releaseName: Zap 1.8.0
+releaseNotes: Zap combines AI text and screenshot tools with Drip Type (Option+5 on Mac, Alt+5 on Windows). Includes secure sign-in and sign-out, background window recovery, updated branding, and security hardening. Hosted AI requires an active subscription and service availability.
+releaseDate: '2026-09-18T22:15:44.557Z'

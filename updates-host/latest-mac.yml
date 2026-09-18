@@ -1,13 +1,13 @@
-version: 1.7.4
+version: 1.8.0
 files:
-  - url: Drip-Type-1.7.4-mac.zip
-    sha512: +L3dgMUWQ1Wqe1C/1nNB+KP8WMx4+wr+4qpbKdD1Ff9kn96y/ZgEMisYb6yQY1nwMHBPSoW5HJubCiMc4O4Fxw==
-    size: 207933704
-  - url: Drip-Type-1.7.4-mac.dmg
-    sha512: LIU3weYzKWn0lUh+bI4+0fZGBYEhGwjVMf8F2slEJCd+H3YTYBYXLB6EV2M9jI1zoPUETBWg5SUz5G2576J5bg==
-    size: 189726117
-path: Drip-Type-1.7.4-mac.zip
-sha512: +L3dgMUWQ1Wqe1C/1nNB+KP8WMx4+wr+4qpbKdD1Ff9kn96y/ZgEMisYb6yQY1nwMHBPSoW5HJubCiMc4O4Fxw==
-releaseName: Drip Type by Zap 1.7.4
-releaseNotes: Drip Type 1.7.4 makes the menu-bar icon open the main app, adds a responsive full-screen Composer with an in-window control, and preserves Option+5 as the fast Composer shortcut.
-releaseDate: '2026-08-26T09:51:11.739Z'
+  - url: Zap-1.8.0-mac.zip
+    sha512: UhrkFBp3NmdPahBzxrXYNjxfb0DSjTaYB846KMeaVErvjZ+gyq7KEtbGr4abMvd/2qYIkvLZSyYgtbQSD2bnEQ==
+    size: 207946057
+  - url: Zap-1.8.0-mac.dmg
+    sha512: /fKbppxw18hSBNDwzh7ZZWXzyFbjCgnKxLtp5pc4anZJaK97wZpXtGXWlTNIAIZELB7cNsLiYBrvQIU2Re9A+g==
+    size: 189727465
+path: Zap-1.8.0-mac.zip
+sha512: UhrkFBp3NmdPahBzxrXYNjxfb0DSjTaYB846KMeaVErvjZ+gyq7KEtbGr4abMvd/2qYIkvLZSyYgtbQSD2bnEQ==
+releaseName: Zap 1.8.0
+releaseNotes: Zap combines AI text and screenshot tools with Drip Type (Option+5 on Mac, Alt+5 on Windows). Includes secure sign-in and sign-out, background window recovery, updated branding, and security hardening. Hosted AI requires an active subscription and service availability.
+releaseDate: '2026-09-18T22:17:04.388Z'
