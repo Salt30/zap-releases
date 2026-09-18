@@ -1,53 +1,170 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "node build-static.js",
+  "outputDirectory": "public",
   "cleanUrls": true,
   "trailingSlash": false,
   "redirects": [
-    { "source": "/:path*", "has": [{ "type": "host", "value": "www.tryzap.net" }], "destination": "https://tryzap.net/:path*", "permanent": true },
-    { "source": "/:path*", "has": [{ "type": "host", "value": "drip-type.vercel.app" }], "destination": "https://tryzap.net/:path*", "permanent": true }
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.tryzap.net"
+        }
+      ],
+      "destination": "https://tryzap.net/:path*",
+      "permanent": true
+    },
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "drip-type.vercel.app"
+        }
+      ],
+      "destination": "https://tryzap.net/:path*",
+      "permanent": true
+    }
   ],
   "rewrites": [
-    { "source": "/api/account-config", "destination": "/api/account?action=config" },
-    { "source": "/api/register", "destination": "/api/account?action=register" },
-    { "source": "/api/login", "destination": "/api/account?action=login" },
-    { "source": "/api/logout", "destination": "/api/account?action=logout" },
-    { "source": "/api/recover-account", "destination": "/api/account?action=recover" },
-    { "source": "/api/account-status", "destination": "/api/account?action=status" },
-    { "source": "/api/create-account-portal", "destination": "/api/account?action=portal" },
-    { "source": "/api/create-app-activation", "destination": "/api/account?action=activation" },
-    { "source": "/api/admin-stats", "destination": "/api/account?action=stats" },
-    { "source": "/api/admin-tickets", "destination": "/api/account?action=tickets" },
-    { "source": "/api/purge-support-tickets", "destination": "/api/account?action=purge" }
+    {
+      "source": "/api/disconnect-device",
+      "destination": "/api/account?action=disconnect"
+    },
+    {
+      "source": "/api/account-config",
+      "destination": "/api/account?action=config"
+    },
+    {
+      "source": "/api/register",
+      "destination": "/api/account?action=register"
+    },
+    {
+      "source": "/api/login",
+      "destination": "/api/account?action=login"
+    },
+    {
+      "source": "/api/logout",
+      "destination": "/api/account?action=logout"
+    },
+    {
+      "source": "/api/recover-account",
+      "destination": "/api/account?action=recover"
+    },
+    {
+      "source": "/api/account-status",
+      "destination": "/api/account?action=status"
+    },
+    {
+      "source": "/api/create-account-portal",
+      "destination": "/api/account?action=portal"
+    },
+    {
+      "source": "/api/create-app-activation",
+      "destination": "/api/account?action=activation"
+    },
+    {
+      "source": "/api/claim-purchase",
+      "destination": "/api/account?action=claim"
+    },
+    {
+      "source": "/api/admin-stats",
+      "destination": "/api/account?action=stats"
+    },
+    {
+      "source": "/api/admin-tickets",
+      "destination": "/api/account?action=tickets"
+    },
+    {
+      "source": "/api/purge-support-tickets",
+      "destination": "/api/account?action=purge"
+    },
+    {
+      "source": "/api/zap-ai",
+      "destination": "/api/account?action=ai"
+    }
   ],
   "crons": [
-    { "path": "/api/purge-support-tickets", "schedule": "17 4 * * *" }
+    {
+      "path": "/api/purge-support-tickets",
+      "schedule": "17 4 * * *"
+    }
   ],
   "headers": [
     {
       "source": "/(.*).js",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
       ]
     },
     {
       "source": "/(.*).css",
       "headers": [
-        { "key": "Cache-Control", "value": "public, max-age=0, must-revalidate" }
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
       ]
     },
     {
       "source": "/(.*)",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "DENY" },
-        { "key": "Strict-Transport-Security", "value": "max-age=63072000; includeSubDomains; preload" },
-        { "key": "Content-Security-Policy", "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'sha256-9mTKecElMR0ZjH488MuD7E/qw5+M3TBDfHg02o3H16g='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-src 'none'; worker-src 'self' blob:; upgrade-insecure-requests" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "camera=(), microphone=(), geolocation=(), payment=()" },
-        { "key": "Cross-Origin-Opener-Policy", "value": "same-origin" },
-        { "key": "Cross-Origin-Resource-Policy", "value": "same-origin" },
-        { "key": "X-DNS-Prefetch-Control", "value": "off" }
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "DENY"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=63072000; includeSubDomains; preload"
+        },
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' 'sha256-l9atxF/0UfFYPlJszmOG5qIcBoT5jgf8Y0Pn50ZZ5uo='; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; frame-src 'none'; worker-src 'self' blob:; upgrade-insecure-requests"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "camera=(), microphone=(), geolocation=(), payment=()"
+        },
+        {
+          "key": "Cross-Origin-Opener-Policy",
+          "value": "same-origin"
+        },
+        {
+          "key": "Cross-Origin-Resource-Policy",
+          "value": "same-origin"
+        },
+        {
+          "key": "X-DNS-Prefetch-Control",
+          "value": "off"
+        }
+      ]
+    },
+    {
+      "source": "/(account|admin|success|api)(.*)",
+      "headers": [
+        {
+          "key": "X-Robots-Tag",
+          "value": "noindex, nofollow, noarchive"
+        }
       ]
     }
-  ]
+  ],
+  "functions": {
+    "api/account.js": {
+      "maxDuration": 60
+    }
+  }
 }

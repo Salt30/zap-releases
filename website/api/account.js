@@ -14,13 +14,13 @@ function cronAuthorized(request) {
   return left.length === right.length && timingSafeEqual(left, right);
 }
 
-function accountConfig(request, response) {
+async function accountConfig(request, response) {
   billing.secureResponse(response);
   if (request.method !== "GET") {
     response.setHeader("Allow", "GET");
     return response.status(405).json({ error: "Method not allowed" });
   }
-  if (!billing.limitRequest(request, response, "account-config")) return;
+  if (!await billing.limitRequest(request, response, "account-config")) return;
   return response.status(200).json({
     configured: auth.configured(),
     passwordMinLength: accounts.PASSWORD_MIN_LENGTH,
@@ -33,8 +33,8 @@ function trustedMutation(request) {
   return Boolean(origin) && billing.verifyRequestOrigin(request) && ["same-origin", "none"].includes(fetchSite);
 }
 
-function authBody(request, response, keys, maximumBytes = 1024) {
-  if (!billing.requirePost(request, response)) return null;
+async function authBody(request, response, keys, maximumBytes = 1024) {
+  if (!await billing.requirePost(request, response, "auth")) return null;
   if (!trustedMutation(request)) {
     response.status(403).json({ error: "Request origin was rejected" });
     return null;
@@ -50,7 +50,7 @@ function authBody(request, response, keys, maximumBytes = 1024) {
 }
 
 async function registerAccount(request, response) {
-  const body = authBody(request, response, ["email", "password"]);
+  const body = await authBody(request, response, ["email", "password"]);
   if (!body) return;
   try {
     const created = await accounts.createAccount(body.email, body.password);
@@ -65,15 +65,15 @@ async function registerAccount(request, response) {
       return response.status(409).json({ error: "An account already exists for this email. Sign in instead." });
     }
     if (["invalid_email", "weak_password"].includes(error.message)) {
-      return response.status(400).json({ error: "Use a valid email and a password with 6+ characters using a mix of letters, numbers, or symbols." });
+      return response.status(400).json({ error: "Use a valid email and a password with 12+ characters using a mix of letters, numbers, or symbols." });
     }
-    console.error("Account registration failed", { code: error.message || "register_failed" });
+    console.error("Account registration failed", { code: "register_failed" });
     return response.status(503).json({ error: "Account creation is temporarily unavailable." });
   }
 }
 
 async function loginAccount(request, response) {
-  const body = authBody(request, response, ["email", "password"]);
+  const body = await authBody(request, response, ["email", "password"]);
   if (!body) return;
   try {
     const account = await accounts.authenticate(body.email, body.password);
@@ -86,20 +86,34 @@ async function loginAccount(request, response) {
     if (["invalid_credentials", "invalid_email"].includes(error.message)) {
       return response.status(401).json({ error: "The email or password is incorrect." });
     }
-    console.error("Account login failed", { code: error.message || "login_failed" });
+    console.error("Account login failed", { code: "login_failed" });
     return response.status(503).json({ error: "Sign-in is temporarily unavailable." });
   }
 }
 
 async function logoutAccount(request, response) {
-  const body = authBody(request, response, []);
+  const body = await authBody(request, response, []);
   if (!body) return;
+  try { await accounts.revokeSession(request); }
+  catch {
+    return response.status(503).json({ error: 'Sign-out could not be confirmed. Please try again.' });
+  }
   accounts.clearSessionCookie(response);
   return response.status(200).json({ signedOut: true });
 }
 
+async function disconnectDevice(request, response) {
+  if (!await billing.requirePost(request, response)) return;
+  if (!billing.verifyRequestOrigin(request)) return response.status(403).json({ error: 'Request origin was rejected' });
+  let body;
+  try { body = billing.parseBody(request, 1024); } catch { return response.status(400).json({ error: 'Invalid sign-out request' }); }
+  if (!billing.hasExactKeys(body, ['refreshToken', 'deviceId']) || !billing.validRefreshToken(body.refreshToken) || !billing.validDeviceId(body.deviceId)) return response.status(400).json({ error: 'Invalid sign-out request' });
+  try { await billing.revokeRefreshCredential(body.refreshToken, body.deviceId); return response.status(200).json({ signedOut: true }); }
+  catch { return response.status(503).json({ error: 'Device sign-out could not be confirmed.' }); }
+}
+
 async function recoverAccount(request, response) {
-  const body = authBody(request, response, ["email", "recoveryCode", "password"], 1536);
+  const body = await authBody(request, response, ["email", "recoveryCode", "password"], 1536);
   if (!body) return;
   try {
     const recovered = await accounts.resetPassword(body.email, body.recoveryCode, body.password);
@@ -114,9 +128,9 @@ async function recoverAccount(request, response) {
       return response.status(401).json({ error: "The account or recovery code could not be verified." });
     }
     if (error.message === "weak_password") {
-      return response.status(400).json({ error: "Use a password with 6+ characters using a mix of letters, numbers, or symbols." });
+      return response.status(400).json({ error: "Use a password with 12+ characters using a mix of letters, numbers, or symbols." });
     }
-    console.error("Account recovery failed", { code: error.message || "recovery_failed" });
+    console.error("Account recovery failed", { code: "recovery_failed" });
     return response.status(503).json({ error: "Account recovery is temporarily unavailable." });
   }
 }
@@ -127,7 +141,7 @@ async function accountStatus(request, response) {
     response.setHeader("Allow", "GET");
     return response.status(405).json({ error: "Method not allowed" });
   }
-  if (!billing.limitRequest(request, response, "account-status")) return;
+  if (!await billing.limitRequest(request, response, "account-status")) return;
   const account = await auth.requireUser(request, response);
   if (!account) return;
   try {
@@ -156,7 +170,7 @@ async function accountStatus(request, response) {
 }
 
 async function createAccountPortal(request, response) {
-  if (!billing.requirePost(request, response)) return;
+  if (!await billing.requirePost(request, response)) return;
   if (!billing.verifyRequestOrigin(request)) {
     return response.status(403).json({ error: "Request origin was rejected" });
   }
@@ -186,7 +200,7 @@ async function createAccountPortal(request, response) {
 }
 
 async function createAppActivation(request, response) {
-  if (!billing.requirePost(request, response)) return;
+  if (!await billing.requirePost(request, response)) return;
   if (!billing.verifyRequestOrigin(request)) {
     return response.status(403).json({ error: "Request origin was rejected" });
   }
@@ -196,7 +210,8 @@ async function createAppActivation(request, response) {
   } catch {
     return response.status(400).json({ error: "Invalid JSON" });
   }
-  if (!billing.hasExactKeys(body, ["deviceId"]) || !billing.validDeviceId(body.deviceId)) {
+  if (!(billing.hasExactKeys(body, ["deviceId"]) || billing.hasExactKeys(body, ["deviceId", "state", "challenge"])) || !billing.validDeviceId(body.deviceId) ||
+      (body.state !== undefined && (typeof body.state !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(body.state) || typeof body.challenge !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(body.challenge)))) {
     return response.status(400).json({ error: "Invalid device connection request" });
   }
   const account = await auth.requireUser(request, response);
@@ -207,13 +222,63 @@ async function createAppActivation(request, response) {
       return response.status(402).json({ error: "This account does not have an active subscription." });
     }
     const plan = billing.planForSubscription(subscription);
-    const token = billing.signedAppActivation(account, subscription, plan, body.deviceId);
+    const token = billing.signedAppActivation(account, subscription, plan, body.deviceId, body.state, body.challenge);
     return response.status(200).json({
       url: `driptype://account?token=${encodeURIComponent(token)}`,
       expiresIn: 300,
     });
   } catch (error) {
     console.error("App activation creation failed", { code: error.code || "activation_failed" });
+    const safe = billing.publicError(error);
+    return response.status(safe.status).json({ error: safe.message });
+  }
+}
+
+async function claimPurchase(request, response) {
+  if (!await billing.requirePost(request, response)) return;
+  if (!trustedMutation(request)) {
+    return response.status(403).json({ error: "Request origin was rejected" });
+  }
+  let body;
+  try {
+    body = billing.parseBody(request, 512);
+  } catch {
+    return response.status(400).json({ error: "Invalid purchase claim" });
+  }
+  if (!billing.hasExactKeys(body, ["sessionId"]) || !billing.validCheckoutSessionId(body.sessionId)) {
+    return response.status(400).json({ error: "Invalid purchase claim" });
+  }
+  const account = await auth.requireUser(request, response);
+  if (!account) return;
+  try {
+    const { session, subscription, plan } = await billing.paidCheckoutSession(body.sessionId);
+    const purchaseEmail = accounts.normalizeEmail(session.customer_details?.email || session.customer?.email || "");
+    if (purchaseEmail !== account.email) {
+      return response.status(403).json({ error: "Use the same email address that was entered at checkout." });
+    }
+    const customer = typeof session.customer === "object"
+      ? session.customer
+      : await billing.stripeRequest(`/v1/customers/${encodeURIComponent(session.customer)}`);
+    if (account.stripeCustomerId && account.stripeCustomerId !== customer.id) {
+      return response.status(409).json({ error: "This account is already connected to different billing details. Contact support." });
+    }
+    if (account.stripeSubscriptionId && account.stripeSubscriptionId !== subscription.id) {
+      return response.status(409).json({ error: "This account already has a different subscription. Open billing management instead." });
+    }
+    await billing.linkCustomerToAccount(customer, account);
+    const linkedSubscription = await billing.linkSubscriptionToAccount(subscription, account, plan);
+    await auth.updateBillingMetadata(account.userId, {
+      stripeCustomerId: customer.id,
+      stripeSubscriptionId: subscription.id,
+      stripeSubscriptionStatus: linkedSubscription.status,
+      stripeSubscriptionPlan: plan,
+      stripeCheckoutUrl: null,
+      stripeCheckoutPlan: null,
+      stripeCheckoutExpiresAt: null,
+    });
+    return response.status(200).json({ claimed: true, plan, status: linkedSubscription.status });
+  } catch (error) {
+    console.error("Purchase claim failed", { code: error.code || "purchase_claim_failed" });
     const safe = billing.publicError(error);
     return response.status(safe.status).json({ error: safe.message });
   }
@@ -405,7 +470,7 @@ async function adminStats(request, response) {
     response.setHeader("Allow", "GET");
     return response.status(405).json({ error: "Method not allowed" });
   }
-  if (!billing.limitRequest(request, response, "admin-stats")) return;
+  if (!await billing.limitRequest(request, response, "admin-stats")) return;
   const admin = await auth.requireAdmin(request, response);
   if (!admin) return;
 
@@ -413,7 +478,7 @@ async function adminStats(request, response) {
   try {
     accountSummary = await accounts.listAccountSummaries();
   } catch (error) {
-    console.error("Admin account metrics failed", { code: error.message || "account_metrics_failed" });
+    console.error("Admin account metrics failed", { code: "account_metrics_failed" });
     return response.status(503).json({ error: "Account statistics are temporarily unavailable." });
   }
   // Reserved example.com accounts with these prefixes are production smoke
@@ -434,7 +499,7 @@ async function adminStats(request, response) {
     tickets = await ticketStore.listTickets();
     support = supportMetrics(tickets);
   } catch (error) {
-    console.error("Admin support metrics failed", { code: error.name || error.message || "support_metrics_failed" });
+    console.error("Admin support metrics failed", { code: "support_metrics_failed" });
   }
 
   let billingStats = fallbackBillingMetrics(accountList);
@@ -494,14 +559,14 @@ async function adminTickets(request, response) {
     response.setHeader("Allow", "GET, PATCH");
     return response.status(405).json({ error: "Method not allowed" });
   }
-  if (!billing.limitRequest(request, response, "admin-tickets")) return;
+  if (!await billing.limitRequest(request, response, "admin-tickets")) return;
   const account = await auth.requireAdmin(request, response);
   if (!account) return;
   if (request.method === "GET") {
     try {
       return response.status(200).json({ tickets: await ticketStore.listTickets() });
     } catch (error) {
-      console.error("Admin ticket list failed", { code: error.name || error.message || "ticket_list_failed" });
+      console.error("Admin ticket list failed", { code: "ticket_list_failed" });
       return response.status(503).json({ error: "Tickets are temporarily unavailable." });
     }
   }
@@ -532,7 +597,7 @@ async function adminTickets(request, response) {
     if (error?.name === "BlobPreconditionFailedError") {
       return response.status(409).json({ error: "This ticket changed. Refresh and try again." });
     }
-    console.error("Admin ticket update failed", { code: error.name || error.message || "ticket_update_failed" });
+    console.error("Admin ticket update failed", { code: "ticket_update_failed" });
     return response.status(503).json({ error: "The ticket could not be updated." });
   }
 }
@@ -547,20 +612,23 @@ async function purgeSupportTickets(request, response) {
   try {
     return response.status(200).json(await ticketStore.purgeExpiredTickets());
   } catch (error) {
-    console.error("Support retention purge failed", { code: error.name || error.message || "purge_failed" });
+    console.error("Support retention purge failed", { code: "purge_failed" });
     return response.status(503).json({ error: "Support retention is temporarily unavailable." });
   }
 }
 
 const routes = Object.freeze({
+  ai: require('../server/zap-service').handle,
   config: accountConfig,
   register: registerAccount,
   login: loginAccount,
   logout: logoutAccount,
+  disconnect: disconnectDevice,
   recover: recoverAccount,
   status: accountStatus,
   portal: createAccountPortal,
   activation: createAppActivation,
+  claim: claimPurchase,
   stats: adminStats,
   tickets: adminTickets,
   purge: purgeSupportTickets,

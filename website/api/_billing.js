@@ -1,3 +1,4 @@
+const rateLimit = require('../server/rate-limit');
 const {
   createHash,
   createPrivateKey,
@@ -21,10 +22,7 @@ const ALLOWED_PLANS = new Set(["core", "pro"]);
 const MAX_DEVICES = 3;
 const ENTITLEMENT_TTL_SECONDS = 72 * 60 * 60;
 const STRIPE_API_VERSION = "2026-07-29.dahlia";
-const RATE_WINDOW_MS = 60_000;
-const RATE_LIMIT = 30;
 const MAX_JSON_BODY_BYTES = 4096;
-const rateLimits = new Map();
 
 const PLAN_CONFIG = Object.freeze({
   core: {
@@ -89,6 +87,10 @@ function validSubscriptionId(value) {
   return /^sub_[A-Za-z0-9]+$/.test(String(value || ""));
 }
 
+function validCheckoutSessionId(value) {
+  return /^cs_live_[A-Za-z0-9_]+$/.test(String(value || ""));
+}
+
 function isPlainObject(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
   const prototype = Object.getPrototypeOf(value);
@@ -136,34 +138,20 @@ function secureResponse(response) {
   response.setHeader("X-Content-Type-Options", "nosniff");
 }
 
-function clientAddress(request) {
-  return String(request.headers?.["x-forwarded-for"] || request.socket?.remoteAddress || "unknown")
-    .split(",")[0]
-    .trim()
-    .slice(0, 128);
-}
-
-function limitRequest(request, response, bucket = "billing") {
-  const now = Date.now();
-  const key = `${bucket}:${clientAddress(request)}`;
-  const current = rateLimits.get(key);
-  if (!current || now - current.startedAt >= RATE_WINDOW_MS) {
-    rateLimits.set(key, { startedAt: now, count: 1 });
-    if (rateLimits.size > 1000) {
-      for (const [candidate, value] of rateLimits) {
-        if (now - value.startedAt >= RATE_WINDOW_MS) rateLimits.delete(candidate);
-      }
-    }
-    return true;
+async function limitRequest(request, response, bucket = "billing") {
+  try {
+    const result = await rateLimit.consume(bucket, rateLimit.clientAddress(request));
+    if (result.allowed) return true;
+    response.setHeader("Retry-After", String(result.retryAfter));
+    response.status(429).json({ error: "Too many attempts. Please wait and try again." });
+  } catch {
+    response.setHeader("Retry-After", "60");
+    response.status(503).json({ error: "Request protection is temporarily unavailable. Try again shortly." });
   }
-  current.count += 1;
-  if (current.count <= RATE_LIMIT) return true;
-  response.setHeader("Retry-After", "60");
-  response.status(429).json({ error: "Too many attempts. Please wait and try again." });
   return false;
 }
 
-function requirePost(request, response) {
+async function requirePost(request, response, bucket = "billing") {
   secureResponse(response);
   if (request.method !== "POST") {
     response.setHeader("Allow", "POST");
@@ -184,7 +172,7 @@ function requirePost(request, response) {
     response.status(413).json({ error: "Request too large" });
     return false;
   }
-  return limitRequest(request, response);
+  return limitRequest(request, response, bucket);
 }
 
 function configuredSiteOrigin() {
@@ -280,10 +268,48 @@ async function customerById(customerId) {
   return customer;
 }
 
+async function customersByEmail(email) {
+  const normalized = String(email || "").trim().toLowerCase();
+  if (normalized.length < 6 || normalized.length > 254) throw new Error("Invalid email");
+  const query = new URLSearchParams({ email: normalized, limit: "100" });
+  const result = await stripeRequest(`/v1/customers?${query}`);
+  return (Array.isArray(result?.data) ? result.data : []).filter((customer) => (
+    validCustomerId(customer?.id) && !customer.deleted
+  ));
+}
+
+async function checkoutSessionById(sessionId) {
+  if (!validCheckoutSessionId(sessionId)) throw new Error("Invalid checkout session");
+  const query = new URLSearchParams();
+  query.append("expand[]", "customer");
+  query.append("expand[]", "subscription");
+  return stripeRequest(`/v1/checkout/sessions/${encodeURIComponent(sessionId)}?${query}`);
+}
+
+async function paidCheckoutSession(sessionId) {
+  const session = await checkoutSessionById(sessionId);
+  if (
+    session?.mode !== "subscription" || session?.status !== "complete" ||
+    session?.payment_status !== "paid" ||
+    !validCustomerId(session?.customer?.id || session?.customer) ||
+    !validSubscriptionId(session?.subscription?.id || session?.subscription)
+  ) throw new Error("Checkout is not complete");
+  const subscription = typeof session.subscription === "object"
+    ? session.subscription
+    : await subscriptionById(session.subscription);
+  assertSubscriptionActive(subscription);
+  const plan = planForSubscription(subscription, String(session.metadata?.plan || ""));
+  return { session, subscription, plan };
+}
+
 async function linkCustomerToAccount(customer, account) {
   if (!validCustomerId(customer?.id) || !/^acct_[A-Za-z0-9_-]{32}$/u.test(String(account?.userId || ""))) {
     throw new Error("Invalid account customer link");
   }
+  const linkedAccountId = String(customer.metadata?.zap_account_id || "");
+  const linkedAccountKey = String(customer.metadata?.zap_account || "");
+  if (linkedAccountId && linkedAccountId !== account.userId) throw new Error("Customer is already claimed");
+  if (linkedAccountKey && linkedAccountKey !== accountKey(account.userId)) throw new Error("Customer is already claimed");
   if (
     customer.metadata?.zap_account_id === account.userId &&
     customer.metadata?.zap_account === accountKey(account.userId)
@@ -295,6 +321,31 @@ async function linkCustomerToAccount(customer, account) {
       "metadata[zap_account]": accountKey(account.userId),
     }),
     headers: { "Idempotency-Key": `zap_customer_link_${accountKey(account.userId)}` },
+  });
+}
+
+async function linkSubscriptionToAccount(subscription, account, plan) {
+  if (
+    !validSubscriptionId(subscription?.id) ||
+    !/^acct_[A-Za-z0-9_-]{32}$/u.test(String(account?.userId || "")) ||
+    !ALLOWED_PLANS.has(plan)
+  ) throw new Error("Invalid account subscription link");
+  const linkedAccountId = String(subscription.metadata?.zap_account_id || "");
+  const linkedAccountKey = String(subscription.metadata?.zap_account || "");
+  if (linkedAccountId && linkedAccountId !== account.userId) throw new Error("Subscription is already claimed");
+  if (linkedAccountKey && linkedAccountKey !== accountKey(account.userId)) throw new Error("Subscription is already claimed");
+  if (
+    linkedAccountId === account.userId && linkedAccountKey === accountKey(account.userId) &&
+    subscription.metadata?.plan === plan
+  ) return subscription;
+  return stripeRequest(`/v1/subscriptions/${encodeURIComponent(subscription.id)}`, {
+    method: "POST",
+    body: new URLSearchParams({
+      "metadata[zap_account_id]": account.userId,
+      "metadata[zap_account]": accountKey(account.userId),
+      "metadata[plan]": plan,
+    }),
+    headers: { "Idempotency-Key": `zap_subscription_link_${accountKey(account.userId)}` },
   });
 }
 
@@ -426,7 +477,7 @@ function privateSigningKey() {
   return createPrivateKey({ key: Buffer.from(encoded, "base64"), format: "der", type: "pkcs8" });
 }
 
-function signedAppActivation(account, subscription, plan, deviceId) {
+function signedAppActivation(account, subscription, plan, deviceId, state, challenge) {
   const now = Math.floor(Date.now() / 1000);
   const header = base64url(JSON.stringify({ alg: "EdDSA", kid: "drip-type-v1", typ: "JWT" }));
   const payloadObject = {
@@ -438,6 +489,8 @@ function signedAppActivation(account, subscription, plan, deviceId) {
     subscription: subscription.id,
     plan,
     device: deviceHash(deviceId),
+    ...(state ? { state } : {}),
+    ...(challenge ? { challenge } : {}),
     nonce: randomBytes(16).toString("base64url"),
     iat: now,
     exp: now + 5 * 60,
@@ -448,7 +501,7 @@ function signedAppActivation(account, subscription, plan, deviceId) {
   return `${signingInput}.${signature}`;
 }
 
-async function subscriptionForAppActivation(token, deviceId) {
+async function subscriptionForAppActivation(token, deviceId, codeVerifier) {
   if (typeof token !== "string" || token.length > 2048 || !validDeviceId(deviceId)) {
     throw new Error("Invalid activation credential");
   }
@@ -490,6 +543,8 @@ async function subscriptionForAppActivation(token, deviceId) {
   ) {
     throw new Error("Invalid activation credential");
   }
+  if (payload.challenge !== undefined && (typeof codeVerifier !== 'string' || !/^[A-Za-z0-9_-]{43}$/.test(codeVerifier) ||
+      !safeEqual(payload.challenge, createHash('sha256').update(codeVerifier).digest('base64url')))) throw new Error('Invalid activation proof');
   const subscription = await subscriptionById(payload.subscription);
   assertSubscriptionActive(subscription);
   const plan = planForSubscription(subscription);
@@ -569,12 +624,29 @@ async function subscriptionForRefresh(refreshToken, deviceId) {
   return { subscription, plan };
 }
 
+async function revokeRefreshCredential(refreshToken, deviceId) {
+  if (!validRefreshToken(refreshToken) || !validDeviceId(deviceId)) throw new Error('Invalid activation credential');
+  const [subscriptionId, secret] = refreshToken.split('.');
+  const subscription = await subscriptionById(subscriptionId);
+  const metadata = subscription.metadata || {};
+  for (let slot = 1; slot <= MAX_DEVICES; slot++) {
+    if (safeEqual(metadata[`dt_d${slot}`] || '', deviceHash(deviceId)) && safeEqual(metadata[`dt_r${slot}`] || '', refreshHash(secret))) {
+      await stripeRequest(`/v1/subscriptions/${encodeURIComponent(subscription.id)}`, {
+        method: 'POST', body: new URLSearchParams({ [`metadata[dt_d${slot}]`]: '', [`metadata[dt_r${slot}]`]: '' })
+      });
+      return;
+    }
+  }
+  // Already invalidated credentials are successfully signed out.
+}
+
 function publicError(error) {
   const message = String(error?.message || "");
   if (error?.code === "duplicate_subscriptions") {
     return { status: 409, message: "We found more than one subscription for this email. Contact support before purchasing again." };
   }
   if (/Device limit reached/.test(message)) return { status: 409, message };
+  if (/already claimed/.test(message)) return { status: 409, message: "This purchase is already connected to another account" };
   if (/not active/.test(message)) return { status: 402, message: "Subscription is not active" };
   if (/Invalid|rejected|not complete|mismatch|not approved/.test(message)) {
     return { status: 403, message: "Subscription could not be verified" };
@@ -586,8 +658,10 @@ Object.assign(apiNotFound, {
   accountKey,
   accountSubscription,
   blockingSubscriptions,
+  checkoutSessionById,
   configuredSiteOrigin,
   createPortalSession,
+  customersByEmail,
   ensureAccountCustomer,
   existingAccountSubscription,
   hasExactKeys,
@@ -597,9 +671,12 @@ Object.assign(apiNotFound, {
   planForSubscription,
   limitRequest,
   linkCustomerToAccount,
+  linkSubscriptionToAccount,
   openCheckoutForCustomer,
+  paidCheckoutSession,
   requirePost,
   saveRefreshCredential,
+  revokeRefreshCredential,
   secureResponse,
   signedEntitlement,
   signedAppActivation,
@@ -607,6 +684,7 @@ Object.assign(apiNotFound, {
   subscriptionForAppActivation,
   subscriptionForRefresh,
   subscriptionsForCustomer,
+  validCheckoutSessionId,
   validCustomerId,
   validDeviceId,
   validRefreshToken,

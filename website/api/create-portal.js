@@ -1,7 +1,7 @@
 const billing = require("./_billing");
 
 module.exports = async function createPortal(request, response) {
-  if (!billing.requirePost(request, response)) return;
+  if (!await billing.requirePost(request, response)) return;
   let body;
   try {
     body = billing.parseBody(request);

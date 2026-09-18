@@ -15,7 +15,7 @@ const PREFIX = "zap-accounts/";
 const COOKIE_NAME = "__Host-zap_session";
 const ACCOUNT_VERSION = 1;
 const SESSION_TTL_SECONDS = 7 * 24 * 60 * 60;
-const PASSWORD_MIN_LENGTH = 6;
+const PASSWORD_MIN_LENGTH = 12;
 const PASSWORD_MAX_LENGTH = 128;
 const MAX_RECORD_BYTES = 24_000;
 const MAX_LOGIN_FAILURES = 5;
@@ -168,6 +168,8 @@ function validateAccount(account, expectedId) {
     (account.lockUntil !== null && !Number.isSafeInteger(account.lockUntil)) ||
     typeof account.recoveryHash !== "string" || !/^[A-Za-z0-9_-]{43}$/u.test(account.recoveryHash)
   ) throw new Error("invalid_account_record");
+  if (account.revokedSessions !== undefined && (!Array.isArray(account.revokedSessions) || account.revokedSessions.length > 64 ||
+      account.revokedSessions.some(item => !item || !/^[A-Za-z0-9_-]{22}$/.test(item.nonce) || !Number.isSafeInteger(item.exp)))) throw new Error('invalid_account_record');
   return account;
 }
 
@@ -376,6 +378,7 @@ async function dummyPasswordCheck(password) {
 }
 
 async function authenticate(emailValue, password) {
+  if (typeof password !== "string" || !password || password.length > PASSWORD_MAX_LENGTH || Buffer.byteLength(password, "utf8") > 256) throw new Error("invalid_credentials");
   if (!storageConfigured()) throw new Error("account_storage_not_configured");
   let email;
   try {
@@ -404,6 +407,11 @@ async function authenticate(emailValue, password) {
     throw new Error("invalid_credentials");
   }
   return mutateAccount(existing.account.accountId, (account) => {
+    // Revalidate the snapshot under the conditional write: a concurrent password
+    // reset must invalidate an authentication still using the previous password.
+    if (account.sessionVersion !== existing.account.sessionVersion ||
+        account.password.hash !== existing.account.password.hash ||
+        account.password.salt !== existing.account.password.salt) throw new Error('invalid_credentials');
     account.failedAttempts = 0;
     account.lockUntil = null;
     account.lastLoginAt = new Date().toISOString();
@@ -429,6 +437,8 @@ async function resetPassword(emailValue, code, passwordValue) {
   const newRecoveryCode = recoveryCode();
   const replacement = await passwordRecord(password);
   const account = await mutateAccount(existing.account.accountId, (current) => {
+    // Recovery codes are single-use even when two requests verify in parallel.
+    if (current.recoveryHash !== expected) throw new Error('invalid_recovery');
     current.password = replacement;
     current.recoveryHash = recoveryHash(newRecoveryCode);
     current.sessionVersion += 1;
@@ -513,7 +523,26 @@ async function accountForRequest(request) {
   if (!payload) return null;
   const existing = await readAccountById(payload.sub);
   if (!existing || existing.account.sessionVersion !== payload.sv) return null;
+  if ((existing.account.revokedSessions || []).some(item => item.nonce === payload.nonce)) return null;
   return existing.account;
+}
+
+async function revokeSession(request) {
+  if (!storageConfigured()) throw new Error('account_storage_unavailable');
+  const payload = parseSessionToken(requestCookie(request));
+  if (!payload) return;
+  const existing = await readAccountById(payload.sub);
+  if (!existing || existing.account.sessionVersion !== payload.sv) return;
+  await mutateAccount(payload.sub, (account) => {
+    if (account.sessionVersion !== payload.sv) return account;
+    const now = Math.floor(Date.now() / 1000);
+    const revoked = (account.revokedSessions || []).filter(item => item.exp > now);
+    if (!revoked.some(item => item.nonce === payload.nonce)) revoked.push({ nonce: payload.nonce, exp: payload.exp });
+    // Bound the record without ever making a revoked cookie valid again.
+    if (revoked.length > 64) { account.sessionVersion++; account.revokedSessions = []; }
+    else account.revokedSessions = revoked;
+    return account;
+  });
 }
 
 async function updateBillingMetadata(accountId, values) {
@@ -552,6 +581,7 @@ module.exports = {
   parseSessionToken,
   passwordScore,
   resetPassword,
+  revokeSession,
   setSessionCookie,
   sessionToken,
   storageConfigured,

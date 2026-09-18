@@ -9,7 +9,7 @@ const path = require('node:path');
 const root = path.resolve(__dirname, '..');
 const distDir = path.resolve(process.env.DIST_DIR || path.join(root, 'dist'));
 const updateSiteDir = path.resolve(process.env.UPDATE_SITE_DIR || path.join(root, 'update-site'));
-const baseConfigPath = path.join(root, 'updates-host', 'vercel.json');
+const baseConfigPath = process.env.UPDATE_BASE_CONFIG || path.join(root, 'updates-host', 'vercel.json');
 const packageVersion = require(path.join(root, 'package.json')).version;
 
 function fail(message) {
@@ -111,7 +111,7 @@ function listReleaseFiles() {
   }
 
   for (const name of files) {
-    if (!/^Drip-Type-[0-9]+\.[0-9]+\.[0-9]+-(?:mac\.(?:dmg|zip)|windows\.exe)(?:\.blockmap)?$/.test(name)) {
+    if (!/^(?:Zap|Drip-Type)-[0-9]+\.[0-9]+\.[0-9]+-(?:mac\.(?:dmg|zip)|windows\.exe)(?:\.blockmap)?$/.test(name)) {
       fail(`unexpected artifact name: ${name}`);
     }
     if (!name.includes(`-${packageVersion}-`)) {
@@ -134,35 +134,17 @@ function sha256(filePath) {
   });
 }
 
-function supersededReleaseUrls(blobs, currentVersion = packageVersion) {
-  const currentPrefix = `releases/v${currentVersion}/`;
-  return blobs
-    .filter(({ pathname, url }) =>
-      typeof pathname === 'string' &&
-      typeof url === 'string' &&
-      /^releases\/v\d+\.\d+\.\d+\//.test(pathname) &&
-      !pathname.startsWith(currentPrefix))
-    .map(({ url }) => url);
-}
-
-async function pruneSupersededReleases(blobApi, blobAuthentication) {
-  const blobs = [];
-  let cursor;
-  do {
-    const page = await blobApi.list({
-      prefix: 'releases/',
-      limit: 1000,
-      ...(cursor ? { cursor } : {}),
-      ...blobAuthentication,
-    });
-    blobs.push(...page.blobs);
-    cursor = page.cursor;
-  } while (cursor);
-
-  const urls = supersededReleaseUrls(blobs);
-  if (urls.length === 0) return;
-  await blobApi.del(urls, blobAuthentication);
-  process.stdout.write(`Pruned ${urls.length} superseded release blobs after publishing v${packageVersion}.\n`);
+// Released download URLs remain available and immutable across deployments.
+function mergeReleaseRedirects(existing, additions) {
+  const redirects = new Map(existing.map(item => [item.source, item]));
+  for (const item of additions) {
+    const previous = redirects.get(item.source);
+    if (previous && previous.destination !== item.destination) {
+      fail(`refusing to replace an already published artifact: ${item.source}`);
+    }
+    redirects.set(item.source, item);
+  }
+  return [...redirects.values()];
 }
 
 async function main() {
@@ -199,13 +181,11 @@ async function main() {
     process.stdout.write(`Published ${name} -> ${blob.url}\n`);
   }
 
-  if (!dryRun) await pruneSupersededReleases(blobApi, blobAuthentication);
-
   const baseConfig = JSON.parse(fs.readFileSync(baseConfigPath, 'utf8'));
   fs.mkdirSync(updateSiteDir, { recursive: true });
   fs.writeFileSync(
     path.join(updateSiteDir, 'vercel.json'),
-    `${JSON.stringify({ ...baseConfig, redirects }, null, 2)}\n`,
+    `${JSON.stringify({ ...baseConfig, redirects: mergeReleaseRedirects(baseConfig.redirects || [], redirects) }, null, 2)}\n`,
   );
 }
 
@@ -217,10 +197,9 @@ if (require.main === module) {
 }
 
 module.exports = {
-  pruneSupersededReleases,
+  mergeReleaseRedirects,
   requestProjectOidcToken,
   resolveBlobAuthentication,
   resolveBlobStoreId,
   resolveBlobToken,
-  supersededReleaseUrls,
 };

@@ -250,7 +250,7 @@
     setText("detail-description", ticket.description);
     $("ticket-status").value = ticket.status;
     $("ticket-note").value = "";
-    $("reply-ticket").href = `mailto:${ticket.email}?subject=${encodeURIComponent(`[Drip Type ${ticket.code}] ${ticket.subject}`)}`;
+    $("reply-ticket").href = `mailto:${ticket.email}?subject=${encodeURIComponent(`[Zap ${ticket.code}] ${ticket.subject}`)}`;
     setText("update-status", "");
     renderAudit(ticket);
   }

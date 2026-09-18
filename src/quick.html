@@ -6,96 +6,53 @@
   <meta name="color-scheme" content="dark light">
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
   <link rel="icon" href="zap-icon.svg" type="image/svg+xml">
-  <title>Drip Composer</title>
+  <title>Zap · Drip Type</title>
   <style>
-    :root { color-scheme: dark; --text:#fff; --muted:#a3a3a3; --subtle:#6b6b73; --accent:#ffd24d; --accent-ink:#08080e; --border:rgba(255,255,255,.13); }
-    :root[data-theme="light"] { color-scheme:light; --text:#1b1d22; --muted:#61656d; --subtle:#858991; --accent:#dfb021; --accent-ink:#211b08; --border:rgba(28,31,37,.14); }
-    * { box-sizing: border-box; }
+    :root { color-scheme:dark; --text:#f7f7f8; --muted:#92949d; --subtle:#6c6f78; --accent:#ffd24d; --accent-ink:#09090d; --border:rgba(255,255,255,.13); --panel:rgba(15,15,24,.9); }
+    :root[data-theme="light"] { color-scheme:light; --text:#1b1d22; --muted:#62666e; --subtle:#858991; --accent:#dfb021; --accent-ink:#211b08; --border:rgba(28,31,37,.14); --panel:rgba(251,250,246,.9); }
+    * { box-sizing:border-box; }
     html,body { width:100%; height:100%; margin:0; overflow:hidden; background:transparent; }
-    body { padding:12px; font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; color:var(--text); -webkit-font-smoothing:antialiased; }
-    .shell {
-      display:flex;
-      flex-direction:column;
-      height:100%;
-      overflow:hidden;
-      border:1px solid var(--border);
-      border-radius:18px;
-      background:rgba(15,15,24,.86);
-      box-shadow:0 28px 90px rgba(0,0,0,.46),0 1px 0 rgba(255,255,255,.08) inset;
-      backdrop-filter:blur(34px) saturate(145%);
-      -webkit-backdrop-filter:blur(34px) saturate(145%);
-      -webkit-app-region:drag;
-    }
-    :root[data-theme="light"] .shell { background:rgba(251,250,246,.82); box-shadow:0 28px 90px rgba(47,43,31,.22),0 1px 0 rgba(255,255,255,.65) inset; }
+    body { padding:10px; color:var(--text); font-family:Inter,ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif; -webkit-font-smoothing:antialiased; }
+    .shell { display:flex; flex-direction:column; height:100%; overflow:hidden; border:1px solid var(--border); border-radius:16px; background:var(--panel); box-shadow:0 24px 72px rgba(0,0,0,.46),0 1px 0 rgba(255,255,255,.07) inset; backdrop-filter:blur(34px) saturate(145%); -webkit-backdrop-filter:blur(34px) saturate(145%); -webkit-app-region:drag; }
     :root[data-full-screen="true"] body { padding:0; }
     :root[data-full-screen="true"] .shell { border:0; border-radius:0; }
-    :root[data-theme="light"] .top, :root[data-theme="light"] .footer { border-color:rgba(28,31,37,.08); }
-    .top { display:flex; align-items:center; height:48px; padding:0 16px; border-bottom:1px solid rgba(255,255,255,.08); }
-    .mark { width:25px; height:25px; margin-right:9px; border-radius:7px; }
-    .title { font-size:13px; font-weight:650; }
-    .target { min-width:0; margin-left:10px; padding:4px 8px; border:1px solid var(--border); border-radius:999px; color:var(--subtle); font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    .target strong { color:var(--muted); font-weight:600; }
-    .top-hint { margin-left:auto; color:var(--subtle); font-size:11px; }
-    .window-action { display:grid; place-items:center; width:30px; height:30px; margin-left:10px; padding:0; border:1px solid var(--border); border-radius:8px; background:rgba(255,255,255,.04); color:var(--muted); font-size:15px; line-height:1; -webkit-app-region:no-drag; }
+    .header { display:flex; align-items:center; min-height:48px; padding:0 12px 0 15px; border-bottom:1px solid rgba(255,255,255,.08); }
+    .mark { width:24px; height:24px; margin-right:9px; border-radius:7px; }
+    .title { font-size:13px; font-weight:680; letter-spacing:-.01em; }
+    .byline { margin-left:6px; color:var(--subtle); font-size:10px; font-weight:600; letter-spacing:.12em; text-transform:uppercase; }
+    .window-actions { display:flex; gap:6px; margin-left:auto; -webkit-app-region:no-drag; }
+    .window-action { display:grid; place-items:center; width:29px; height:29px; padding:0; border:1px solid var(--border); border-radius:8px; background:rgba(255,255,255,.035); color:var(--muted); font:14px/1 -apple-system,sans-serif; cursor:pointer; }
     .window-action:hover { background:rgba(255,255,255,.09); color:var(--text); }
-    kbd { display:inline-flex; height:20px; padding:0 6px; align-items:center; border:1px solid rgba(255,255,255,.13); border-radius:5px; background:rgba(255,255,255,.05); color:var(--muted); font:10px -apple-system,sans-serif; }
-    .tools { display:flex; align-items:center; gap:7px; height:44px; padding:0 12px; border-bottom:1px solid rgba(255,255,255,.08); -webkit-app-region:no-drag; }
-    .tools select { min-width:210px; max-width:280px; height:29px; padding:0 28px 0 10px; border:1px solid var(--border); border-radius:7px; outline:0; background:rgba(255,255,255,.05); color:var(--muted); font:600 11px -apple-system,sans-serif; }
-    .tool-button { height:29px; padding:0 10px; border-color:var(--border); background:rgba(255,255,255,.04); color:var(--muted); font-size:11px; }
-    .tool-button:hover { background:rgba(255,255,255,.09); color:var(--text); }
-    .tools-note { margin-left:auto; color:var(--subtle); font-size:10px; }
-    textarea { display:block; flex:1 1 auto; width:100%; min-height:180px; padding:18px 20px; resize:none; border:0; outline:0; background:transparent; color:var(--text); caret-color:var(--accent); font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif; user-select:text; -webkit-app-region:no-drag; }
-    textarea::placeholder { color:#6c6f77; }
-    .footer { display:flex; align-items:center; height:70px; padding:0 12px 0 18px; border-top:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.018); -webkit-app-region:no-drag; }
-    .details { min-width:0; display:grid; gap:4px; }
-    .meta { color:var(--muted); font-size:11px; }
+    textarea { display:block; flex:1 1 auto; width:100%; min-height:190px; padding:19px 20px; resize:none; border:0; outline:0; background:transparent; color:var(--text); caret-color:var(--accent); font:15px/1.58 -apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif; user-select:text; -webkit-app-region:no-drag; }
+    textarea::placeholder { color:var(--subtle); }
+    .footer { display:flex; align-items:center; gap:16px; min-height:64px; padding:10px 12px 10px 18px; border-top:1px solid rgba(255,255,255,.08); background:rgba(255,255,255,.018); -webkit-app-region:no-drag; }
+    .copy { min-width:0; display:grid; gap:3px; }
+    .focus-hint { color:var(--muted); font-size:11px; font-weight:600; }
     .state { color:var(--subtle); font-size:10px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-    .actions { display:flex; gap:8px; margin-left:auto; }
-    button { height:34px; padding:0 13px; border-radius:8px; border:1px solid transparent; font:600 12px -apple-system,sans-serif; cursor:pointer; }
-    button:focus-visible, select:focus-visible, textarea:focus-visible, input:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
+    button { border:0; font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text",sans-serif; }
+    button:focus-visible, textarea:focus-visible { outline:2px solid var(--accent); outline-offset:3px; }
     button:disabled { opacity:.4; cursor:default; }
-    .secondary { border-color:rgba(255,255,255,.1); background:rgba(255,255,255,.05); color:var(--muted); }
-    .secondary:hover { background:rgba(255,255,255,.09); color:var(--text); }
-    .submit { background:var(--accent); color:var(--accent-ink); }
-    dialog { width:430px; padding:0; border:1px solid var(--border); border-radius:14px; outline:0; background:#191b20; color:var(--text); box-shadow:0 28px 90px rgba(0,0,0,.62); -webkit-app-region:no-drag; }
-    dialog::backdrop { background:rgba(5,6,8,.58); backdrop-filter:blur(4px); }
-    :root[data-theme="light"] dialog { background:#fbfaf6; }
-    .dialog-head { padding:16px 17px 13px; border-bottom:1px solid var(--border); }
-    .dialog-head strong { display:block; font-size:13px; }
-    .dialog-head span { display:block; margin-top:4px; color:var(--subtle); font-size:10px; }
-    .variable-fields { display:grid; grid-template-columns:1fr 1fr; gap:10px; max-height:190px; padding:15px 17px; overflow:auto; }
-    .variable-fields label { display:grid; gap:5px; color:var(--muted); font-size:10px; text-transform:capitalize; }
-    .variable-fields input { width:100%; height:34px; padding:0 9px; border:1px solid var(--border); border-radius:7px; outline:0; background:rgba(255,255,255,.05); color:var(--text); font:12px -apple-system,sans-serif; user-select:text; }
-    .variable-fields input:focus { border-color:rgba(244,200,74,.55); }
-    .dialog-actions { display:flex; justify-content:flex-end; gap:8px; padding:12px 17px; border-top:1px solid var(--border); }
+    .submit { flex:0 0 auto; min-width:118px; height:38px; padding:0 16px; border-radius:9px; background:var(--accent); color:var(--accent-ink); font-size:12px; font-weight:700; cursor:pointer; }
+    .submit:hover:not(:disabled) { filter:brightness(1.04); transform:translateY(-1px); }
   </style>
+  <link rel="stylesheet" href="native.css">
 </head>
-<body>
-  <div class="shell">
-    <div class="top">
+<body class="quick-app">
+  <main class="shell">
+    <header class="header">
       <img class="mark" src="zap-icon.svg" alt="">
-      <span class="title">Drip Composer <span style="color:var(--subtle);font-weight:500">by Zap</span></span>
-      <span class="target">Returns to <strong id="target">previous app</strong></span>
-      <span class="top-hint"><kbd>⌘V</kbd> paste · <kbd>⌘↵</kbd> drip · <kbd>esc</kbd> close</span>
-      <button class="window-action" id="toggle-full-screen" type="button" title="Enter full screen (⌃⌘F)" aria-label="Enter full screen">⛶</button>
-    </div>
-    <div class="tools">
-      <select id="template-picker" aria-label="Insert a template"><option value="">Insert a template…</option></select>
-      <button class="tool-button" id="tool-clean" type="button">Clean spacing</button>
-      <button class="tool-button" id="tool-bullets" type="button">Toggle bullets</button>
-      <span class="tools-note">Local tools</span>
-    </div>
-    <textarea id="text" spellcheck="true" maxlength="100000" aria-label="Composer text" placeholder="Paste or type anything you want Drip Type to enter…"></textarea>
-    <div class="footer">
-      <div class="details"><span class="meta" id="meta">0 words · 0 characters</span><span class="state" id="state">Private draft · stored in memory only</span></div>
-      <div class="actions"><button class="secondary" id="paste" type="button">Paste</button><button class="secondary" id="clear" type="button" disabled>Clear</button><button class="submit" id="submit" type="button" disabled>Drip after 3s</button></div>
-    </div>
-  </div>
-  <dialog id="template-dialog">
-    <div class="dialog-head"><strong id="template-dialog-title">Fill template</strong><span>Values are inserted locally and are not saved.</span></div>
-    <div class="variable-fields" id="variable-fields"></div>
-    <div class="dialog-actions"><button class="secondary" id="template-cancel" type="button">Cancel</button><button class="submit" id="template-insert" type="button">Insert template</button></div>
-  </dialog>
+      <span class="title">Zap</span><span class="byline">Drip Type</span>
+      <div class="window-actions">
+        <button class="window-action" id="toggle-full-screen" type="button" title="Enter full screen (⌃⌘F)" aria-label="Enter full screen">⛶</button>
+        <button class="window-action" id="close" type="button" title="Close (Esc)" aria-label="Close">×</button>
+      </div>
+    </header>
+    <textarea id="text" spellcheck="true" maxlength="100000" aria-label="Text to type" placeholder="Paste or write your text here…"></textarea>
+    <footer class="footer">
+      <div class="copy"><span class="focus-hint" id="focus-hint">Window hides. Click the destination field before typing starts.</span><span class="state" id="state">Private draft · kept in memory only</span></div>
+      <button class="submit" id="submit" type="button" disabled>Start typing</button>
+    </footer>
+  </main>
   <script src="quick.js"></script>
 </body>
 </html>

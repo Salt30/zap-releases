@@ -1,5 +1,6 @@
 const {
   app,
+  autoUpdater: nativeUpdater,
   BrowserWindow,
   Menu,
   Notification,
@@ -8,6 +9,7 @@ const {
   ipcMain,
   clipboard,
   nativeImage,
+  nativeTheme,
   net,
   protocol,
   screen,
@@ -18,12 +20,15 @@ const {
 } = require('electron');
 const { autoUpdater } = require('electron-updater');
 const Store = require('electron-store');
+const { configureAppIdentity } = require('./app-identity');
 const { execFile } = require('child_process');
+const { installZap } = require('./zap-main');
+const { createAccountSession } = require('./account-session');
+const { keepWindowAvailable } = require('./window-recovery');
 const { randomUUID } = require('crypto');
 const path = require('path');
 const { pathToFileURL } = require('url');
 const { accessState, shouldRevokeEntitlement, verifyEntitlement } = require('./subscription');
-const { renderBatch, searchClipboard, transformWriting } = require('./pro-tools');
 const { buildCharacterSteps, renderAppleScript, validateTypingEvents } = require('./typing-engine');
 const {
   normalizeAccelerator,
@@ -37,65 +42,27 @@ const BILLING_ORIGIN = 'https://tryzap.net';
 const BILLING_SCHEME = 'driptype';
 const KEYCHAIN_SERVICE = 'com.salt30.driptype.subscription';
 const LEGACY_TRIAL_KEYCHAIN_SERVICE = 'com.salt30.driptype.trial';
-const USER_VAULT_KEY = 'encryptedUserVault';
-const MAX_USER_VAULT_BYTES = 12 * 1024 * 1024;
 const MAX_TEXT_LENGTH = 100000;
-const MAX_CORE_TEMPLATE_COUNT = 50;
-const MAX_PRO_TEMPLATE_COUNT = 250;
-const MAX_TEMPLATE_NAME_LENGTH = 60;
-const MAX_TEMPLATE_BODY_LENGTH = 20000;
-const MAX_PROFILE_COUNT = 20;
-const MAX_CLIPBOARD_COUNT = 200;
-const MAX_CLIPBOARD_ITEM_LENGTH = 20000;
 const APP_SCHEME = 'drip';
 const APP_HOST = 'app';
 const APP_CONTENT_SECURITY_POLICY = "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'";
 const APP_RESOURCES = new Set([
   'index.html', 'index.js', 'quick.html', 'quick.js',
   'onboarding.html', 'onboarding.js', 'zap-icon.svg',
-  'zap-wordmark-dark.svg', 'zap-wordmark-light.svg'
+  'zap-wordmark-dark.svg', 'zap-wordmark-light.svg', 'native.css', 'zap.css', 'zap-pin.html', 'zap-pin.js'
 ]);
-const DEFAULT_TEMPLATES = [
-  {
-    id: 'starter-follow-up',
-    name: 'Friendly follow-up',
-    body: 'Hi {{name}},\n\nJust following up on {{topic}}. When you have a moment, could you let me know the best next step?\n\nThanks,\n{{sender}}'
-  },
-  {
-    id: 'starter-status',
-    name: 'Project status',
-    body: 'Status: {{project}}\n\nCompleted\n• {{completed}}\n\nNext\n• {{next}}\n\nBlockers\n• {{blockers}}'
-  },
-  {
-    id: 'starter-meeting',
-    name: 'Meeting recap',
-    body: 'Hi {{name}},\n\nHere is a quick recap of {{meeting}}:\n\nDecisions\n• {{decisions}}\n\nNext steps\n• {{next_steps}}\n\nBest,\n{{sender}}'
-  }
-];
-const PRO_TEMPLATE_LIBRARY = [
-  { id: 'pro-sales-intro', name: 'Warm introduction', category: 'Sales', tags: ['intro', 'outreach'], body: 'Hi {{name}},\n\nI noticed {{relevant_detail}} and thought {{offering}} could help with {{goal}}. Would {{time_option}} work for a quick conversation?\n\nBest,\n{{sender}}' },
-  { id: 'pro-support-update', name: 'Support update', category: 'Support', tags: ['status', 'customer'], body: 'Hi {{name}},\n\nHere is the latest on {{issue}}:\n\n• Current status: {{status}}\n• Next action: {{next_action}}\n• Expected update: {{next_update}}\n\nThanks for your patience,\n{{sender}}' },
-  { id: 'pro-recruiting-followup', name: 'Candidate follow-up', category: 'Recruiting', tags: ['candidate', 'follow-up'], body: 'Hi {{name}},\n\nThank you for taking the time to discuss the {{role}} role. The team especially appreciated {{highlight}}. We will follow up with {{next_step}} by {{date}}.\n\nBest,\n{{sender}}' },
-  { id: 'pro-project-brief', name: 'Project brief', category: 'Operations', tags: ['brief', 'project'], body: 'Project: {{project}}\nOwner: {{owner}}\nOutcome: {{outcome}}\nDeadline: {{deadline}}\n\nScope\n• {{scope}}\n\nRisks\n• {{risks}}\n\nNext milestone\n• {{milestone}}' },
-  { id: 'pro-meeting-agenda', name: 'Decision agenda', category: 'Meetings', tags: ['agenda', 'decision'], body: 'Meeting: {{meeting}}\nDecision needed: {{decision}}\n\nContext\n{{context}}\n\nOptions\n• {{option_one}}\n• {{option_two}}\n\nOwner / next step\n{{owner}} — {{next_step}}' }
-];
-const DEFAULT_PROFILE = {
-  id: 'profile-default', name: 'Natural', dripWPM: 45, dripDelay: 3,
-  typoRate: 0.03, dripPauseChance: 0.03, dripBurstChance: 0.08
-};
 const DEFAULTS = {
   dripWPM: 45,
-  dripDelay: 3,
+  dripDelay: 10,
   typoRate: 0.03,
   dripPauseChance: 0.03,
   dripBurstChance: 0.08,
   hotkeyStart: 'Alt+5',
   hotkeyStop: 'Alt+0',
   shortcutDefaultsMigratedToOption5: false,
+  focusDelayMigratedToOldStyle: false,
   launchAtLogin: true,
   theme: 'system',
-  activeProfileId: DEFAULT_PROFILE.id,
-  encryptedUserVault: '',
   deviceId: null,
   entitlementToken: '',
   encryptedRefreshCredential: '',
@@ -104,6 +71,7 @@ const DEFAULTS = {
   onboardingDone: false
 };
 
+configureAppIdentity(app);
 const store = new Store({ defaults: DEFAULTS });
 
 // Existing installs keep electron-store values across upgrades. Migrate the
@@ -112,6 +80,14 @@ if (!store.get('shortcutDefaultsMigratedToOption5', false)) {
   const previous = normalizeAccelerator(store.get('hotkeyStart'));
   if (previous.accelerator === 'Alt+4') store.set('hotkeyStart', DEFAULTS.hotkeyStart);
   store.set('shortcutDefaultsMigratedToOption5', true);
+}
+// The original Zap allowed enough time to click an exact browser field
+// after its overlay disappeared. Move installs still using the former 3-second
+// default to that proven 10-second focus window, while preserving every other
+// customized delay.
+if (!store.get('focusDelayMigratedToOldStyle', false)) {
+  if (Number(store.get('dripDelay')) === 3) store.set('dripDelay', DEFAULTS.dripDelay);
+  store.set('focusDelayMigratedToOldStyle', true);
 }
 
 protocol.registerSchemesAsPrivileged([{
@@ -129,6 +105,8 @@ if (!singleInstance) app.quit();
 app.enableSandbox();
 
 let mainWindow = null;
+let mainRecovery = null;
+let quitting = false;
 let quickWindow = null;
 let onboardingWindow = null;
 let tray = null;
@@ -193,64 +171,6 @@ function writeProtectedStoreValue(key, value) {
   store.set(key, safeStorage.encryptString(value).toString('base64'));
 }
 
-function defaultUserVault() {
-  return {
-    version: 1,
-    templates: DEFAULT_TEMPLATES.map((template) => ({ ...template })),
-    profiles: [{ ...DEFAULT_PROFILE }],
-    clipboardWorkspace: []
-  };
-}
-
-function readUserVault() {
-  const decrypted = readProtectedStoreValue(USER_VAULT_KEY);
-  if (!decrypted || Buffer.byteLength(decrypted, 'utf8') > MAX_USER_VAULT_BYTES) return null;
-  try {
-    const vault = JSON.parse(decrypted);
-    if (!vault || typeof vault !== 'object' || Array.isArray(vault) || vault.version !== 1) return null;
-    if (!Array.isArray(vault.templates) || !Array.isArray(vault.profiles) || !Array.isArray(vault.clipboardWorkspace)) {
-      return null;
-    }
-    return vault;
-  } catch (_) {
-    return null;
-  }
-}
-
-function currentUserVault() {
-  return readUserVault() || defaultUserVault();
-}
-
-function writeUserVault(vault) {
-  const serialized = JSON.stringify(vault);
-  if (Buffer.byteLength(serialized, 'utf8') > MAX_USER_VAULT_BYTES) {
-    throw new Error('Private local data exceeds the secure storage limit.');
-  }
-  writeProtectedStoreValue(USER_VAULT_KEY, serialized);
-}
-
-function migrateUserVault() {
-  if (!safeStorage.isEncryptionAvailable()) return false;
-  const encrypted = String(store.get(USER_VAULT_KEY, '') || '');
-  if (encrypted) {
-    if (!readUserVault()) return false;
-  } else {
-    const legacyTemplates = store.get('templates');
-    const legacyProfiles = store.get('profiles');
-    const legacyClipboard = store.get('clipboardWorkspace');
-    writeUserVault({
-      version: 1,
-      templates: Array.isArray(legacyTemplates) ? legacyTemplates : DEFAULT_TEMPLATES,
-      profiles: Array.isArray(legacyProfiles) ? legacyProfiles : [DEFAULT_PROFILE],
-      clipboardWorkspace: Array.isArray(legacyClipboard) ? legacyClipboard : []
-    });
-  }
-  store.delete('templates');
-  store.delete('profiles');
-  store.delete('clipboardWorkspace');
-  return true;
-}
-
 function ensureDeviceId() {
   const current = store.get('deviceId');
   if (/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(String(current || ''))) {
@@ -283,19 +203,10 @@ async function retireLegacyTrialState() {
 
 function currentBillingState() {
   billingState = accessState({
-    token: store.get('entitlementToken'),
+    token: store.get('accountSignedOut', false) ? '' : store.get('entitlementToken'),
     deviceId: ensureDeviceId()
   });
-  return { ...billingState };
-}
-
-function hasFeature(feature) {
-  return currentBillingState().features.includes(feature);
-}
-
-function proRequired(feature) {
-  if (hasFeature(feature)) return null;
-  return { error: 'Drip Type Pro is required for this feature.', code: 'PRO_REQUIRED' };
+  return { ...billingState, signedIn: !store.get('accountSignedOut', false) && Boolean(store.get('accountConnected', false) || store.get('entitlementToken')), cleanupPending: store.get('accountCleanupPending', false) };
 }
 
 function publishBillingState(patch = {}) {
@@ -314,7 +225,7 @@ async function readRefreshCredential() {
   try {
     const value = await execFileAsync('/usr/bin/security', [
       'find-generic-password', '-a', APP_ID, '-s', KEYCHAIN_SERVICE, '-w'
-    ]);
+    ], { timeout: 10000 });
     return /^sub_[A-Za-z0-9]+\.[A-Za-z0-9_-]{40,}$/.test(value) ? value : '';
   } catch (_) {
     return '';
@@ -332,7 +243,7 @@ async function saveRefreshCredential(value) {
   if (process.platform !== 'darwin') throw new Error('Secure subscription storage is unavailable.');
   await execFileAsync('/usr/bin/security', [
     'add-generic-password', '-U', '-a', APP_ID, '-s', KEYCHAIN_SERVICE, '-w', value
-  ]);
+  ], { timeout: 10000 });
 }
 
 async function deleteRefreshCredential() {
@@ -344,8 +255,10 @@ async function deleteRefreshCredential() {
   try {
     await execFileAsync('/usr/bin/security', [
       'delete-generic-password', '-a', APP_ID, '-s', KEYCHAIN_SERVICE
-    ]);
-  } catch (_) {}
+    ], { timeout: 10000 });
+  } catch (error) {
+    if (Number(error.code) !== 44) throw new Error('Secure credential removal failed.');
+  }
 }
 
 async function billingRequest(pathname, body) {
@@ -392,37 +305,18 @@ async function revokeBillingAccess(message) {
 }
 
 async function refreshEntitlement({ silent = false } = {}) {
-  const refreshToken = await readRefreshCredential();
-  if (!refreshToken) return publishBillingState();
-  try {
-    const result = await billingRequest('/api/refresh-entitlement', {
-      refreshToken,
-      deviceId: ensureDeviceId()
-    });
-    return acceptEntitlement(result);
-  } catch (error) {
-    if (shouldRevokeEntitlement(error.status)) {
-      return revokeBillingAccess(error.message);
-    }
+  try { return await accountSession.refresh(); }
+  catch (error) {
+    if (shouldRevokeEntitlement(error.status)) return revokeBillingAccess(error.message);
     const current = currentBillingState();
-    if (!silent || !current.allowed) {
-      return publishBillingState({ message: error.message || 'Subscription could not be refreshed.' });
-    }
-    return current;
+    return !silent || !current.allowed
+      ? publishBillingState({ message: 'Access could not be refreshed. Check your connection.' }) : current;
   }
 }
 
 async function activateAccountToken(activationToken) {
-  if (typeof activationToken !== 'string' || activationToken.length > 2048 ||
-      !/^[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/.test(activationToken)) {
-    throw new Error('Invalid account connection link');
-  }
-  const result = await billingRequest('/api/claim-account-entitlement', {
-    activationToken,
-    deviceId: ensureDeviceId()
-  });
-  await saveRefreshCredential(result.refreshToken);
-  const state = acceptEntitlement(result);
+  const state = await accountSession.activate(activationToken);
+  if (!state.signedIn) return state;
   navigateMainWindow({ page: 'billing' });
   if (Notification.isSupported()) {
     new Notification({ title: 'Zap account connected', body: state.message, silent: true }).show();
@@ -506,7 +400,7 @@ function registerAppProtocol() {
     if (request.method !== 'GET' || url.hostname !== APP_HOST || !APP_RESOURCES.has(resource)) {
       return new Response('Not found', { status: 404 });
     }
-    const localPath = resource.startsWith('zap-')
+    const localPath = resource.startsWith('zap-') && resource.endsWith('.svg')
       ? path.join(__dirname, '..', 'assets', 'brand', 'zap', 'logo', resource)
       : path.join(__dirname, resource);
     const response = await net.fetch(pathToFileURL(localPath).href);
@@ -549,7 +443,7 @@ function safeUpdateError(error) {
     return 'The secure update channel is not published yet. Try again later.';
   }
   if (/net::|ENOTFOUND|ECONN|network|offline/i.test(message)) {
-    return 'Drip Type could not reach the update service. Check your connection and try again.';
+    return 'Zap could not reach the update service. Check your connection and try again.';
   }
   return 'The update could not be verified. Try again later.';
 }
@@ -571,8 +465,8 @@ function notifyUpdateAvailable(info) {
   if (!Notification.isSupported() || !info?.version || lastNotifiedUpdateVersion === info.version) return;
   lastNotifiedUpdateVersion = info.version;
   const notification = new Notification({
-    title: `Drip Type ${info.version} is available`,
-    body: 'Open Drip Type to review what’s new and download the verified update.',
+    title: `Zap ${info.version} is available`,
+    body: 'Open Zap to review what’s new and download the verified update.',
     silent: true
   });
   notification.on('click', showUpdatesPage);
@@ -580,11 +474,13 @@ function notifyUpdateAvailable(info) {
 }
 
 function senderPage(event) {
-  const senderUrl = event.senderFrame?.url || event.sender.getURL();
+  if (!event.senderFrame || event.senderFrame !== event.sender.mainFrame) return null;
+  const senderUrl = event.senderFrame.url;
   try {
     const parsed = new URL(senderUrl);
-    if (parsed.protocol !== `${APP_SCHEME}:` || parsed.hostname !== APP_HOST) return null;
-    return path.basename(decodeURIComponent(parsed.pathname));
+    if (parsed.protocol !== `${APP_SCHEME}:` || parsed.host !== APP_HOST || parsed.username || parsed.password) return null;
+    const page = path.basename(parsed.pathname);
+    return parsed.pathname === `/${page}` ? page : null;
   } catch (_) {
     return null;
   }
@@ -636,193 +532,6 @@ function applySettings(settings = {}) {
   }
 }
 
-function sanitizeTemplate(template, existingId = null) {
-  if (!template || typeof template !== 'object' || Array.isArray(template)) return null;
-  const name = typeof template.name === 'string' ? template.name.trim().slice(0, MAX_TEMPLATE_NAME_LENGTH) : '';
-  const body = typeof template.body === 'string'
-    ? template.body.replace(/\r\n?/g, '\n').slice(0, MAX_TEMPLATE_BODY_LENGTH)
-    : '';
-  if (!name || !body.trim()) return null;
-  const requestedId = typeof template.id === 'string' ? template.id : '';
-  const id = existingId || (/^[A-Za-z0-9-]{1,80}$/.test(requestedId) ? requestedId : `template-${randomUUID()}`);
-  const category = typeof template.category === 'string' ? template.category.trim().slice(0, 40) : '';
-  const tags = Array.isArray(template.tags)
-    ? [...new Set(template.tags.map((tag) => String(tag).trim().slice(0, 30)).filter(Boolean))].slice(0, 8)
-    : [];
-  return { id, name, body, category, tags, favorite: Boolean(template.favorite) };
-}
-
-function listTemplates() {
-  const templates = currentUserVault().templates;
-  if (!Array.isArray(templates)) return DEFAULT_TEMPLATES.map((template) => ({ ...template }));
-  return templates.slice(0, hasFeature('template_library') ? MAX_PRO_TEMPLATE_COUNT : MAX_CORE_TEMPLATE_COUNT)
-    .map((template) => sanitizeTemplate(template, template?.id))
-    .filter(Boolean);
-}
-
-function saveTemplate(input) {
-  const templates = listTemplates();
-  const requestedId = typeof input?.id === 'string' ? input.id : '';
-  const index = requestedId ? templates.findIndex((template) => template.id === requestedId) : -1;
-  const limit = hasFeature('template_library') ? MAX_PRO_TEMPLATE_COUNT : MAX_CORE_TEMPLATE_COUNT;
-  if (index < 0 && templates.length >= limit) {
-    return { error: `Template limit reached (${limit}).`, templates };
-  }
-  const template = sanitizeTemplate(input, index >= 0 ? templates[index].id : null);
-  if (!template) return { error: 'Add a template name and body.', templates };
-  if (index >= 0) templates[index] = template;
-  else templates.unshift(template);
-  try {
-    writeUserVault({ ...currentUserVault(), templates });
-  } catch (_) {
-    return { error: 'Templates could not be saved securely.', templates: listTemplates() };
-  }
-  return { template, templates };
-}
-
-function installProTemplateLibrary() {
-  const blocked = proRequired('template_library');
-  if (blocked) return { ...blocked, templates: listTemplates() };
-  const templates = listTemplates();
-  const existing = new Set(templates.map((template) => template.id));
-  const additions = PRO_TEMPLATE_LIBRARY.filter((template) => !existing.has(template.id));
-  const merged = [...additions, ...templates].slice(0, MAX_PRO_TEMPLATE_COUNT).map((template) => sanitizeTemplate(template, template.id));
-  try {
-    writeUserVault({ ...currentUserVault(), templates: merged });
-  } catch (_) {
-    return { error: 'The template library could not be saved securely.', templates: listTemplates() };
-  }
-  return { success: true, installed: additions.length, templates: merged };
-}
-
-function sanitizeProfile(input, existingId = null) {
-  if (!input || typeof input !== 'object' || Array.isArray(input)) return null;
-  const name = typeof input.name === 'string' ? input.name.trim().slice(0, 40) : '';
-  if (!name) return null;
-  const id = existingId || (/^[A-Za-z0-9-]{1,80}$/.test(input.id || '') ? input.id : `profile-${randomUUID()}`);
-  const bounds = { dripWPM: [15, 240], dripDelay: [0, 30], typoRate: [0, 0.5], dripPauseChance: [0, 0.5], dripBurstChance: [0, 0.5] };
-  const profile = { id, name };
-  for (const [key, [minimum, maximum]] of Object.entries(bounds)) {
-    const value = Number(input[key]);
-    profile[key] = Number.isFinite(value) ? Math.min(maximum, Math.max(minimum, value)) : DEFAULT_PROFILE[key];
-  }
-  return profile;
-}
-
-function listProfiles() {
-  const values = currentUserVault().profiles;
-  const profiles = (Array.isArray(values) ? values : [DEFAULT_PROFILE]).slice(0, MAX_PROFILE_COUNT)
-    .map((profile) => sanitizeProfile(profile, profile?.id)).filter(Boolean);
-  return profiles.length ? profiles : [{ ...DEFAULT_PROFILE }];
-}
-
-function saveProfile(input) {
-  const blocked = proRequired('profiles');
-  if (blocked) return { ...blocked, profiles: listProfiles() };
-  const profiles = listProfiles();
-  const index = profiles.findIndex((profile) => profile.id === input?.id);
-  if (index < 0 && profiles.length >= MAX_PROFILE_COUNT) return { error: `Profile limit reached (${MAX_PROFILE_COUNT}).`, profiles };
-  const profile = sanitizeProfile(input, index >= 0 ? profiles[index].id : null);
-  if (!profile) return { error: 'Add a profile name.', profiles };
-  if (index >= 0) profiles[index] = profile; else profiles.unshift(profile);
-  try {
-    writeUserVault({ ...currentUserVault(), profiles });
-  } catch (_) {
-    return { error: 'Profiles could not be saved securely.', profiles: listProfiles() };
-  }
-  return { profile, profiles };
-}
-
-function activateProfile(id) {
-  const blocked = proRequired('profiles');
-  if (blocked) return { ...blocked, profiles: listProfiles() };
-  const profile = listProfiles().find((item) => item.id === id);
-  if (!profile) return { error: 'Profile not found.', profiles: listProfiles() };
-  applySettings(profile);
-  store.set('activeProfileId', profile.id);
-  return { success: true, activeProfileId: profile.id, profile, profiles: listProfiles() };
-}
-
-function deleteProfile(id) {
-  const blocked = proRequired('profiles');
-  if (blocked) return { ...blocked, profiles: listProfiles() };
-  const profiles = listProfiles();
-  if (profiles.length === 1) return { error: 'Keep at least one profile.', profiles };
-  const filtered = profiles.filter((profile) => profile.id !== id);
-  if (filtered.length === profiles.length) return { error: 'Profile not found.', profiles };
-  try {
-    writeUserVault({ ...currentUserVault(), profiles: filtered });
-  } catch (_) {
-    return { error: 'Profiles could not be updated securely.', profiles: listProfiles() };
-  }
-  if (store.get('activeProfileId') === id) store.set('activeProfileId', filtered[0].id);
-  return { success: true, activeProfileId: store.get('activeProfileId'), profiles: filtered };
-}
-
-function sanitizeClipboardItem(item) {
-  if (!item || typeof item !== 'object') return null;
-  const text = typeof item.text === 'string' ? item.text.replace(/\r\n?/g, '\n').slice(0, MAX_CLIPBOARD_ITEM_LENGTH) : '';
-  if (!text.trim()) return null;
-  return {
-    id: /^[A-Za-z0-9-]{1,80}$/.test(item.id || '') ? item.id : `clip-${randomUUID()}`,
-    text,
-    pinned: Boolean(item.pinned),
-    createdAt: Number.isFinite(Number(item.createdAt)) ? Number(item.createdAt) : Date.now()
-  };
-}
-
-function listClipboardItems(query = '') {
-  const storedItems = currentUserVault().clipboardWorkspace;
-  const items = (Array.isArray(storedItems) ? storedItems : [])
-    .slice(0, MAX_CLIPBOARD_COUNT).map(sanitizeClipboardItem).filter(Boolean)
-    .sort((a, b) => Number(b.pinned) - Number(a.pinned) || b.createdAt - a.createdAt);
-  return searchClipboard(items, query);
-}
-
-function captureClipboardItem() {
-  const blocked = proRequired('clipboard');
-  if (blocked) return { ...blocked, items: [] };
-  const item = sanitizeClipboardItem({ text: clipboard.readText(), createdAt: Date.now() });
-  if (!item) return { error: 'The clipboard has no text to save.', items: listClipboardItems() };
-  const items = [item, ...listClipboardItems().filter((existing) => existing.text !== item.text)].slice(0, MAX_CLIPBOARD_COUNT);
-  try {
-    writeUserVault({ ...currentUserVault(), clipboardWorkspace: items });
-  } catch (_) {
-    return { error: 'Clipboard history could not be saved securely.', items: listClipboardItems() };
-  }
-  return { item, items };
-}
-
-function updateClipboardItem(id, action) {
-  const blocked = proRequired('clipboard');
-  if (blocked) return { ...blocked, items: [] };
-  let items = listClipboardItems();
-  const item = items.find((entry) => entry.id === id);
-  if (!item) return { error: 'Clipboard item not found.', items };
-  if (action === 'delete') items = items.filter((entry) => entry.id !== id);
-  else if (action === 'pin') item.pinned = !item.pinned;
-  else return { error: 'Invalid clipboard action.', items };
-  try {
-    writeUserVault({ ...currentUserVault(), clipboardWorkspace: items });
-  } catch (_) {
-    return { error: 'Clipboard history could not be updated securely.', items: listClipboardItems() };
-  }
-  return { success: true, items: listClipboardItems() };
-}
-
-function deleteTemplate(id) {
-  if (typeof id !== 'string') return { error: 'Invalid template.', templates: listTemplates() };
-  const templates = listTemplates();
-  const filtered = templates.filter((template) => template.id !== id);
-  if (filtered.length === templates.length) return { error: 'Template not found.', templates };
-  try {
-    writeUserVault({ ...currentUserVault(), templates: filtered });
-  } catch (_) {
-    return { error: 'Templates could not be updated securely.', templates: listTemplates() };
-  }
-  return { success: true, templates: filtered };
-}
-
 function configureLoginItem() {
   if (!app.isPackaged || !['darwin', 'win32'].includes(process.platform)) return;
   const settings = { openAtLogin: store.get('launchAtLogin', DEFAULTS.launchAtLogin) };
@@ -831,9 +540,29 @@ function configureLoginItem() {
 }
 
 function publishTheme(theme = store.get('theme', DEFAULTS.theme)) {
+  const source = ['system', 'light', 'dark'].includes(theme) ? theme : 'system';
+  if (nativeTheme.themeSource !== source) nativeTheme.themeSource = source;
+  const appearance = currentAppearance();
   for (const window of [mainWindow, quickWindow, onboardingWindow]) {
-    sendToWindow(window, 'theme:changed', { theme });
+    if (!window || window.isDestroyed()) continue;
+    if (process.platform === 'darwin') {
+      window.setVibrancy(appearance.reducedTransparency ? null : (window === quickWindow ? 'under-window' : 'sidebar'));
+    }
+    sendToWindow(window, 'theme:changed', appearance);
   }
+  for (const window of BrowserWindow.getAllWindows()) {
+    if (![mainWindow, quickWindow, onboardingWindow].includes(window)) sendToWindow(window, 'theme:changed', appearance);
+  }
+}
+
+function currentAppearance() {
+  return {
+    theme: nativeTheme.themeSource,
+    resolvedTheme: nativeTheme.shouldUseDarkColors ? 'dark' : 'light',
+    reducedTransparency: nativeTheme.prefersReducedTransparency,
+    highContrast: nativeTheme.shouldUseHighContrastColors,
+    platform: process.platform
+  };
 }
 
 async function isAutomationTrusted() {
@@ -882,11 +611,11 @@ function configureUpdater() {
     publishUpdateState({
       status: 'available',
       version: info.version,
-      releaseName: info.releaseName || `Drip Type ${info.version}`,
+      releaseName: info.releaseName || `Zap ${info.version}`,
       releaseNotes: plainReleaseNotes(info.releaseNotes),
       percent: 0,
       lastCheckedAt: new Date().toISOString(),
-      message: `Drip Type ${info.version} is ready to download.`
+      message: `Zap ${info.version} is ready to download.`
     });
     notifyUpdateAvailable(info);
   });
@@ -910,7 +639,7 @@ function configureUpdater() {
       status: 'downloaded',
       version: info.version,
       percent: 100,
-      message: `Drip Type ${info.version} is verified and ready to install.`
+      message: `Zap ${info.version} is verified and ready to install.`
     });
   });
   autoUpdater.on('error', (error) => {
@@ -1009,7 +738,7 @@ async function dripType(input, options = {}) {
   const text = cleanMarkdown(input);
   if (!text) return { error: 'Enter some text first.' };
   if ([...text].length > MAX_TEXT_LENGTH) return { error: 'Text is limited to 100,000 characters per run.' };
-  if (dripTypeRunning) return { error: 'Drip Type is already running.' };
+  if (dripTypeRunning) return { error: 'Zap is already running.' };
 
   if (!['darwin', 'win32'].includes(process.platform)) {
     clipboard.writeText(text);
@@ -1018,7 +747,7 @@ async function dripType(input, options = {}) {
 
   if (!isAccessibilityTrusted(false)) {
     return {
-      error: 'Accessibility access is required before Drip Type can type into another app.',
+      error: 'Accessibility access is required before Zap can type into another app.',
       code: 'ACCESSIBILITY_REQUIRED'
     };
   }
@@ -1093,13 +822,14 @@ async function dripType(input, options = {}) {
   }
 }
 
-function windowOptions() {
+function windowOptions({ backgroundWork = false } = {}) {
   return {
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
       nodeIntegration: false,
       sandbox: true,
+      backgroundThrottling: !backgroundWork,
       webSecurity: true,
       allowRunningInsecureContent: false,
       devTools: !app.isPackaged
@@ -1111,21 +841,32 @@ function createMainWindow() {
   if (mainWindow && !mainWindow.isDestroyed()) return mainWindow;
 
   mainWindow = new BrowserWindow({
-    ...windowOptions(),
-    width: 940,
-    height: 680,
+    ...windowOptions({ backgroundWork: true }),
+    width: 1000,
+    height: 740,
     minWidth: 820,
     minHeight: 600,
-    title: 'Drip Type',
+    title: 'Zap',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     trafficLightPosition: { x: 18, y: 18 },
-    backgroundColor: '#0d0f13',
-    vibrancy: process.platform === 'darwin' ? 'sidebar' : undefined,
-    visualEffectState: 'active',
+    backgroundColor: process.platform === 'darwin' ? '#00000000' : (nativeTheme.shouldUseDarkColors ? '#202023' : '#f5f5f7'),
+    vibrancy: process.platform === 'darwin' && !nativeTheme.prefersReducedTransparency ? 'sidebar' : undefined,
+    visualEffectState: 'followWindow',
     show: false
   });
 
   protectWindow(mainWindow, 'index.html');
+  const window = mainWindow;
+  mainRecovery = keepWindowAvailable({
+    window, isQuitting: () => quitting,
+    loadPage: () => window.loadURL(appPageUrl('index.html')),
+    onCrash: () => { cancelDripType(); zap.resetSession(); },
+    onStatus: (status) => {
+      if (['paused', 'stopped'].includes(status) && Notification.isSupported()) {
+        new Notification({ title: 'Zap window needs attention', body: 'Window recovery stopped. Quit and reopen Zap. Interrupted work will not restart automatically.', silent: true }).show();
+      }
+    }
+  });
   mainWindow.loadURL(appPageUrl('index.html'));
   mainWindow.once('ready-to-show', () => mainWindow.show());
   mainWindow.on('closed', () => { mainWindow = null; });
@@ -1137,10 +878,10 @@ function createQuickWindow() {
 
   quickWindow = new BrowserWindow({
     ...windowOptions(),
-    width: 720,
-    height: 430,
-    minWidth: 560,
-    minHeight: 360,
+    width: 560,
+    height: 350,
+    minWidth: 480,
+    minHeight: 300,
     frame: false,
     transparent: true,
     backgroundColor: '#00000000',
@@ -1152,8 +893,8 @@ function createQuickWindow() {
     skipTaskbar: true,
     hasShadow: true,
     roundedCorners: true,
-    vibrancy: process.platform === 'darwin' ? 'hud' : undefined,
-    visualEffectState: 'active',
+    vibrancy: process.platform === 'darwin' && !nativeTheme.prefersReducedTransparency ? 'under-window' : undefined,
+    visualEffectState: 'followWindow',
     show: false
   });
 
@@ -1182,10 +923,10 @@ function createOnboardingWindow() {
     height: 620,
     minWidth: 760,
     minHeight: 580,
-    title: 'Welcome to Drip Type',
+    title: 'Welcome to Zap',
     titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
     trafficLightPosition: { x: 18, y: 18 },
-    backgroundColor: '#0d0f13',
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#202023' : '#f5f5f7',
     resizable: false,
     show: false
   });
@@ -1209,7 +950,10 @@ async function showQuickComposer() {
     quickWindow.focus();
     return;
   }
-  quickTarget = await getFrontmostApplication();
+  if (process.platform === 'darwin') app.show();
+  // Windows needs an explicit window handle for SendInput. On macOS the old,
+  // more reliable workflow is manual focus after the composer disappears.
+  quickTarget = process.platform === 'win32' ? await getFrontmostApplication() : null;
   const window = createQuickWindow();
   const display = screen.getDisplayNearestPoint(screen.getCursorScreenPoint());
   const { x, y, width, height } = display.workArea;
@@ -1217,15 +961,17 @@ async function showQuickComposer() {
   window.setPosition(Math.round(x + (width - composerWidth) / 2), Math.round(y + height * 0.18));
   window.show();
   window.focus();
-  sendToWindow(window, 'quick:opened', {
+  const notifyOpened = () => sendToWindow(window, 'quick:opened', {
     targetName: quickTarget?.name || 'previous app',
     settings: publicSettings(),
-    templates: listTemplates(),
     features: access.features
   });
+  if (window.webContents.isLoadingMainFrame()) window.webContents.once('did-finish-load', notifyOpened);
+  else notifyOpened();
 }
 
 function showMainWindow() {
+  if (process.platform === 'darwin') app.show();
   const window = createMainWindow();
   if (window.isMinimized()) window.restore();
   window.show();
@@ -1274,6 +1020,9 @@ function updateShortcuts(settings = {}) {
     hotkeyStop: Object.prototype.hasOwnProperty.call(settings, 'hotkeyStop')
       ? settings.hotkeyStop : previous.hotkeyStop
   };
+  if (Object.values(requested).some((value) => zap.conflicts(value))) {
+    return { success: false, failures: ['That shortcut opens Zap. Change the Zap shortcut first.'] };
+  }
   const replacement = replaceShortcutPair(globalShortcut, previous, requested, {
     openComposer: showQuickComposer,
     stopTyping: cancelDripType
@@ -1295,7 +1044,7 @@ function createTray() {
     icon = icon.resize({ width: 18, height: 18 });
   }
   tray = new Tray(icon);
-  tray.setToolTip('Drip Type');
+  tray.setToolTip('Zap');
   createTrayMenuOnly();
   tray.on('click', showMainWindow);
 }
@@ -1308,7 +1057,7 @@ function createApplicationMenu() {
         { role: 'about' },
         { label: 'Check for Updates…', click: showUpdatesPage },
         { type: 'separator' },
-        { label: 'Settings…', accelerator: 'Command+,', click: showMainWindow },
+        { label: 'Settings…', accelerator: 'Command+,', click: () => navigateMainWindow({ page: 'setup' }) },
         { type: 'separator' },
         { role: 'services' },
         { type: 'separator' },
@@ -1337,6 +1086,7 @@ function createApplicationMenu() {
 
 handleTrusted('drip-type:start', ['index.html', 'quick.html'], async (event, text) => {
   const senderWindow = BrowserWindow.fromWebContents(event.sender);
+  const startedFromQuickComposer = senderWindow === quickWindow;
   if (!currentBillingState().allowed) {
     return { error: 'A Core subscription is required to start typing.', code: 'SUBSCRIPTION_REQUIRED' };
   }
@@ -1350,12 +1100,19 @@ handleTrusted('drip-type:start', ['index.html', 'quick.html'], async (event, tex
   if (process.platform === 'darwin' && !await isAutomationTrusted()) {
     return { error: 'Allow Automation access for System Events before typing.', code: 'AUTOMATION_REQUIRED' };
   }
-  if (senderWindow === quickWindow) quickWindow.hide();
+  if (startedFromQuickComposer) quickWindow.hide();
   if (senderWindow === mainWindow) mainWindow.hide();
-  const result = await dripType(text, { target: senderWindow === quickWindow ? quickTarget : null });
-  if (result?.error && senderWindow === quickWindow) {
-    quickWindow.show();
-    quickWindow.focus();
+  // Match the original Zap workflow on macOS: disappear completely and
+  // let the user click the exact web field during the countdown. Reopening a
+  // browser by bundle ID can restore the app while losing focus inside rich or
+  // paste-restricted editors such as Google Forms and Turnitin.
+  if (process.platform === 'darwin') app.hide();
+  const target = process.platform === 'win32' && startedFromQuickComposer ? quickTarget : null;
+  const result = await dripType(text, { target });
+  if (result?.error && senderWindow && !senderWindow.isDestroyed()) {
+    if (process.platform === 'darwin') app.show();
+    senderWindow.show();
+    senderWindow.focus();
   }
   return result;
 });
@@ -1369,31 +1126,7 @@ handleTrusted('clipboard:write-text', ['index.html'], (_event, value) => {
   clipboard.writeText(text);
   return { success: true };
 });
-handleTrusted('templates:list', ['index.html', 'quick.html'], () => listTemplates());
-handleTrusted('templates:save', ['index.html'], (_event, template) => saveTemplate(template));
-handleTrusted('templates:delete', ['index.html'], (_event, id) => deleteTemplate(id));
-handleTrusted('templates:install-library', ['index.html'], () => installProTemplateLibrary());
-handleTrusted('profiles:list', ['index.html'], () => ({
-  profiles: listProfiles(), activeProfileId: store.get('activeProfileId', DEFAULT_PROFILE.id)
-}));
-handleTrusted('profiles:save', ['index.html'], (_event, profile) => saveProfile(profile));
-handleTrusted('profiles:activate', ['index.html'], (_event, id) => activateProfile(id));
-handleTrusted('profiles:delete', ['index.html'], (_event, id) => deleteProfile(id));
-handleTrusted('clipboard-workspace:list', ['index.html'], (_event, query) => {
-  const blocked = proRequired('clipboard');
-  return blocked || { items: listClipboardItems(query) };
-});
-handleTrusted('clipboard-workspace:capture', ['index.html'], () => captureClipboardItem());
-handleTrusted('clipboard-workspace:update', ['index.html'], (_event, id, action) => updateClipboardItem(id, action));
-handleTrusted('pro:batch-render', ['index.html'], (_event, body, input) => {
-  const blocked = proRequired('batch');
-  return blocked || renderBatch(String(body || '').slice(0, MAX_TEMPLATE_BODY_LENGTH), String(input || '').slice(0, 500000));
-});
-handleTrusted('pro:transform', ['index.html'], (_event, value, mode) => {
-  const blocked = proRequired('writing_lab');
-  return blocked || { text: transformWriting(value, mode) };
-});
-
+handleTrusted('appearance:get', ['index.html', 'quick.html', 'onboarding.html', 'zap-pin.html'], currentAppearance);
 onTrusted('drip-type:cancel', ['index.html', 'quick.html'], cancelDripType);
 onTrusted('quick:show', ['index.html'], showQuickComposer);
 onTrusted('quick:close', ['quick.html'], () => quickWindow?.hide());
@@ -1442,20 +1175,21 @@ handleTrusted('settings:save', ['index.html'], (_event, settings) => {
 
 function createTrayMenuOnly() {
   const updateLabel = updateState.status === 'available'
-    ? `Download Drip Type ${updateState.version}…`
+    ? `Download Zap ${updateState.version}…`
     : updateState.status === 'downloaded'
       ? `Restart to Install ${updateState.version}…`
       : updateState.status === 'downloading'
         ? `Downloading Update (${Math.round(updateState.percent || 0)}%)…`
         : 'Check for Updates…';
   tray.setContextMenu(Menu.buildFromTemplate([
-    { label: 'Drip Composer', accelerator: store.get('hotkeyStart'), click: showQuickComposer },
-    { label: 'Open Drip Type', click: showMainWindow },
+    { label: 'Drip Type', accelerator: store.get('hotkeyStart'), click: showQuickComposer },
+    { label: 'Zap AI Workspace', click: () => navigateMainWindow({ page: 'zap', focus: 'zap-input' }) },
+    { label: 'Open Zap', click: showMainWindow },
     { label: updateLabel, click: showUpdatesPage },
     { type: 'separator' },
     { label: 'Stop Typing', accelerator: store.get('hotkeyStop'), click: cancelDripType },
     { type: 'separator' },
-    { label: 'Quit Drip Type', role: 'quit' }
+    { label: 'Quit Zap', role: 'quit' }
   ]));
 }
 
@@ -1484,24 +1218,27 @@ handleTrusted('app:get-info', ['index.html', 'onboarding.html'], () => ({
 }));
 handleTrusted('billing:get-state', ['index.html'], () => currentBillingState());
 handleTrusted('billing:refresh', ['index.html'], () => refreshEntitlement());
-handleTrusted('billing:subscribe', ['index.html'], async () => {
-  await shell.openExternal(`${BILLING_ORIGIN}/account?connect_device=${encodeURIComponent(ensureDeviceId())}`);
-  return currentBillingState();
-});
+handleTrusted('billing:subscribe', ['index.html'], () => accountSession.beginSignIn());
+handleTrusted('account:sign-in', ['index.html'], () => accountSession.beginSignIn());
+handleTrusted('account:sign-out', ['index.html'], () => accountSession.signOut());
+handleTrusted('account:open', ['index.html'], () => shell.openExternal(`${BILLING_ORIGIN}/account`));
 handleTrusted('billing:portal', ['index.html'], async () => {
-  const refreshToken = await readRefreshCredential();
+  const revision = accountSession.revision();
+  const { refreshToken } = await accountSession.credentials();
   if (!refreshToken) return { error: 'Activate a subscription before opening billing.' };
   try {
     const result = await billingRequest('/api/create-portal', {
       refreshToken,
       deviceId: ensureDeviceId()
     });
+    if (revision !== accountSession.revision()) return { error: 'Your account changed. Open billing again.' };
     if (!/^https:\/\/billing\.stripe\.com\//.test(result.url || '')) {
       throw new Error('Billing portal URL was rejected.');
     }
     await shell.openExternal(result.url);
     return { success: true };
   } catch (error) {
+    if (revision !== accountSession.revision()) return { error: 'Your account changed. Open billing again.' };
     if (shouldRevokeEntitlement(error.status)) await revokeBillingAccess(error.message);
     return { error: error.message || 'Billing portal could not be opened.' };
   }
@@ -1528,10 +1265,9 @@ handleTrusted('updater:download', ['index.html'], async () => {
   return { ...updateState };
 });
 onTrusted('updater:install', ['index.html'], () => {
-  if (updateState.status === 'downloaded') setImmediate(() => autoUpdater.quitAndInstall(false, true));
+  if (updateState.status === 'downloaded') setImmediate(() => { prepareToQuit(); autoUpdater.quitAndInstall(false, true); });
 });
 
-app.setName('Drip Type');
 app.setAsDefaultProtocolClient(BILLING_SCHEME);
 
 app.on('open-url', (event, url) => {
@@ -1550,9 +1286,31 @@ app.on('second-instance', (_event, commandLine) => {
   showQuickComposer();
 });
 
+const zap = installZap({
+  store, getCredentials: () => accountSession.credentials(),
+  handleTrusted, onTrusted, windowOptions, protectWindow, appPageUrl,
+  navigate: navigateMainWindow, isTyping: () => dripTypeRunning, getTypingShortcuts: storedShortcutPair
+});
+
+const accountSession = createAccountSession({
+  store, deviceId: ensureDeviceId, readCredential: readRefreshCredential,
+  saveCredential: saveRefreshCredential, deleteCredential: deleteRefreshCredential,
+  request: billingRequest, validateEntitlement: verifyEntitlement, publish: publishBillingState,
+  openBrowser: (url) => shell.openExternal(url),
+  onSignOut: () => {
+    pendingActivationUrl = null;
+    cancelDripType();
+    zap.resetSession();
+    store.set('zapSettings', { ...store.get('zapSettings', {}), context: '' });
+    quickWindow?.close();
+    sendToWindow(mainWindow, 'account:signed-out', {});
+  }
+});
+
 app.whenReady().then(async () => {
+  publishTheme();
+  nativeTheme.on('updated', () => publishTheme());
   await retireLegacyTrialState();
-  migrateUserVault();
   registerAppProtocol();
   session.defaultSession.setPermissionRequestHandler((_webContents, _permission, callback) => callback(false));
   session.defaultSession.setPermissionCheckHandler(() => false);
@@ -1565,6 +1323,7 @@ app.whenReady().then(async () => {
   createQuickWindow();
   createTray();
   registerStoredShortcuts();
+  zap.start();
   configureLoginItem();
   configureUpdater();
   currentBillingState();
@@ -1585,7 +1344,15 @@ app.on('activate', () => {
   if (store.get('onboardingDone')) showMainWindow();
   else createOnboardingWindow();
 });
+function prepareToQuit() {
+  quitting = true;
+  mainRecovery?.stop();
+}
+app.on('before-quit', prepareToQuit);
+nativeUpdater.on('before-quit-for-update', prepareToQuit);
 app.on('will-quit', () => {
+  prepareToQuit();
+  zap.stop();
   cancelDripType();
   if (updateCheckTimer) clearInterval(updateCheckTimer);
   if (entitlementRefreshTimer) clearInterval(entitlementRefreshTimer);

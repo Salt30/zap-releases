@@ -1,0 +1,26 @@
+const assert = require('node:assert/strict');
+const rate = require('../website/server/rate-limit');
+const { memoryBlob } = require('./mock-blob');
+(async () => {
+  const storage = memoryBlob(); const secret = Buffer.alloc(32, 17).toString('base64url');
+  const now = 1800000000000; const options = { storage, secret, now };
+  for (let i = 0; i < 4; i++) assert.equal((await rate.consume('support', '203.0.113.1', options)).allowed, true);
+  const concurrent = await Promise.allSettled(Array.from({ length: 8 }, () => rate.consume('support', '203.0.113.1', options)));
+  assert.equal(concurrent.filter(r => r.status === 'fulfilled' && r.value.allowed).length, 1, 'Concurrent instances exceeded the shared limit');
+  assert.equal((await rate.consume('support', '203.0.113.1', options)).allowed, false);
+  assert.equal((await rate.consume('support', '203.0.113.1', { ...options, now: now + 600000 })).allowed, true);
+  assert.equal((await rate.consume('support', '203.0.113.2', options)).allowed, true);
+  assert.doesNotMatch(JSON.stringify([...storage.records]), /203\.0\.113/);
+  assert.equal(rate.clientAddress({ headers: { 'x-forwarded-for': '8.8.8.8' }, socket: { remoteAddress: '127.0.0.1' } }), '127.0.0.1');
+  const previous = process.env.VERCEL;
+  process.env.VERCEL = '1';
+  assert.equal(rate.clientAddress({ headers: { 'x-forwarded-for': '8.8.8.8', 'x-vercel-forwarded-for': '203.0.113.2' } }), '203.0.113.2');
+  assert.equal(rate.clientAddress({ headers: { 'x-forwarded-for': '8.8.8.8' } }), 'unknown');
+  if (previous === undefined) delete process.env.VERCEL; else process.env.VERCEL = previous;
+  await assert.rejects(rate.consume('support', 'ip', { ...options, secret: '' }), /unavailable/);
+  assert.equal((await rate.consume('support', 'whitespace-config', { ...options, secret: ` ${secret}\n` })).allowed, true, 'Environment whitespace must match account key normalization');
+  await assert.rejects(rate.consume('support', 'ip', { ...options, storage: { get: async () => { throw new Error('storage offline'); } } }));
+  const broken = { ...storage, get: async () => ({ statusCode: 200, stream: new Response('x'.repeat(16001)).body, blob: { etag: '1' } }) };
+  await assert.rejects(rate.consume('support', 'ip', { ...options, storage: broken }), /unavailable/);
+  console.log('Distributed limits passed: concurrent instances, resets, address spoofing, private bounded records, unavailable storage.');
+})().catch(error => { console.error(error); process.exitCode = 1; });

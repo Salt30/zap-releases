@@ -1,15 +1,21 @@
 (() => {
   const $ = (id) => document.getElementById(id);
   const params = new URLSearchParams(window.location.search);
-  const requestedPlan = ["core", "pro"].includes(params.get("plan")) ? params.get("plan") : "";
+  let requestedPlan = "";
+  const purchaseSession = /^cs_live_[A-Za-z0-9_]+$/.test(params.get("session_id") || "")
+    ? params.get("session_id") : "";
   const requestedDevice = /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(params.get("connect_device") || "")
     ? params.get("connect_device") : "";
-  const purchaseComplete = params.get("purchase") === "complete";
-  const checkoutCancelled = params.get("checkout") === "cancelled";
+  const purchaseComplete = params.get("purchase") === "complete" && Boolean(purchaseSession);
+  const connectionState = /^[A-Za-z0-9_-]{43}$/.test(params.get('connect_state') || '') ? params.get('connect_state') : '';
+  const connectionChallenge = /^[A-Za-z0-9_-]{43}$/.test(params.get('connect_challenge') || '') ? params.get('connect_challenge') : '';
+  const existingBilling = params.get("billing") === "existing";
   let mode = params.get("mode") === "signin"
     ? "signin"
-    : (requestedPlan || params.get("mode") === "signup") ? "signup" : "signin";
+    : purchaseComplete ? "signup" : "signin";
   let accountStatus = null;
+  let sessionRevision = 0;
+  let purchaseClaimed = false;
 
   const plans = Object.freeze({
     core: { name: "Core", price: "$9.99/month" },
@@ -41,21 +47,26 @@
     $("sign-up-tab").setAttribute("aria-selected", String(signup));
     $("sign-in-tab").tabIndex = signup ? -1 : 0;
     $("sign-up-tab").tabIndex = signup ? 0 : -1;
-    $("auth-title").textContent = signup ? "Create your account." : "Sign in.";
+    $("auth-title").textContent = signup
+      ? purchaseComplete ? "Payment complete. Create your account." : "Create your account."
+      : "Sign in.";
     $("auth-copy").textContent = signup
-      ? "Your account connects your purchase to Drip Type."
-      : "Use the account connected to your Drip Type purchase.";
+      ? purchaseComplete ? "Set a password, then your paid access activates automatically." : "Your account connects your purchase to Zap."
+      : existingBilling ? "A subscription already exists for this email. Sign in so you are not charged twice." : "Use the account connected to your Zap purchase.";
     $("auth-submit").textContent = signup
-      ? requestedPlan ? "Create account and continue" : "Create account"
-      : requestedPlan ? "Sign in and continue" : "Sign in";
+      ? purchaseComplete ? "Create account and activate" : "Create account"
+      : purchaseComplete ? "Sign in and activate" : "Sign in";
     $("password").autocomplete = signup ? "new-password" : "current-password";
+    $("password").minLength = signup ? 12 : 1;
+    $("password").placeholder = signup ? "12+ characters" : "Your password";
     $("strength").hidden = !signup;
     $("auth-error").textContent = "";
-    setFlowStep(1);
+    $("auth-step").textContent = purchaseComplete ? "Step 2 of 3" : "Account access";
+    setFlowStep(purchaseComplete ? 2 : 1);
   }
 
   function passwordScore(value) {
-    if (value.length < 6) return 0;
+    if (value.length < 12) return 0;
     if (/^(password|qwerty|123456|letmein|abcdef|driptype|tryzap)/i.test(value) || /(.)\1{4}/.test(value)) return 0;
     let score = 1;
     const characterGroups = [/[a-z]/, /[A-Z]/, /\d/, /[^A-Za-z0-9]/]
@@ -76,6 +87,7 @@
     const response = await fetch(path, {
       ...options,
       credentials: "same-origin",
+      signal: AbortSignal.timeout(15000),
       headers: {
         Accept: "application/json",
         ...(options.body ? { "Content-Type": "application/json" } : {}),
@@ -94,17 +106,36 @@
   function displayRecovery(code) {
     $("recovery-code-output").textContent = code;
     $("copy-recovery").textContent = "Copy backup code";
-    $("dismiss-recovery").textContent = requestedPlan ? "I've saved it — continue to checkout" : "I've saved it";
+    $("dismiss-recovery").textContent = purchaseComplete ? "I've saved it — continue to download" : "I've saved it";
     $("recovery-card").hidden = false;
     $("plan-actions").hidden = true;
-    setFlowStep(requestedPlan ? 2 : 1);
+    $("purchase-card").hidden = true;
+    setFlowStep(purchaseComplete ? 3 : 2);
+  }
+
+  async function claimPurchase() {
+    if (!purchaseSession || purchaseClaimed) return;
+    const result = await api("/api/claim-purchase", {
+      method: "POST",
+      body: JSON.stringify({ sessionId: purchaseSession }),
+    });
+    if (!result.claimed || !["core", "pro"].includes(result.plan)) {
+      throw new Error("Your payment could not be connected to this account.");
+    }
+    requestedPlan = result.plan;
+    purchaseClaimed = true;
+    window.history.replaceState({}, "", "/account?purchase=complete");
   }
 
   async function renderDashboard() {
+    const revision = sessionRevision;
     show("dashboard");
     $("dashboard-error").textContent = "";
     try {
-      accountStatus = await api("/api/account-status");
+      if (purchaseSession && !purchaseClaimed) await claimPurchase();
+      const nextStatus = await api("/api/account-status");
+      if (revision !== sessionRevision) return;
+      accountStatus = nextStatus;
       $("account-email").textContent = accountStatus.email || "Zap account";
       const subscription = accountStatus.subscription;
       const active = subscription?.status === "active";
@@ -120,36 +151,17 @@
         $("subscription-copy").textContent = `Status: ${String(subscription.status).replace(/_/g, " ")}. Open billing management before starting another checkout.`;
       } else {
         $("subscription-title").textContent = "No paid subscription yet";
-        $("subscription-copy").textContent = "Choose Core or Pro. Your account prevents accidental duplicate subscriptions.";
+        $("subscription-copy").textContent = "Choose a plan and pay first. Then return here to connect the purchase.";
       }
       $("purchase-card").hidden = !active || Boolean(requestedDevice);
       $("plan-actions").hidden = Boolean(subscription) || !$("recovery-card").hidden;
       $("manage-actions").hidden = !subscription;
       $("connect-card").hidden = !(requestedDevice && active);
       if (active) {
-        $("purchase-title").textContent = purchaseComplete ? "Payment complete." : "Download Drip Type.";
-        $("purchase-copy").textContent = "Install Drip Type, open Billing in the app, and choose Connect Zap account.";
+        $("purchase-title").textContent = purchaseComplete ? "Payment complete." : "Download Zap.";
+        $("purchase-copy").textContent = "Install Zap, open Billing in the app, and choose Sign in.";
       }
-      if (requestedPlan && !subscription) {
-        const selected = plans[requestedPlan];
-        $("plan-title").textContent = `${selected.name} · ${selected.price}`;
-        $("plan-message").textContent = checkoutCancelled
-          ? "Checkout was canceled. You were not charged. Continue whenever you're ready."
-          : "Next, Stripe will show the final recurring price before you pay.";
-        document.querySelectorAll("[data-account-plan]").forEach((button) => {
-          button.hidden = button.dataset.accountPlan !== requestedPlan;
-          if (!button.hidden) button.textContent = `Continue to secure checkout`;
-        });
-        $("change-plan").hidden = false;
-      } else {
-        document.querySelectorAll("[data-account-plan]").forEach((button) => {
-          button.hidden = false;
-          button.textContent = button.dataset.accountPlan === "pro"
-            ? "Choose Pro · $25/month" : "Choose Core · $9.99/month";
-        });
-        $("change-plan").hidden = true;
-      }
-      setFlowStep(active ? 3 : 2);
+      setFlowStep(active ? 3 : purchaseComplete ? 2 : 1);
     } catch (error) {
       if (error.status === 401) {
         setMode(mode);
@@ -165,8 +177,8 @@
     const email = $("email").value.trim().toLowerCase();
     const password = $("password").value;
     $("auth-error").textContent = "";
-    if (!email || password.length < 6 || (mode === "signup" && passwordScore(password) < 2)) {
-      $("auth-error").textContent = "Enter a valid email and a password with 6+ characters using a mix of letters, numbers, or symbols.";
+    if (!email || !password || (mode === "signup" && (password.length < 12 || passwordScore(password) < 2))) {
+      $("auth-error").textContent = "Enter a valid email and a password with 12+ characters using a mix of letters, numbers, or symbols.";
       return;
     }
     const button = $("auth-submit");
@@ -179,28 +191,28 @@
       });
       $("password").value = "";
       await renderDashboard();
-      if (result.recoveryCode) {
-        displayRecovery(result.recoveryCode);
-      } else if (requestedPlan && !accountStatus?.subscription && !checkoutCancelled) {
-        const checkoutButton = document.querySelector(`[data-account-plan="${requestedPlan}"]`);
-        await openCheckout(requestedPlan, checkoutButton);
-      }
+      if (result.recoveryCode) displayRecovery(result.recoveryCode);
     } catch (error) {
       $("auth-error").textContent = message(error);
     } finally {
       button.disabled = false;
-      setMode(mode);
+      button.textContent = mode === "signup"
+        ? purchaseComplete ? "Create account and activate" : "Create account"
+        : purchaseComplete ? "Sign in and activate" : "Sign in";
     }
   });
 
   $("sign-in-tab").addEventListener("click", () => setMode("signin"));
-  $("sign-up-tab").addEventListener("click", () => setMode("signup"));
+  $("sign-up-tab").addEventListener("click", () => {
+    if (purchaseComplete) setMode("signup");
+  });
   const accountTabs = [$("sign-in-tab"), $("sign-up-tab")];
   accountTabs.forEach((tab, index) => tab.addEventListener("keydown", (event) => {
     const next = event.key === "ArrowRight" ? (index + 1) % accountTabs.length
       : event.key === "ArrowLeft" ? (index - 1 + accountTabs.length) % accountTabs.length
         : event.key === "Home" ? 0 : event.key === "End" ? accountTabs.length - 1 : -1;
     if (next < 0) return;
+    if (!purchaseComplete && next === 1) return;
     event.preventDefault();
     setMode(next === 0 ? "signin" : "signup");
     accountTabs[next].focus();
@@ -246,7 +258,7 @@
     const password = $("reset-password").value;
     $("reset-error").textContent = "";
     if (!email || !/^ZAP-[A-Za-z0-9_-]{32}$/.test(recoveryCode) || passwordScore(password) < 2) {
-      $("reset-error").textContent = "Enter the account email, complete recovery code, and a 6+ character password using a mix of letters, numbers, or symbols.";
+      $("reset-error").textContent = "Enter the account email, complete recovery code, and a 12+ character password using a mix of letters, numbers, or symbols.";
       return;
     }
     const button = $("reset-submit");
@@ -268,10 +280,18 @@
   });
 
   $("sign-out").addEventListener("click", async () => {
-    await api("/api/logout", { method: "POST", body: "{}" }).catch(() => {});
+    sessionRevision++;
+    $('sign-out').disabled = true;
+    try { await api("/api/logout", { method: "POST", body: "{}" }); }
+    catch { $('dashboard-error').textContent = 'Sign-out could not be confirmed. Check your connection and try again.'; $('sign-out').disabled = false; return; }
+    accountStatus = null;
+    $('account-email').textContent = '';
+    $('password').value = ''; $('reset-password').value = ''; $('reset-code').value = '';
+    $('recovery-code-output').textContent = '';
     $("recovery-card").hidden = true;
     setMode("signin");
     show("auth-card");
+    $('sign-out').disabled = false;
   });
 
   $("copy-recovery").addEventListener("click", async () => {
@@ -286,34 +306,7 @@
   $("dismiss-recovery").addEventListener("click", () => {
     $("recovery-code-output").textContent = "";
     $("recovery-card").hidden = true;
-    if (requestedPlan) {
-      const button = document.querySelector(`[data-account-plan="${requestedPlan}"]`);
-      openCheckout(requestedPlan, button);
-      return;
-    }
-    $("plan-actions").hidden = Boolean(accountStatus?.subscription);
-  });
-
-  async function openCheckout(plan, button) {
-    $("dashboard-error").textContent = "";
-    button.disabled = true;
-    const original = button.textContent;
-    button.textContent = "Opening secure checkout…";
-    try {
-      const result = await api("/api/create-checkout", { method: "POST", body: JSON.stringify({ plan }) });
-      if (!/^https:\/\/(?:checkout|billing)\.stripe\.com\//.test(result.url || "")) throw new Error("The billing URL was rejected.");
-      window.location.assign(result.url);
-    } catch (error) {
-      $("dashboard-error").textContent = error.status === 503
-        ? "Secure checkout is temporarily unavailable. Your account is safe and you have not been charged. Please try again."
-        : message(error);
-      $("plan-actions").hidden = Boolean(accountStatus?.subscription);
-      button.disabled = false;
-      button.textContent = original;
-    }
-  }
-  document.querySelectorAll("[data-account-plan]").forEach((button) => {
-    button.addEventListener("click", () => openCheckout(button.dataset.accountPlan, button));
+    renderDashboard();
   });
   $("manage-billing").addEventListener("click", async () => {
     const button = $("manage-billing");
@@ -334,11 +327,11 @@
     try {
       const result = await api("/api/create-app-activation", {
         method: "POST",
-        body: JSON.stringify({ deviceId: requestedDevice }),
+        body: JSON.stringify({ deviceId: requestedDevice, ...(connectionState && connectionChallenge ? { state: connectionState, challenge: connectionChallenge } : {}) }),
       });
       if (!/^driptype:\/\/account\?token=/.test(result.url || "")) throw new Error("The app connection URL was rejected.");
       window.location.assign(result.url);
-      button.textContent = "Connection sent to Drip Type";
+      button.textContent = "Connection sent to Zap";
     } catch (error) {
       $("dashboard-error").textContent = message(error);
       button.disabled = false;
@@ -348,11 +341,6 @@
 
   async function boot() {
     try {
-      if (requestedPlan) {
-        $("auth-plan-name").textContent = plans[requestedPlan].name;
-        $("auth-plan-price").textContent = plans[requestedPlan].price;
-        $("auth-plan").hidden = false;
-      }
       const windows = /Windows/i.test(navigator.userAgentData?.platform || navigator.platform || navigator.userAgent || "");
       if (windows) {
         $("download-app").href = "https://drip-type-updates.vercel.app/Drip-Type-1.7.4-windows.exe";
@@ -360,6 +348,20 @@
       }
       const config = await api("/api/account-config");
       if (!config.configured) throw new Error("Accounts are not configured.");
+      if (purchaseComplete) {
+        const purchase = await api(`/api/checkout-status?session_id=${encodeURIComponent(purchaseSession)}`);
+        if (!purchase.paid || !plans[purchase.plan]) throw new Error("Payment could not be verified.");
+        requestedPlan = purchase.plan;
+        $("email").value = purchase.email;
+        $("email").readOnly = true;
+        $("auth-plan-name").textContent = plans[requestedPlan].name;
+        $("auth-plan-price").textContent = plans[requestedPlan].price;
+        $("auth-plan").hidden = false;
+        setMode(mode);
+      } else {
+        $("sign-up-tab").hidden = true;
+        $("sign-in-tab").classList.add("only-tab");
+      }
       await renderDashboard();
     } catch (error) {
       show("account-unavailable");

@@ -1,13 +1,48 @@
-# Drip Type
+# Zap
 
-Drip Type is a native-feeling macOS utility that turns prepared text into natural keystrokes in any application.
+Zap is a native-feeling macOS utility that turns prepared text into natural keystrokes in any application.
+
+## Zap AI workspace
+
+The desktop app includes Zap AI alongside Drip Type. AI is provided by Zap
+through NVIDIA; users connect their existing Zap account in **Billing** and do
+not enter API keys. An active Zap subscription is required. Usage is
+limited to 100 requests per subscription per UTC day, including failed provider
+attempts. NVIDIA service availability and limits also apply.
+
+- Answer, quick answer, translate, rewrite, summarize, explain, solve, and code
+- Research briefs from supplied material and model knowledge (no live web search)
+- Screen capture with display selection, preview, and visual or keyboard cropping
+- Up to four screenshot attachments, combined locally into one image for NVIDIA
+- Interactive flashcards, a floating pinned answer, and bounded session history
+- Form response drafting for review and transfer into Composer
+- Send results to the existing composer with its current typing controls,
+  subscription checks, permission checks, and stop shortcut
+- Option/Alt+3 opens Zap; change or disable it in AI settings. If standalone
+  Zap Pro owns that shortcut, quit it or choose another combination.
+
+Clicking **Ask Zap**, **Research**, or **Make flashcards** sends the entered text,
+custom instructions, and attached screenshots through Zap's server to NVIDIA.
+Capture alone never uploads anything. Screenshots and the last 20 results stay
+in window memory; closing the window clears them. Clear history removes results,
+and screenshots can be removed individually. There is no automatic clipboard or
+screen monitoring. Drip Type composition and typing stay local.
+
+The combined app uses the existing account, billing, updates, appearance, and
+current typing engine. The installed Zap Pro app is not modified. Legacy embedded
+credentials, separate authentication and billing, automatic form clicking,
+process concealment, kernel components, persistence, and self-deletion routines
+are not imported. This integrates its productive workflows into the current app.
+
+See [docs/ZAP_INTEGRATION.md](docs/ZAP_INTEGRATION.md) for server configuration,
+validation, and release requirements.
 
 ## How it works
 
 1. Press `Option+5` from the app you want to type into.
-2. Paste or write anything in the translucent Drip Composer.
+2. Paste or write anything in the Drip Type overlay.
 3. Press `Command+Enter`.
-4. Drip Type returns to the previous app and begins after the configured delay.
+4. Zap returns to the previous app and begins after the configured delay.
 
 `Option+0` immediately stops a running session. Both shortcuts are customizable.
 
@@ -15,12 +50,6 @@ Drip Type is a native-feeling macOS utility that turns prepared text into natura
 
 - First-run onboarding, interactive typing demo, and enforced native permission checklist
 - Translucent global-hotkey composer
-- Private local templates with reusable fill-in fields
-- Pro batch personalization from CSV or TSV, processed entirely on-device
-- Pro reusable typing profiles and categorized starter template libraries
-- Pro private searchable clipboard workspace with explicit capture only
-- Pro deterministic Writing Lab transforms with no remote writing API
-- Deterministic local spacing cleanup and bullet formatting tools
 - Explicit local clipboard paste and in-memory-only drafts
 - Automatic return to the previously active app
 - Adjustable WPM, start delay, typo rate, thinking pauses, and speed bursts
@@ -58,7 +87,7 @@ npm ci
 npm start
 ```
 
-During development, enable **Electron** under **System Settings → Privacy & Security → Accessibility**. Packaged builds appear as **Drip Type** instead.
+During development, enable **Electron** under **System Settings → Privacy & Security → Accessibility**. Packaged builds appear as **Zap** instead.
 
 ## Local release build
 
@@ -116,7 +145,7 @@ source repository and signing credentials remain private.
 
 Signed production builds check `https://drip-type-updates.vercel.app/` shortly
 after launch and every six hours. Users can also choose **Check for Updates…**
-from the app or menu bar. Downloads begin only after user approval; Drip Type
+from the app or menu bar. Downloads begin only after user approval; Zap
 shows release notes and progress, then offers **Restart to update**.
 
 ## Distribution security
@@ -160,3 +189,23 @@ Use automation only in applications and workflows where you have permission. Do 
 ## License
 
 Proprietary. Copyright © 2026 VegaNext LLC. All rights reserved.
+
+## Zap branding and upgrade compatibility
+
+Zap is the app name, including desktop titles, installers, website, and logos.
+Drip Type is its typing feature, opened with Option+5 on Mac or Alt+5 on Windows
+by default. Existing custom shortcuts are preserved.
+
+The application ID, activation URL scheme, signing audience, Keychain services,
+and update-host domain remain stable so existing subscriptions and updates work.
+On upgrade, Zap reuses an existing Drip Type settings directory, including its
+encrypted vault and device binding. On macOS, the legacy internal name is kept
+only until Electron binds the existing Safe Storage key; before opening windows,
+the app restores the Zap name. New installs use the Zap settings directory.
+Run `npm run test:branding:mac` to verify this across two isolated Electron
+launches using synthetic text and a temporary Keychain item.
+
+Published 1.7.4 download URLs and update metadata remain immutable. New packages
+are named `Zap-${version}-mac.dmg` / `.zip` and `Zap-${version}-windows.exe`;
+publish the next version through the release workflow before changing live links.
+Local branding changes do not deploy the website or replace installed applications.

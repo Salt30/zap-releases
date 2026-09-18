@@ -8,7 +8,7 @@ const {
 } = require('@electron/fuses');
 
 async function main() {
-  const appPath = path.resolve(process.argv[2] || 'dist/mac-universal/Drip Type.app');
+  const appPath = path.resolve(process.argv[2] || 'dist/mac-universal/Zap.app');
   const isMac = appPath.endsWith('.app');
   const executablePath = isMac ? appPath : appPath;
   const resourcesPath = isMac
@@ -43,7 +43,8 @@ async function main() {
   const required = [
     '/build-app/main.js', '/build-app/preload.js', '/build-app/index.html',
     '/build-app/index.js', '/build-app/quick.html', '/build-app/quick.js',
-    '/build-app/onboarding.html', '/build-app/onboarding.js',
+    '/build-app/onboarding.html', '/build-app/onboarding.js', '/build-app/native.css',
+    '/build-app/zap.css', '/build-app/zap-pin.html', '/build-app/zap-pin.js',
     '/build-app/windows-host.ps1'
   ];
   for (const file of required) {
@@ -61,6 +62,14 @@ async function main() {
 
   if (isMac) {
     const plist = fs.readFileSync(plistPath, 'utf8');
+    for (const key of ['CFBundleName', 'CFBundleDisplayName', 'CFBundleExecutable']) {
+      if (!new RegExp(`<key>${key}</key>\\s*<string>Zap</string>`).test(plist)) {
+        throw new Error(`Packaged ${key} must use the Zap product name.`);
+      }
+    }
+    if (!fs.existsSync(path.join(appPath, 'Contents', 'MacOS', 'Zap'))) {
+      throw new Error('The Zap executable is missing.');
+    }
     if (!plist.includes('<key>ElectronAsarIntegrity</key>') || !plist.includes('<string>SHA256</string>')) {
       throw new Error('ASAR integrity metadata is missing from Info.plist.');
     }

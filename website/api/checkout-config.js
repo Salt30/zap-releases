@@ -19,7 +19,7 @@ module.exports = function checkoutConfig(request, response) {
   response.status(200).json({
     plans: {
       core: auth.configured() && hasSecret && hasSigningKey && hasCorePrice && process.env.STRIPE_CORE_CHECKOUT_ENABLED === "true",
-      pro: auth.configured() && hasSecret && hasSigningKey && hasProPrice && process.env.STRIPE_PRO_CHECKOUT_ENABLED === "true",
+      pro: false,
     },
   });
 };

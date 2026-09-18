@@ -22,6 +22,7 @@ jobs:
         uses: actions/checkout@fbc6f3992d24b796d5a048ff273f7fcc4a7b6c09 # v5
         with:
           persist-credentials: false
+          fetch-depth: 0
 
       - name: Set up Node
         uses: actions/setup-node@a0853c24544627f65ddf259abe73b1d18a591444 # v5
@@ -39,17 +40,21 @@ jobs:
         run: |
           npm audit --audit-level=low
           npm audit signatures
+          npm audit --prefix website --audit-level=low
 
       - name: Package unsigned CI app
         run: npx electron-builder --mac --dir --x64 -c.mac.forceCodeSigning=false
 
       - name: Verify packaged app integrity
-        run: npm run verify:package -- "dist/mac/Drip Type.app"
+        run: npm run verify:package -- "dist/mac/Zap.app"
+
+      - name: Scan source, history and packaged app for credentials
+        run: npm run audit:secrets
 
       - name: Smoke-test packaged app launch
         shell: bash
         run: |
-          APP_EXEC="dist/mac/Drip Type.app/Contents/MacOS/Drip Type"
+          APP_EXEC="dist/mac/Zap.app/Contents/MacOS/Zap"
           LOG_PATH="$RUNNER_TEMP/drip-type-smoke.log"
           "$APP_EXEC" >"$LOG_PATH" 2>&1 &
           APP_PID=$!
@@ -91,12 +96,12 @@ jobs:
         run: npm run pack:win
 
       - name: Verify packaged app integrity
-        run: npm run verify:package -- "dist/win-unpacked/Drip Type.exe"
+        run: npm run verify:package -- "dist/win-unpacked/Zap.exe"
 
       - name: Smoke-test packaged app launch
         shell: pwsh
         run: |
-          $process = Start-Process -FilePath "dist/win-unpacked/Drip Type.exe" -PassThru
+          $process = Start-Process -FilePath "dist/win-unpacked/Zap.exe" -PassThru
           Start-Sleep -Seconds 8
           if ($process.HasExited) { throw "Packaged app exited early with code $($process.ExitCode)." }
           Stop-Process -Id $process.Id -Force

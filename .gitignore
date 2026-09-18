@@ -1,6 +1,7 @@
 node_modules/
 dist/
 build-app/
+website/public/
 .DS_Store
 npm-debug.log*
 *.p12
@@ -10,3 +11,10 @@ npm-debug.log*
 .env
 .env.*
 .vercel
+
+# Private internal brand source. Export individual approved assets instead of publishing the kit.
+brand-kit/
+
+# Local humanizer datasets, downloaded model weights, and training runs.
+.humanizer/
+__pycache__/

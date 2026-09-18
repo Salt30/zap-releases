@@ -1,4 +1,8 @@
 const slides = [...document.querySelectorAll('.slide')];
+const { createAppearance } = require('./appearance');
+const { formatAccelerator } = require('./shortcut-utils');
+const { setSavedRangeValue } = require('./settings-controls');
+const applyTheme = createAppearance();
 const dots = [...document.querySelectorAll('.step-dot')];
 const wpm = document.getElementById('wpm');
 const delay = document.getElementById('delay');
@@ -11,18 +15,12 @@ let permissionTimer = null;
 let permissionsReady = false;
 let currentPlatform = 'darwin';
 
-function applyTheme(preference = 'system') {
-  const resolved = preference === 'system'
-    ? (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark')
-    : preference;
-  document.documentElement.dataset.theme = resolved;
-}
-
 function render() {
+  if (index !== 1) clearInterval(demoTimer);
   slides.forEach((slide, slideIndex) => slide.classList.toggle('active', slideIndex === index));
   dots.forEach((dot, dotIndex) => dot.classList.toggle('active', dotIndex === index));
   document.getElementById('back').classList.toggle('hidden', index === 0);
-  document.getElementById('next').textContent = index === slides.length - 1 ? 'Open Drip Type' : 'Continue';
+  document.getElementById('next').textContent = index === slides.length - 1 ? 'Open Zap' : 'Continue';
   document.getElementById('next').disabled = index === slides.length - 1 && !permissionsReady;
   clearInterval(permissionTimer);
   if (index === slides.length - 1) {
@@ -32,6 +30,9 @@ function render() {
 }
 
 function values() {
+  [wpm, delay, typo, pause, burst].forEach((input) => {
+    input.style.setProperty('--fill', `${(Number(input.value) - Number(input.min)) / (Number(input.max) - Number(input.min)) * 100}%`);
+  });
   document.getElementById('wpm-value').textContent = `${wpm.value} WPM`;
   document.getElementById('delay-value').textContent = `${delay.value} ${delay.value === '1' ? 'second' : 'seconds'}`;
   document.getElementById('typo-value').textContent = `${Math.round(typo.value * 100)}%`;
@@ -62,7 +63,7 @@ async function refreshPermissionChecklist() {
   });
   permissionsReady = permissions.accessibility && permissions.automation;
   document.getElementById('permission-status').textContent = permissionsReady
-    ? currentPlatform === 'win32' ? 'Windows is ready. Drip Type can type into the focused app.' : 'Checklist complete. Drip Type is ready.'
+    ? currentPlatform === 'win32' ? 'Windows is ready. Zap can type into the focused app.' : 'Checklist complete. Zap is ready.'
     : 'Complete both required items to continue.';
   document.getElementById('next').disabled = index === slides.length - 1 && !permissionsReady;
   return permissions;
@@ -125,7 +126,6 @@ document.getElementById('enable-automation').addEventListener('click', async () 
   }
   await refreshPermissionChecklist();
 });
-window.dripType.onTheme(({ theme }) => applyTheme(theme));
 
 async function load() {
   const [settings, info] = await Promise.all([
@@ -134,11 +134,13 @@ async function load() {
   ]);
   currentPlatform = info.platform;
   applyTheme(settings.theme);
+  // A replay is an edit of existing settings, never a reset to HTML defaults.
+  for (const [control, key] of [[wpm, 'dripWPM'], [delay, 'dripDelay'], [typo, 'typoRate'], [pause, 'dripPauseChance'], [burst, 'dripBurstChance']]) {
+    setSavedRangeValue(control, settings[key]);
+  }
   if (currentPlatform === 'win32') {
     document.documentElement.dataset.platform = 'win32';
-    document.getElementById('welcome-lead').textContent = 'Drip Type turns prepared text into natural keystrokes in any Windows app. Everything runs locally, and you stay in control.';
-    document.getElementById('welcome-hotkey').textContent = 'Alt+5';
-    document.getElementById('demo-hotkey').textContent = 'Alt+5';
+    document.getElementById('welcome-lead').textContent = 'Welcome to Zap. Drip Type turns your prepared text into natural keystrokes in Windows apps. This typing feature runs locally; you choose when to use Zap’s AI tools.';
     document.getElementById('permission-eyebrow').textContent = 'Windows readiness';
     document.getElementById('permission-heading').textContent = 'No extra permissions needed.';
     document.getElementById('permission-lead').textContent = 'The native Windows input engine and global shortcuts are included and ready on this device.';
@@ -147,10 +149,12 @@ async function load() {
     document.getElementById('automation-title').textContent = 'Private local operation';
     document.getElementById('automation-desc').textContent = 'Your composer text and typing plan stay on this device.';
   }
+  document.getElementById('welcome-hotkey').textContent = formatAccelerator(settings.hotkeyStart, currentPlatform);
+  document.getElementById('demo-hotkey').textContent = formatAccelerator(settings.hotkeyStart, currentPlatform);
   render();
   values();
 }
 
 load().catch((error) => {
-  document.getElementById('permission-status').textContent = error?.message || 'Setup could not be loaded. Reopen Drip Type and try again.';
+  document.getElementById('permission-status').textContent = error?.message || 'Setup could not be loaded. Reopen Zap and try again.';
 });

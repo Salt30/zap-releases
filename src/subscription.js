@@ -82,7 +82,7 @@ function accessState({ token, deviceId, now = Date.now() }) {
       status: 'required',
       plan: null,
       features: ['updates'],
-      message: 'Choose Core to keep using Drip Composer.'
+      message: 'Choose Core to keep using Drip Type.'
     };
   }
 }
