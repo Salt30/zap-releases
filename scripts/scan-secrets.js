@@ -53,9 +53,12 @@ function scanArchive(archive) {
   for (const file of asar.listPackage(archive)) {
     const normalized = file.replaceAll('\\', '/').replace(/^\//, '');
     if (!/\.(?:js|cjs|mjs|html|json|env|pem|key)$/i.test(normalized) || normalized.startsWith('node_modules/')) continue;
-    const info = asar.statFile(archive, normalized);
+    // ASAR lookups split on the host separator; keep slash-normalized paths
+    // for filtering/reporting, but use native separators for archive access.
+    const member = normalized.split('/').join(path.sep);
+    const info = asar.statFile(archive, member);
     if (info.size > 8 * 1024 * 1024 || info.unpacked) continue;
-    inspect(asar.extractFile(archive, normalized), `${path.relative(root, archive)}!/${normalized}`);
+    inspect(asar.extractFile(archive, member), `${path.relative(root, archive)}!/${normalized}`);
   }
 }
 walk(root);

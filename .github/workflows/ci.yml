@@ -98,6 +98,9 @@ jobs:
       - name: Verify packaged app integrity
         run: npm run verify:package -- "dist/win-unpacked/Zap.exe"
 
+      - name: Scan Windows source and packaged app for credentials
+        run: node scripts/scan-secrets.js
+
       - name: Smoke-test packaged app launch
         shell: pwsh
         run: |
