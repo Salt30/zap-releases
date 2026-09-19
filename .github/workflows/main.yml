@@ -1,10 +1,10 @@
-name: Build & Sign Zap
+name: Build & Sign Zap (Windows)
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version tag (e.g. v3.23.5) - leave empty to read from package.json'
+        description: 'Version tag (e.g. v3.37.1) — leave empty to read from package.json'
         required: false
         default: ''
 
@@ -16,10 +16,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
-      upload_url: ${{ steps.release.outputs.upload_url }}
     steps:
       - uses: actions/checkout@v4
-
       - name: Get version
         id: version
         run: |
@@ -29,9 +27,7 @@ jobs:
             VERSION=$(node -p "require('./package.json').version")
             echo "version=v${VERSION}" >> $GITHUB_OUTPUT
           fi
-
       - name: Create draft release
-        id: release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ steps.version.outputs.version }}
@@ -41,206 +37,59 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-  build-mac:
-    needs: create-release
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Install security build tools
-        run: npm install --save-dev javascript-obfuscator
-
-      - name: Import certificate
-        env:
-          CERTIFICATE_BASE64: ${{ secrets.CERTIFICATE_BASE64 }}
-          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
-        run: |
-          echo "$CERTIFICATE_BASE64" | base64 --decode > certificate.p12
-          security create-keychain -p actions build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p actions build.keychain
-          security set-keychain-settings -t 3600 -u build.keychain
-          security import certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k actions build.keychain
-          echo "Available signing identities:"
-          security find-identity -v -p codesigning build.keychain
-          rm certificate.p12
-
-      - name: Inject API keys
-        run: |
-          sed -i '' "s/YOUR_OPENROUTER_API_KEY/${{ secrets.OPENROUTER_API_KEY }}/g" src/main.js
-          sed -i '' "s/YOUR_STRIPE_SECRET_KEY/${{ secrets.STRIPE_SECRET_KEY }}/g" src/main.js
-          sed -i '' "s/YOUR_GH_SUPPORT_TOKEN/${{ secrets.GH_SUPPORT_TOKEN }}/g" src/main.js
-          sed -i '' "s/YOUR_ADMIN_KEY_1/${{ secrets.ADMIN_KEY_1 }}/g" src/main.js
-          sed -i '' "s/YOUR_ADMIN_KEY_2/${{ secrets.ADMIN_KEY_2 }}/g" src/main.js
-
-      - name: Verify API keys were injected
-        run: |
-          echo "Perplexity key check skipped — no longer used."
-          if grep -q "YOUR_STRIPE_SECRET_KEY" src/main.js; then
-            echo "WARNING: Stripe placeholder still present — STRIPE_SECRET_KEY secret may be missing."
-          fi
-          if grep -q "YOUR_GH_SUPPORT_TOKEN" src/main.js; then
-            echo "WARNING: GitHub support token placeholder still present."
-          fi
-          if grep -q "YOUR_ADMIN_KEY_1" src/main.js; then
-            echo "WARNING: Admin key 1 placeholder still present."
-          fi
-          echo "API key injection verified."
-
-      - name: Obfuscate source code
-        run: node scripts/obfuscate.js
-
-      - name: Compile native helpers (universal binary)
-        run: |
-          mkdir -p helpers/bin
-          swiftc -O -target arm64-apple-macosx11.0 -o helpers/bin/zap-clicker-arm64 helpers/zap-clicker.swift
-          swiftc -O -target x86_64-apple-macosx11.0 -o helpers/bin/zap-clicker-x64 helpers/zap-clicker.swift
-          lipo -create helpers/bin/zap-clicker-arm64 helpers/bin/zap-clicker-x64 -output helpers/bin/zap-clicker
-          rm helpers/bin/zap-clicker-arm64 helpers/bin/zap-clicker-x64
-          chmod +x helpers/bin/zap-clicker
-          echo "Compiled zap-clicker (universal):"
-          file helpers/bin/zap-clicker
-
-      - name: Build and Sign
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_LINK: ${{ secrets.CERTIFICATE_BASE64 }}
-          CSC_KEY_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
-        run: npx electron-builder --mac dmg zip --arm64 --x64 --publish never
-
-      - name: Verify code signature
-        run: |
-          APP=$(find dist -name "*.app" -maxdepth 3 | head -1)
-          echo "Verifying: $APP"
-          codesign --verify --deep --strict --verbose=2 "$APP"
-          echo ""
-          echo "Spctl assessment:"
-          spctl --assess --type execute --verbose "$APP" || true
-          echo ""
-          echo "Signing info:"
-          codesign -dv --verbose=4 "$APP" 2>&1 | head -20
-
-      - name: Notarize all DMGs
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          for DMG in dist/*.dmg; do
-            echo "========================================="
-            echo "Submitting: $DMG"
-            echo "========================================="
-            RESULT=$(xcrun notarytool submit "$DMG" \
-              --apple-id "$APPLE_ID" \
-              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-              --team-id "$APPLE_TEAM_ID" \
-              --wait 2>&1) || true
-            echo "$RESULT"
-            SUB_ID=$(echo "$RESULT" | grep "id:" | head -1 | awk '{print $2}')
-            echo "Submission ID: $SUB_ID"
-            if echo "$RESULT" | grep -q "Invalid"; then
-              echo ""
-              echo "=== NOTARIZATION LOG ==="
-              xcrun notarytool log "$SUB_ID" \
-                --apple-id "$APPLE_ID" \
-                --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-                --team-id "$APPLE_TEAM_ID" || true
-              echo "========================"
-              exit 1
-            fi
-            xcrun stapler staple "$DMG"
-            echo "Notarization and stapling complete for $DMG!"
-          done
-
-      - name: Encrypt asar payload
-        run: |
-          pip3 install cryptography --break-system-packages 2>/dev/null || pip3 install cryptography
-          # Find the built asar
-          ASAR=$(find dist -name "app.asar" -type f | head -1)
-          if [ -z "$ASAR" ]; then
-            echo "Looking in mac-arm64-unpacked and mac-x64-unpacked..."
-            ASAR=$(find dist -name "app.asar" | head -1)
-          fi
-          if [ -n "$ASAR" ]; then
-            echo "Found asar: $ASAR ($(du -h "$ASAR" | cut -f1))"
-            python3 launcher/tools/encrypt_asar.py "$ASAR" dist/app.asar.enc
-            echo "Encrypted payload: $(du -h dist/app.asar.enc | cut -f1)"
-          else
-            echo "WARNING: No app.asar found, skipping encryption"
-            ls -laR dist/
-          fi
-
-      - name: List dist output
-        if: always()
-        run: ls -la dist/
-
-      - name: Upload Mac assets to release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION="${{ needs.create-release.outputs.version }}"
-          echo "Uploading Mac assets to release $VERSION..."
-          for f in dist/*.dmg dist/*.zip dist/*.asar.enc; do
-            if [ -f "$f" ]; then
-              echo "Uploading: $f"
-              gh release upload "$VERSION" "$f" --clobber
-            fi
-          done
-
   build-win:
     needs: create-release
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-
       - name: Install dependencies
         run: npm install
-
       - name: Install security build tools
         run: npm install --save-dev javascript-obfuscator
 
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Build MinHook (x64)
+        shell: cmd
+        run: |
+          git clone --depth 1 https://github.com/TsudaKageyu/minhook.git %RUNNER_TEMP%\minhook
+          cd %RUNNER_TEMP%\minhook
+          cl /nologo /O2 /MT /c src\hde\hde32.c src\hde\hde64.c src\buffer.c src\hook.c src\trampoline.c /Isrc /Iinclude
+          lib /nologo /OUT:libMinHook.x64.lib hde32.obj hde64.obj buffer.obj hook.obj trampoline.obj
+          mkdir "%GITHUB_WORKSPACE%\kernel\windows\vendor\minhook\include"
+          mkdir "%GITHUB_WORKSPACE%\kernel\windows\vendor\minhook\lib"
+          copy include\MinHook.h "%GITHUB_WORKSPACE%\kernel\windows\vendor\minhook\include\"
+          copy libMinHook.x64.lib "%GITHUB_WORKSPACE%\kernel\windows\vendor\minhook\lib\"
+
+      - name: Build zap_shield.dll + zap_overlay.dll
+        shell: cmd
+        run: |
+          mkdir "%GITHUB_WORKSPACE%\dist\shield"
+          cd kernel\windows\usermode
+          cl /nologo /LD /O2 /W3 /DZAP_SHIELD_EXPORTS zap_shield.c /Fe:"%GITHUB_WORKSPACE%\dist\shield\zap_shield.dll" /link /DEF:zap_shield.def kernel32.lib user32.lib advapi32.lib
+          cd ..\overlay
+          cl /nologo /LD /O2 /EHsc /W3 /DZAP_OVERLAY_EXPORTS zap_overlay.cpp /I"%GITHUB_WORKSPACE%\kernel\windows\vendor\minhook\include" /Fe:"%GITHUB_WORKSPACE%\dist\shield\zap_overlay.dll" /link /DEF:zap_overlay.def "%GITHUB_WORKSPACE%\kernel\windows\vendor\minhook\lib\libMinHook.x64.lib" d3d11.lib dxgi.lib user32.lib kernel32.lib
+
       - name: Generate Windows icon
+        shell: pwsh
         run: |
           pip install Pillow
           python -c "from PIL import Image; img=Image.open('assets/icon.png'); img.save('assets/icon.ico', format='ICO', sizes=[(256,256),(128,128),(64,64),(48,48),(32,32),(16,16)])"
-        shell: pwsh
 
       - name: Inject API keys
+        shell: pwsh
         run: |
           (Get-Content src/main.js) -replace 'YOUR_OPENROUTER_API_KEY', '${{ secrets.OPENROUTER_API_KEY }}' | Set-Content src/main.js
           (Get-Content src/main.js) -replace 'YOUR_STRIPE_SECRET_KEY', '${{ secrets.STRIPE_SECRET_KEY }}' | Set-Content src/main.js
           (Get-Content src/main.js) -replace 'YOUR_GH_SUPPORT_TOKEN', '${{ secrets.GH_SUPPORT_TOKEN }}' | Set-Content src/main.js
           (Get-Content src/main.js) -replace 'YOUR_ADMIN_KEY_1', '${{ secrets.ADMIN_KEY_1 }}' | Set-Content src/main.js
           (Get-Content src/main.js) -replace 'YOUR_ADMIN_KEY_2', '${{ secrets.ADMIN_KEY_2 }}' | Set-Content src/main.js
-        shell: pwsh
-
-      - name: Verify API keys were injected
-        run: |
-          $content = Get-Content src/main.js -Raw
-          Write-Output "Perplexity key check skipped — no longer used."
-          if ($content -match 'YOUR_STRIPE_SECRET_KEY') {
-            Write-Warning "Stripe placeholder still present — STRIPE_SECRET_KEY secret may be missing."
-          }
-          if ($content -match 'YOUR_GH_SUPPORT_TOKEN') {
-            Write-Warning "GitHub support token placeholder still present."
-          }
-          if ($content -match 'YOUR_ADMIN_KEY_1') {
-            Write-Warning "Admin key 1 placeholder still present."
-          }
-          Write-Output "API key injection verified."
-        shell: pwsh
 
       - name: Obfuscate source code
         run: node scripts/obfuscate.js
@@ -250,249 +99,24 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: npx electron-builder --win nsis zip --publish never
 
-      - name: Upload Windows assets to release
+      - name: Upload Windows assets
+        shell: pwsh
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           $VERSION = "${{ needs.create-release.outputs.version }}"
-          Write-Output "Uploading Windows assets to release $VERSION..."
           Get-ChildItem dist/*.exe, dist/*.zip | ForEach-Object {
-            Write-Output "Uploading: $($_.Name)"
             gh release upload $VERSION $_.FullName --clobber
           }
-        shell: pwsh
 
-  build-linux:
-    needs: create-release
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Install security build tools
-        run: npm install --save-dev javascript-obfuscator
-
-      - name: Install Linux build tools
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y dpkg fakeroot rpm
-
-      - name: Generate Linux icons
-        run: |
-          pip install Pillow
-          python3 -c "
-          from PIL import Image
-          import os
-          img = Image.open('assets/icon.png')
-          for size in [16, 32, 48, 64, 128, 256, 512]:
-              d = f'assets/icons/{size}x{size}'
-              os.makedirs(d, exist_ok=True)
-              img.resize((size, size), Image.LANCZOS).save(f'{d}/icon.png')
-          print('Linux icons generated')
-          "
-
-      - name: Inject API keys
-        run: |
-          sed -i "s/YOUR_OPENROUTER_API_KEY/${{ secrets.OPENROUTER_API_KEY }}/g" src/main.js
-          sed -i "s/YOUR_STRIPE_SECRET_KEY/${{ secrets.STRIPE_SECRET_KEY }}/g" src/main.js
-          sed -i "s/YOUR_GH_SUPPORT_TOKEN/${{ secrets.GH_SUPPORT_TOKEN }}/g" src/main.js
-          sed -i "s/YOUR_ADMIN_KEY_1/${{ secrets.ADMIN_KEY_1 }}/g" src/main.js
-          sed -i "s/YOUR_ADMIN_KEY_2/${{ secrets.ADMIN_KEY_2 }}/g" src/main.js
-
-      - name: Verify API keys were injected
-        run: |
-          echo "Perplexity key check skipped — no longer used."
-          if grep -q "YOUR_STRIPE_SECRET_KEY" src/main.js; then
-            echo "WARNING: Stripe placeholder still present."
-          fi
-          if grep -q "YOUR_ADMIN_KEY_1" src/main.js; then
-            echo "WARNING: Admin key 1 placeholder still present."
-          fi
-          echo "API key injection verified."
-
-      - name: Obfuscate source code
-        run: node scripts/obfuscate.js
-
-      - name: Build Linux
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: npx electron-builder --linux deb AppImage zip --publish never
-
-      - name: List dist output
-        if: always()
-        run: ls -la dist/
-
-      - name: Upload Linux assets to release
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION="${{ needs.create-release.outputs.version }}"
-          echo "Uploading Linux assets to release $VERSION..."
-          for f in dist/*.deb dist/*.AppImage dist/*.zip; do
-            if [ -f "$f" ]; then
-              echo "Uploading: $f"
-              gh release upload "$VERSION" "$f" --clobber
-            fi
-          done
-
-  # ───────────────────────────────────────────────
-  # Build launcher app for Mac (signed + notarized)
-  # Discord-style: small Electron app that downloads
-  # encrypted payload, decrypts, and launches the real app
-  # ───────────────────────────────────────────────
-  build-launcher-mac:
-    needs: [create-release, build-mac]
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Install launcher dependencies
-        run: |
-          cd launcher-app
-          npm install
-
-      - name: Import certificate
-        env:
-          CERTIFICATE_BASE64: ${{ secrets.CERTIFICATE_BASE64 }}
-          CERTIFICATE_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
-        run: |
-          echo "$CERTIFICATE_BASE64" | base64 --decode > certificate.p12
-          security create-keychain -p actions build.keychain
-          security default-keychain -s build.keychain
-          security unlock-keychain -p actions build.keychain
-          security set-keychain-settings -t 3600 -u build.keychain
-          security import certificate.p12 -k build.keychain -P "$CERTIFICATE_PASSWORD" -T /usr/bin/codesign -T /usr/bin/security
-          security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k actions build.keychain
-          echo "Available signing identities:"
-          security find-identity -v -p codesigning build.keychain
-          rm certificate.p12
-
-      - name: Inject launcher token
-        run: |
-          sed -i '' "s/YOUR_GH_RELEASES_TOKEN/${{ secrets.GH_RELEASES_TOKEN }}/g" launcher-app/src/launcher.js
-
-      - name: Build launcher app
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          CSC_LINK: ${{ secrets.CERTIFICATE_BASE64 }}
-          CSC_KEY_PASSWORD: ${{ secrets.CERTIFICATE_PASSWORD }}
-        run: |
-          cd launcher-app
-          npx electron-builder --mac dmg --arm64 --x64 --publish never
-
-      - name: Notarize launcher DMG
-        env:
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_APP_SPECIFIC_PASSWORD: ${{ secrets.APPLE_APP_SPECIFIC_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-        run: |
-          for DMG in launcher-app/dist/*.dmg; do
-            echo "Notarizing: $DMG"
-            RESULT=$(xcrun notarytool submit "$DMG" \
-              --apple-id "$APPLE_ID" \
-              --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-              --team-id "$APPLE_TEAM_ID" \
-              --wait 2>&1) || true
-            echo "$RESULT"
-            SUB_ID=$(echo "$RESULT" | grep "id:" | head -1 | awk '{print $2}')
-            if echo "$RESULT" | grep -q "Invalid"; then
-              echo "=== NOTARIZATION LOG ==="
-              xcrun notarytool log "$SUB_ID" \
-                --apple-id "$APPLE_ID" \
-                --password "$APPLE_APP_SPECIFIC_PASSWORD" \
-                --team-id "$APPLE_TEAM_ID" || true
-            fi
-            xcrun stapler staple "$DMG" || true
-            echo "Done: $DMG"
-          done
-
-      - name: Upload launcher DMG
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          VERSION="${{ needs.create-release.outputs.version }}"
-          for f in launcher-app/dist/*.dmg; do
-            BASENAME=$(basename "$f")
-            # Rename to Zap-Pro-Launcher-*.dmg
-            NEWNAME="Zap-Pro-Launcher-${VERSION}-mac.dmg"
-            cp "$f" "$NEWNAME"
-            echo "Uploading: $NEWNAME"
-            gh release upload "$VERSION" "$NEWNAME" --clobber
-          done
-
-  # ───────────────────────────────────────────────
-  # Build launcher app for Windows
-  # ───────────────────────────────────────────────
-  build-launcher-win:
+  publish:
     needs: [create-release, build-win]
-    runs-on: windows-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-
-      - name: Generate Windows icon
-        run: |
-          pip install Pillow
-          python -c "from PIL import Image; img=Image.open('assets/icon.png'); img.save('assets/icon.ico', format='ICO', sizes=[(256,256),(128,128),(64,64),(48,48),(32,32),(16,16)])"
-        shell: pwsh
-
-      - name: Install launcher dependencies
-        run: |
-          cd launcher-app
-          npm install
-
-      - name: Inject launcher token
-        run: |
-          (Get-Content launcher-app/src/launcher.js) -replace 'YOUR_GH_RELEASES_TOKEN', '${{ secrets.GH_RELEASES_TOKEN }}' | Set-Content launcher-app/src/launcher.js
-        shell: pwsh
-
-      - name: Build launcher installer
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          cd launcher-app
-          npx electron-builder --win nsis --publish never
-
-      - name: Upload launcher installer
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          $VERSION = "${{ needs.create-release.outputs.version }}"
-          Get-ChildItem launcher-app/dist/*.exe | ForEach-Object {
-            $newName = "Zap-Pro-Launcher-Setup-$VERSION.exe"
-            Copy-Item $_.FullName $newName
-            Write-Output "Uploading: $newName"
-            gh release upload $VERSION $newName --clobber
-          }
-        shell: pwsh
-
-  # ───────────────────────────────────────────────
-  # Publish the release (un-draft) and mirror all
-  # assets to Salt30/zap-releases so the auto-updater
-  # and public downloads work immediately.
-  # ───────────────────────────────────────────────
-  publish-and-mirror:
-    needs: [create-release, build-mac, build-win, build-linux, build-launcher-mac, build-launcher-win]
     runs-on: ubuntu-latest
-    if: always() && (needs.build-mac.result == 'success' || needs.build-win.result == 'success' || needs.build-linux.result == 'success')
+    if: needs.build-win.result == 'success'
     steps:
-      - name: Publish draft release on Salt30/Zap
+      - name: Publish release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           VERSION="${{ needs.create-release.outputs.version }}"
-          echo "Publishing $VERSION..."
           gh release edit "$VERSION" --draft=false --latest --repo Salt30/zap-releases
