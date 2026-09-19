@@ -87,7 +87,139 @@
   .alt-btn:disabled{opacity:0.4;cursor:not-allowed}
 
   .footer-text{font-size:10px;color:var(--text-dim);margin-top:16px;text-align:center}
+
+/* window-page: liquid-glass background & surface upgrades */
+body {
+  background: #07070F !important;
+  background-image:
+    radial-gradient(ellipse 70% 60% at 15% 15%, rgba(100,60,255,0.14) 0%, transparent 70%),
+    radial-gradient(ellipse 60% 50% at 85% 85%, rgba(40,120,255,0.11) 0%, transparent 70%),
+    radial-gradient(ellipse 80% 40% at 50%  0%, rgba(180,120,255,0.06) 0%, transparent 60%) !important;
+}
+/* generic card upgrades */
+.auth-card, .feat, .hk, .demo-box, .plan-card, .fc-card,
+.fc-study-card, .section, .card {
+  border-radius: var(--radius-md) !important;
+  backdrop-filter: var(--lg-blur-sm) !important;
+  -webkit-backdrop-filter: var(--lg-blur-sm) !important;
+  background: rgba(255,255,255,0.055) !important;
+  border-color: var(--lg-border) !important;
+  box-shadow: var(--lg-shadow-sm) !important;
+  transition: transform .2s var(--ease-lg), box-shadow .2s var(--ease-lg) !important;
+}
+.auth-card:hover,.feat:hover,.hk:hover,.demo-box:hover,.plan-card:hover{
+  transform: translateY(-2px) !important;
+  box-shadow: var(--lg-shadow) !important;
+  border-color: var(--lg-hi) !important;
+}
+/* inputs */
+.field input, .email-input, .alt-input, input[type="text"], input[type="email"], input[type="password"] {
+  border-radius: var(--radius-sm) !important;
+  background: rgba(0,0,0,0.35) !important;
+  border-color: var(--lg-border) !important;
+  transition: all .2s var(--ease-lg) !important;
+}
+.field input:focus, .email-input:focus {
+  border-color: rgba(91,130,189,0.6) !important;
+  box-shadow: 0 0 0 3px rgba(91,130,189,0.14) !important;
+}
+/* primary buttons */
+.btn-primary, .subscribe-btn, .nav-btn.primary, .nav-btn.launch {
+  border-radius: var(--radius-sm) !important;
+  transition: all .22s var(--spring) !important;
+  box-shadow: 0 4px 18px rgba(74,111,165,0.35) !important;
+}
+.btn-primary:hover:not(:disabled),
+.subscribe-btn:hover:not(:disabled),
+.nav-btn.primary:hover,
+.nav-btn.launch:hover {
+  transform: translateY(-2px) scale(1.02) !important;
+  box-shadow: 0 8px 28px rgba(74,111,165,0.48) !important;
+}
+/* logo glow */
+.logo {
+  box-shadow: 0 4px 32px rgba(74,111,165,0.5), 0 0 0 1px rgba(255,255,255,0.1) !important;
+}
+/* tab bar */
+.tabs {
+  border-radius: var(--radius-sm) !important;
+  background: rgba(255,255,255,0.04) !important;
+  border: 1px solid var(--lg-border) !important;
+  backdrop-filter: var(--lg-blur-sm) !important;
+}
+.tab.active {
+  background: rgba(74,111,165,0.18) !important;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.2), inset 0 1px 0 rgba(255,255,255,0.1) !important;
+  border-radius: 9px !important;
+}
+/* stealth badge */
+.stealth-badge {
+  backdrop-filter: var(--lg-blur-sm) !important;
+  background: rgba(34,197,94,0.07) !important;
+  border-color: rgba(34,197,94,0.2) !important;
+  box-shadow: 0 2px 12px rgba(34,197,94,0.1) !important;
+  border-radius: 24px !important;
+}
+/* dots nav */
+.dot { background: rgba(255,255,255,0.18) !important; }
+.dot.active { background: rgba(91,130,189,0.9) !important; border-radius:5px !important; }
+/* slide animation upgrade */
+.slide { transition: opacity .38s var(--ease-lg), transform .38s var(--ease-lg) !important; }
+/* plan-card selected glow */
+.plan-card.selected {
+  box-shadow: var(--lg-shadow), 0 0 0 2px rgba(74,111,165,0.5) !important;
+}
+/* billing-toggle glass */
+.billing-toggle {
+  background: rgba(255,255,255,0.04) !important;
+  border-color: var(--lg-border) !important;
+  border-radius: var(--radius-sm) !important;
+}
+.billing-slider {
+  background: rgba(74,111,165,0.2) !important;
+  border-color: rgba(74,111,165,0.35) !important;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.1) !important;
+  border-radius: 8px !important;
+}
+/* legal-check */
+.legal-check {
+  border-color: var(--lg-border) !important;
+  background: rgba(255,255,255,0.03) !important;
+  border-radius: var(--radius-sm) !important;
+}
+/* alt-input */
+.alt-input {
+  border-radius: var(--radius-sm) !important;
+  background: rgba(0,0,0,0.35) !important;
+  border-color: var(--lg-border) !important;
+}
+/* textarea */
+textarea {
+  border-radius: var(--radius-sm) !important;
+  background: rgba(0,0,0,0.3) !important;
+  border-color: var(--lg-border) !important;
+}
+/* section headers */
+.section-title, .settings-section-title {
+  color: rgba(255,255,255,0.5) !important;
+  letter-spacing: .6px !important;
+}
+/* nav panel */
+.nav { padding: 20px !important; }
+.nav-btn.secondary {
+  backdrop-filter: var(--lg-blur-sm) !important;
+  background: rgba(255,255,255,0.05) !important;
+  border-color: var(--lg-border) !important;
+  border-radius: var(--radius-sm) !important;
+  transition: all .2s var(--ease-lg) !important;
+}
+.nav-btn.secondary:hover {
+  background: var(--lg-glass2) !important;
+  border-color: var(--lg-hi) !important;
+  transform: translateY(-1px) !important;
+}
 </style>
+<link rel="stylesheet" href="liquid-glass.css">
 </head>
 <body>
 
