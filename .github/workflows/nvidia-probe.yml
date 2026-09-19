@@ -1,0 +1,19 @@
+name: NVIDIA model probe
+on: { workflow_dispatch: {} }
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Probe vision models with repo key
+        env: { K: "${{ secrets.NVIDIA_API_KEY }}" }
+        run: |
+          echo "key length: ${#K}  prefix: ${K:0:6}"
+          IMG="https://upload.wikimedia.org/wikipedia/commons/thumb/d/dd/Gfp-wisconsin-madison-the-nature-boardwalk.jpg/320px-Gfp-wisconsin-madison-the-nature-boardwalk.jpg"
+          for M in meta/llama-3.2-90b-vision-instruct meta/llama-3.2-11b-vision-instruct nvidia/nemotron-3-nano-omni-30b-a3b-reasoning microsoft/phi-3-vision-128k-instruct moonshotai/kimi-k3 moonshotai/kimi-k2.6 google/gemma-3-12b-it z-ai/glm-5.3 deepseek-ai/deepseek-v4-flash-0731 nvidia/nemotron-3.5-lightning-30b-a3b; do
+            printf "%-50s " "$M"
+            # test with system prompt + image + text — the exact shape the app sends
+            BODY=$(python3 -c "import json;print(json.dumps({'model':'$M','max_tokens':30,'temperature':0,'messages':[{'role':'system','content':'Answer in one short line.'},{'role':'user','content':[{'type':'image_url','image_url':{'url':'$IMG'}},{'type':'text','text':'What is in this image?'}]}]}))")
+            OUT=$(curl -s -m 90 -w "\n%{http_code}" https://integrate.api.nvidia.com/v1/chat/completions -H "Authorization: Bearer $K" -H "Content-Type: application/json" -d "$BODY")
+            CODE=$(echo "$OUT" | tail -1); JSON=$(echo "$OUT" | sed '$d')
+            echo "$JSON" | python3 -c "import json,sys;c='$CODE';d=json.load(sys.stdin);m=d['choices'][0]['message'] if 'choices' in d else None;print('HTTP',c,'OK ->',repr((m.get('content') or m.get('reasoning_content') or '')[:60])) if m else print('HTTP',c,'FAIL ->',str(d.get('detail') or d.get('title') or d)[:100])" 2>/dev/null || echo "HTTP $CODE (unparseable) $(echo "$JSON" | head -c 100)"
+          done
