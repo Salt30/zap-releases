@@ -57,7 +57,13 @@ const OPENROUTER_KEY_PLACEHOLDER = 'YOUR_OPENROUTER' + '_API_KEY';
 const NVIDIA_API_KEY = 'YOUR_NVIDIA_API_KEY';
 const NVIDIA_KEY_PLACEHOLDER = 'YOUR_NVIDIA' + '_API_KEY';
 const NVIDIA_ENDPOINT = 'https://integrate.api.nvidia.com/v1/chat/completions';
-const NVIDIA_MODEL = 'meta/llama-4-maverick-17b-128e-instruct';
+// Primary + fallbacks (all vision-capable). If a model is retired (404/410) we try the next one.
+const NVIDIA_MODELS = [
+  'moonshotai/kimi-k3',                    // multimodal MoE, best accuracy
+  'meta/llama-3.2-90b-vision-instruct',    // solid vision fallback
+  'nvidia/nemotron-3-nano-omni-30b-a3b-reasoning'
+];
+const NVIDIA_MODEL = NVIDIA_MODELS[0];
 
 // Stripe configuration — injected at build time via sed
 const STRIPE_SECRET_KEY = 'YOUR_STRIPE_SECRET_KEY';
@@ -1731,7 +1737,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
   trackUsage(mode || 'answer');
 
   // Determine which AI provider to use:
-  // - NVIDIA NIM for ALL modes (vision-capable Llama 4 Maverick, OpenAI-compatible)
+  // - NVIDIA NIM for ALL modes (Kimi K3 multimodal, with automatic model fallback)
   // - Legacy fallback: OpenRouter → Perplexity, only if no NVIDIA key is available
   let apiKey, endpoint, model;
   const tokens = store.get('maxTokens');
@@ -1840,31 +1846,49 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
     msgs.push({ role: 'user', content: parts });
   }
 
-  try {
-    const res = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: 'Bearer ' + apiKey,
-        ...(endpoint.includes('openrouter') ? { 'HTTP-Referer': 'https://tryzap.net', 'X-Title': 'Zap Pro' } : {})
-      },
-      body: JSON.stringify({
-        model, messages: msgs, max_tokens: tokens, temperature: 0,
-        // Llama 4 Maverick via NVIDIA NIM — non-reasoning, fast + vision-capable
-      })
-    });
-    if (!res.ok) {
-      const errText = await res.text();
-      console.error(`[AI] API Error ${res.status}:`, errText);
-      return { error: `API Error (${res.status}): ${errText}` };
-    }
-    const data = await res.json();
-    let result = data.choices?.[0]?.message?.content || 'No response received.';
+  const isNvidia = endpoint === NVIDIA_ENDPOINT;
+  const modelsToTry = isNvidia ? NVIDIA_MODELS : [model];
+  let lastErr = null;
 
-    return { result, usage: data.usage };
-  } catch (err) {
-    return { error: 'Request failed: ' + err.message };
+  for (const m of modelsToTry) {
+    try {
+      const body = { model: m, messages: msgs, max_tokens: tokens, temperature: 0 };
+      // Kimi K3 is a reasoning model — keep effort low so overlay answers stay fast.
+      if (isNvidia && /kimi|reasoning/i.test(m)) body.reasoning_effort = 'low';
+
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: 'Bearer ' + apiKey,
+          ...(endpoint.includes('openrouter') ? { 'HTTP-Referer': 'https://tryzap.net', 'X-Title': 'Zap Pro' } : {})
+        },
+        body: JSON.stringify(body)
+      });
+
+      if (!res.ok) {
+        const errText = await res.text();
+        console.error(`[AI] API Error ${res.status} (${m}):`, errText);
+        // Model retired / not found → try the next one. Anything else is final.
+        const modelGone = (res.status === 404 || res.status === 410) ||
+          (res.status === 400 && /model|not found|end of life|no longer available/i.test(errText));
+        if (isNvidia && modelGone) { lastErr = `API Error (${res.status}): ${errText}`; continue; }
+        return { error: `API Error (${res.status}): ${errText}` };
+      }
+
+      const data = await res.json();
+      const msg = data.choices?.[0]?.message || {};
+      let result = (typeof msg.content === 'string' && msg.content.trim())
+        ? msg.content
+        : (Array.isArray(msg.content) ? msg.content.map(c => c.text || '').join('') : '') || 'No response received.';
+      if (m !== modelsToTry[0]) console.warn(`[AI] Fell back to model: ${m}`);
+      return { result, usage: data.usage };
+    } catch (err) {
+      lastErr = 'Request failed: ' + err.message;
+      if (!isNvidia) return { error: lastErr };
+    }
   }
+  return { error: lastErr || 'All AI models unavailable.' };
 });
 
 /* ─────────────────── License / Activation ─────────────────── */

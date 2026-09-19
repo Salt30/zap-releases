@@ -1,59 +1,116 @@
-
-/* ═══════════════════════ LIQUID GLASS SYSTEM ═══════════════════════ */
+/* ═══════════════════════ LIQUID GLASS SYSTEM v2 ═══════════════════════
+   Design rules:
+   • Glass keeps a DARK base tint so white text is legible over any backdrop
+     (light web pages, video, bright apps). Transparency comes from the blur,
+     not from a see-through fill.
+   • "Glass" = rim light (bright top-left edge, dark bottom-right edge) +
+     inner refraction sheen + deep soft shadow. Never brightness().
+   • One accent (yellow) for focus, selection and primary actions only.
+*/
 :root {
-  /* glass tokens */
-  --lg-glass:   rgba(255,255,255,0.06);
-  --lg-glass2:  rgba(255,255,255,0.10);
-  --lg-glass3:  rgba(255,255,255,0.14);
-  --lg-border:  rgba(255,255,255,0.16);
-  --lg-hi:      rgba(255,255,255,0.22);
-  --lg-blur:    blur(64px) saturate(210%) brightness(1.07);
-  --lg-blur-sm: blur(32px) saturate(180%) brightness(1.05);
+  --lg-tint:      rgba(14,14,18,0.78);   /* panel fill */
+  --lg-tint-2:    rgba(20,20,26,0.82);   /* header / raised */
+  --lg-tint-3:    rgba(8,8,11,0.86);     /* inputs / wells */
+  --lg-fill:      rgba(255,255,255,0.05);/* buttons */
+  --lg-fill-2:    rgba(255,255,255,0.10);
+  --lg-fill-3:    rgba(255,255,255,0.16);
+  --lg-border:    rgba(255,255,255,0.13);
+  --lg-rim:       rgba(255,255,255,0.42);/* specular top edge */
+  --lg-rim-soft:  rgba(255,255,255,0.14);
+  --lg-blur:      blur(40px) saturate(160%);
+  --lg-blur-sm:   blur(24px) saturate(150%);
+  --lg-accent:    #facc15;
+  --lg-accent-rgb:250,204,21;
+  /* legacy aliases (used by welcome/auth/activate/settings/flashcards) */
+  --lg-glass:  var(--lg-fill);
+  --lg-glass2: var(--lg-fill-2);
+  --lg-glass3: var(--lg-fill-3);
+  --lg-hi:     rgba(255,255,255,0.26);
+
   --lg-shadow:
-    0 0 0 0.5px rgba(255,255,255,0.10),
-    0 6px 24px  rgba(0,0,0,0.40),
-    0 20px 56px rgba(0,0,0,0.22),
-    inset 0 1px 0 rgba(255,255,255,0.20),
-    inset 0 -1px 0 rgba(0,0,0,0.12);
+    0 0 0 0.5px rgba(255,255,255,0.06),
+    0 1px 0 0 rgba(255,255,255,0.05),
+    0 10px 30px rgba(0,0,0,0.45),
+    0 30px 80px rgba(0,0,0,0.35),
+    inset 0 1px 0 var(--lg-rim),
+    inset 1px 0 0 var(--lg-rim-soft),
+    inset 0 -1px 0 rgba(0,0,0,0.35),
+    inset -1px 0 0 rgba(0,0,0,0.18);
   --lg-shadow-sm:
-    0 0 0 0.5px rgba(255,255,255,0.08),
-    0 4px 14px  rgba(0,0,0,0.38),
-    inset 0 1px 0 rgba(255,255,255,0.16);
-  --spring:  cubic-bezier(.34,1.56,.64,1);
-  --ease-lg: cubic-bezier(.16,1,.3,1);
-  --radius-lg: 22px;
+    0 0 0 0.5px rgba(255,255,255,0.05),
+    0 4px 14px rgba(0,0,0,0.40),
+    0 12px 32px rgba(0,0,0,0.25),
+    inset 0 1px 0 rgba(255,255,255,0.30),
+    inset 0 -1px 0 rgba(0,0,0,0.30);
+  --lg-shadow-btn:
+    0 1px 2px rgba(0,0,0,0.35),
+    inset 0 1px 0 rgba(255,255,255,0.22),
+    inset 0 -1px 0 rgba(0,0,0,0.25);
+
+  --spring:   cubic-bezier(.34,1.56,.64,1);
+  --ease-lg:  cubic-bezier(.16,1,.3,1);
+  --radius-lg: 24px;
   --radius-md: 16px;
-  --radius-sm: 11px;
+  --radius-sm: 12px;
+  --radius-pill: 999px;
 }
 
-/* scrollbars */
-::-webkit-scrollbar          { width:5px }
-::-webkit-scrollbar-track    { background:transparent }
-::-webkit-scrollbar-thumb    { background:rgba(255,255,255,0.14);border-radius:99px }
-::-webkit-scrollbar-thumb:hover{ background:rgba(255,255,255,0.26) }
-
-/* ── shimmer highlight on interactive glass elements ── */
-@keyframes lg-shimmer {
-  0%   { opacity: 0.6; }
-  50%  { opacity: 1.0; }
-  100% { opacity: 0.6; }
+/* ── glass surface primitive ─────────────────────────────────────────── */
+.lg-surface, .auth-card, .demo-box, .plan-card, #response-panel, #drip-type-panel {
+  position: relative;
+  isolation: isolate;
+  background: var(--lg-tint);
+  border: 1px solid var(--lg-border);
+  -webkit-backdrop-filter: var(--lg-blur);
+  backdrop-filter: var(--lg-blur);
+  box-shadow: var(--lg-shadow);
 }
-
-/* subtle specular line on top of glass surfaces */
-.auth-card::before, .demo-box::before, .plan-card::before,
+/* inner refraction: a soft diagonal sheen + a faint bottom glow */
+.lg-surface::before, .auth-card::before, .demo-box::before, .plan-card::before,
 #response-panel::before, #drip-type-panel::before {
   content: '';
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
+  position: absolute; inset: 0;
+  pointer-events: none; z-index: 0;
   border-radius: inherit;
-  background: linear-gradient(
-    135deg,
-    rgba(255,255,255,0.10) 0%,
-    rgba(255,255,255,0.03) 40%,
-    rgba(255,255,255,0.00) 70%
-  );
-  z-index: 0;
+  background:
+    radial-gradient(120% 60% at 0% 0%,   rgba(255,255,255,0.14) 0%, rgba(255,255,255,0.04) 35%, transparent 60%),
+    radial-gradient(80%  40% at 100% 100%, rgba(255,255,255,0.05) 0%, transparent 60%),
+    linear-gradient(180deg, rgba(255,255,255,0.035) 0%, transparent 30%);
 }
-.auth-card, .demo-box, .plan-card { position: relative; }
-.auth-card > *, .demo-box > *, .plan-card > * { position: relative; z-index: 1; }
+/* thin refracted edge line that follows the radius */
+.lg-surface::after, .auth-card::after, .demo-box::after, .plan-card::after,
+#response-panel::after, #drip-type-panel::after {
+  content: '';
+  position: absolute; inset: 0;
+  pointer-events: none; z-index: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(135deg, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0.05) 30%, rgba(255,255,255,0.0) 55%, rgba(255,255,255,0.10) 100%);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor; mask-composite: exclude;
+}
+.auth-card > *, .demo-box > *, .plan-card > *, #response-panel > *, #drip-type-panel > * { position: relative; z-index: 1; }
+
+/* ── glass button primitive ──────────────────────────────────────────── */
+.lg-btn {
+  background: var(--lg-fill);
+  border: 1px solid var(--lg-border);
+  color: rgba(255,255,255,0.78);
+  border-radius: var(--radius-pill);
+  box-shadow: var(--lg-shadow-btn);
+  transition: background .18s var(--ease-lg), transform .22s var(--spring), box-shadow .18s var(--ease-lg), color .18s;
+}
+.lg-btn:hover { background: var(--lg-fill-2); color: #fff; transform: translateY(-1px); box-shadow: var(--lg-shadow-btn), 0 6px 16px rgba(0,0,0,0.35); }
+.lg-btn:active { transform: translateY(0) scale(.97); background: var(--lg-fill-3); }
+
+/* ── scrollbars ──────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 6px; height: 6px }
+::-webkit-scrollbar-track { background: transparent }
+::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.16); border-radius: 99px; border: 1px solid rgba(0,0,0,0.2) }
+::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.28) }
+
+/* ── motion ──────────────────────────────────────────────────────────── */
+@keyframes lg-panelIn { from { opacity:0; transform: translateY(12px) scale(.96); filter: blur(6px) } to { opacity:1; transform: none; filter: blur(0) } }
+@keyframes lg-fadeUp  { from { opacity:0; transform: translateX(-50%) translateY(10px) } to { opacity:1; transform: translateX(-50%) translateY(0) } }
+@keyframes lg-pop     { from { opacity:0; transform: scale(.92) } to { opacity:1; transform: scale(1) } }
+@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important } }
