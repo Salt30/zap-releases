@@ -53,6 +53,11 @@ const API_PLACEHOLDER = 'YOUR_PERPLEXITY' + '_API_KEY';
 // OpenRouter API key — single key for all AI models (Kimi, GPT-4o fallback, etc.)
 const OPENROUTER_API_KEY = 'YOUR_OPENROUTER_API_KEY';
 const OPENROUTER_KEY_PLACEHOLDER = 'YOUR_OPENROUTER' + '_API_KEY';
+// NVIDIA NIM API key — primary provider for ALL modes (vision-capable, OpenAI-compatible)
+const NVIDIA_API_KEY = 'YOUR_NVIDIA_API_KEY';
+const NVIDIA_KEY_PLACEHOLDER = 'YOUR_NVIDIA' + '_API_KEY';
+const NVIDIA_ENDPOINT = 'https://integrate.api.nvidia.com/v1/chat/completions';
+const NVIDIA_MODEL = 'meta/llama-4-maverick-17b-128e-instruct';
 
 // Stripe configuration — injected at build time via sed
 const STRIPE_SECRET_KEY = 'YOUR_STRIPE_SECRET_KEY';
@@ -1726,31 +1731,24 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
   trackUsage(mode || 'answer');
 
   // Determine which AI provider to use:
-  // - Research mode → Perplexity (has web search built in)
-  // - Everything else → OpenAI GPT-4o (better vision, accuracy, JSON)
-  const usePerplexity = (mode === 'research');
-
+  // - NVIDIA NIM for ALL modes (vision-capable Llama 4 Maverick, OpenAI-compatible)
+  // - Legacy fallback: OpenRouter → Perplexity, only if no NVIDIA key is available
   let apiKey, endpoint, model;
   const tokens = store.get('maxTokens');
 
-  if (usePerplexity) {
-    // Perplexity for research
-    apiKey = BUILT_IN_API_KEY;
-    if (apiKey === API_PLACEHOLDER) {
-      const stored = store.get('apiKey');
-      if (stored && stored !== API_PLACEHOLDER && stored.length > 10) apiKey = stored;
-    }
-    endpoint = 'https://api.perplexity.ai/chat/completions';
-    model = 'sonar-pro';
+  apiKey = NVIDIA_API_KEY;
+  if (apiKey === NVIDIA_KEY_PLACEHOLDER) {
+    const stored = store.get('nvidiaKey');
+    if (stored && stored !== NVIDIA_KEY_PLACEHOLDER && stored.length > 10) apiKey = stored;
+  }
+
+  if (apiKey && apiKey !== NVIDIA_KEY_PLACEHOLDER) {
+    endpoint = NVIDIA_ENDPOINT;
+    model = NVIDIA_MODEL;
   } else {
-    // OpenRouter (Kimi K2) for all other modes — cheap & accurate
-    apiKey = OPENROUTER_API_KEY;
-    if (apiKey === OPENROUTER_KEY_PLACEHOLDER) {
-      const stored = store.get('openaiKey');
-      if (stored && stored !== OPENROUTER_KEY_PLACEHOLDER && stored.length > 10) apiKey = stored;
-    }
-    // Fallback to Perplexity if OpenRouter key not available
-    if (!apiKey || apiKey === OPENROUTER_KEY_PLACEHOLDER) {
+    // Legacy fallback path (pre-NVIDIA builds)
+    const usePerplexity = (mode === 'research');
+    if (usePerplexity) {
       apiKey = BUILT_IN_API_KEY;
       if (apiKey === API_PLACEHOLDER) {
         const stored = store.get('apiKey');
@@ -1759,16 +1757,31 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
       endpoint = 'https://api.perplexity.ai/chat/completions';
       model = 'sonar-pro';
     } else {
-      endpoint = 'https://openrouter.ai/api/v1/chat/completions';
-      model = 'x-ai/grok-4-fast';
+      apiKey = OPENROUTER_API_KEY;
+      if (apiKey === OPENROUTER_KEY_PLACEHOLDER) {
+        const stored = store.get('openaiKey');
+        if (stored && stored !== OPENROUTER_KEY_PLACEHOLDER && stored.length > 10) apiKey = stored;
+      }
+      if (!apiKey || apiKey === OPENROUTER_KEY_PLACEHOLDER) {
+        apiKey = BUILT_IN_API_KEY;
+        if (apiKey === API_PLACEHOLDER) {
+          const stored = store.get('apiKey');
+          if (stored && stored !== API_PLACEHOLDER && stored.length > 10) apiKey = stored;
+        }
+        endpoint = 'https://api.perplexity.ai/chat/completions';
+        model = 'sonar-pro';
+      } else {
+        endpoint = 'https://openrouter.ai/api/v1/chat/completions';
+        model = 'x-ai/grok-4-fast';
+      }
     }
   }
 
-  if (!apiKey || apiKey === API_PLACEHOLDER || apiKey === OPENROUTER_KEY_PLACEHOLDER) {
+  if (!apiKey || apiKey === API_PLACEHOLDER || apiKey === OPENROUTER_KEY_PLACEHOLDER || apiKey === NVIDIA_KEY_PLACEHOLDER) {
     return { error: 'API key not configured. Please reinstall Zap or contact support.' };
   }
 
-  console.log(`[AI] Mode: ${mode}, Model: ${model}, Provider: ${endpoint.includes('openrouter') ? 'OpenRouter' : 'Perplexity'}`);
+  console.log(`[AI] Mode: ${mode}, Model: ${model}, Provider: ${endpoint.includes('nvidia') ? 'NVIDIA' : endpoint.includes('openrouter') ? 'OpenRouter' : 'Perplexity'}`);
 
 
   // If we have nothing (no text, no image), show helpful error
@@ -1837,7 +1850,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
       },
       body: JSON.stringify({
         model, messages: msgs, max_tokens: tokens, temperature: 0,
-        // Grok 4.1 Fast — no reasoning parameter needed (non-reasoning model, fast + accurate)
+        // Llama 4 Maverick via NVIDIA NIM — non-reasoning, fast + vision-capable
       })
     });
     if (!res.ok) {

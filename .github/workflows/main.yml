@@ -70,6 +70,7 @@ jobs:
       - name: Inject API keys
         run: |
           sed -i '' "s/YOUR_OPENROUTER_API_KEY/${{ secrets.OPENROUTER_API_KEY }}/g" src/main.js
+          sed -i '' "s/YOUR_NVIDIA_API_KEY/${{ secrets.NVIDIA_API_KEY }}/g" src/main.js
           sed -i '' "s/YOUR_STRIPE_SECRET_KEY/${{ secrets.STRIPE_SECRET_KEY }}/g" src/main.js
           sed -i '' "s/YOUR_GH_SUPPORT_TOKEN/${{ secrets.GH_SUPPORT_TOKEN }}/g" src/main.js
           sed -i '' "s/YOUR_ADMIN_KEY_1/${{ secrets.ADMIN_KEY_1 }}/g" src/main.js
@@ -168,6 +169,7 @@ jobs:
         shell: pwsh
         run: |
           (Get-Content src/main.js) -replace 'YOUR_OPENROUTER_API_KEY', '${{ secrets.OPENROUTER_API_KEY }}' | Set-Content src/main.js
+          (Get-Content src/main.js) -replace 'YOUR_NVIDIA_API_KEY', '${{ secrets.NVIDIA_API_KEY }}' | Set-Content src/main.js
           (Get-Content src/main.js) -replace 'YOUR_STRIPE_SECRET_KEY', '${{ secrets.STRIPE_SECRET_KEY }}' | Set-Content src/main.js
           (Get-Content src/main.js) -replace 'YOUR_GH_SUPPORT_TOKEN', '${{ secrets.GH_SUPPORT_TOKEN }}' | Set-Content src/main.js
           (Get-Content src/main.js) -replace 'YOUR_ADMIN_KEY_1', '${{ secrets.ADMIN_KEY_1 }}' | Set-Content src/main.js
