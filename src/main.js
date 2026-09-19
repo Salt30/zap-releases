@@ -69,7 +69,7 @@ const STORE_DEFAULTS = {
   apiKey:        BUILT_IN_API_KEY,
   openaiKey:     OPENROUTER_API_KEY,
   apiEndpoint:   'https://openrouter.ai/api/v1/chat/completions',
-  model:         'x-ai/grok-4.1-fast',
+  model:         'x-ai/grok-4-fast',
   overlayOpacity: 0.0,
   accentColor:   '#facc15',
   fontSize:      14,
@@ -411,14 +411,14 @@ function startScreenCapturePoll() {
     if (process.platform === 'win32') {
       exec(
         `powershell -Command "Get-Process -Name obs64,obs32,ScreenClip,CamtasiaStudio -ErrorAction SilentlyContinue | Select-Object -First 1 | ForEach-Object { $_.Name }"`,
-        { timeout: 5000 },
+        { timeout: 3000 },
         (err, stdout) => {
           const capturing = !!(stdout && stdout.trim());
           if (capturing !== screenBeingCaptured) onScreenCaptureChanged(capturing);
         }
       );
     }
-  }, 15000);
+  }, 3000);
 }
 
 function cleanupScreenCaptureDetection() {
@@ -1743,7 +1743,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
     endpoint = 'https://api.perplexity.ai/chat/completions';
     model = 'sonar-pro';
   } else {
-    // OpenRouter for all other modes
+    // OpenRouter (Kimi K2) for all other modes — cheap & accurate
     apiKey = OPENROUTER_API_KEY;
     if (apiKey === OPENROUTER_KEY_PLACEHOLDER) {
       const stored = store.get('openaiKey');
@@ -1760,8 +1760,7 @@ ipcMain.handle('ai-request', async (_ev, { mode, text, imageDataUrl, images, reg
       model = 'sonar-pro';
     } else {
       endpoint = 'https://openrouter.ai/api/v1/chat/completions';
-      // Solve mode uses Kimi 2.6 (strong reasoning), everything else uses Grok 4.1 Fast
-      model = (mode === 'solve') ? 'moonshotai/kimi-k2' : 'x-ai/grok-4.1-fast';
+      model = 'x-ai/grok-4-fast';
     }
   }
 
@@ -3079,7 +3078,7 @@ app.whenReady().then(async () => {
         showActivate();
       }
     } catch (_) {}
-  }, 30 * 60 * 1000);
+  }, 10 * 60 * 1000);
 
   app.on('activate', () => { if (isLicensed() && !overlayWin) makeOverlay(); });
 });

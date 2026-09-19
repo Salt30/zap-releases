@@ -1,0 +1,59 @@
+
+/* ═══════════════════════ LIQUID GLASS SYSTEM ═══════════════════════ */
+:root {
+  /* glass tokens */
+  --lg-glass:   rgba(255,255,255,0.06);
+  --lg-glass2:  rgba(255,255,255,0.10);
+  --lg-glass3:  rgba(255,255,255,0.14);
+  --lg-border:  rgba(255,255,255,0.16);
+  --lg-hi:      rgba(255,255,255,0.22);
+  --lg-blur:    blur(64px) saturate(210%) brightness(1.07);
+  --lg-blur-sm: blur(32px) saturate(180%) brightness(1.05);
+  --lg-shadow:
+    0 0 0 0.5px rgba(255,255,255,0.10),
+    0 6px 24px  rgba(0,0,0,0.40),
+    0 20px 56px rgba(0,0,0,0.22),
+    inset 0 1px 0 rgba(255,255,255,0.20),
+    inset 0 -1px 0 rgba(0,0,0,0.12);
+  --lg-shadow-sm:
+    0 0 0 0.5px rgba(255,255,255,0.08),
+    0 4px 14px  rgba(0,0,0,0.38),
+    inset 0 1px 0 rgba(255,255,255,0.16);
+  --spring:  cubic-bezier(.34,1.56,.64,1);
+  --ease-lg: cubic-bezier(.16,1,.3,1);
+  --radius-lg: 22px;
+  --radius-md: 16px;
+  --radius-sm: 11px;
+}
+
+/* scrollbars */
+::-webkit-scrollbar          { width:5px }
+::-webkit-scrollbar-track    { background:transparent }
+::-webkit-scrollbar-thumb    { background:rgba(255,255,255,0.14);border-radius:99px }
+::-webkit-scrollbar-thumb:hover{ background:rgba(255,255,255,0.26) }
+
+/* ── shimmer highlight on interactive glass elements ── */
+@keyframes lg-shimmer {
+  0%   { opacity: 0.6; }
+  50%  { opacity: 1.0; }
+  100% { opacity: 0.6; }
+}
+
+/* subtle specular line on top of glass surfaces */
+.auth-card::before, .demo-box::before, .plan-card::before,
+#response-panel::before, #drip-type-panel::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  border-radius: inherit;
+  background: linear-gradient(
+    135deg,
+    rgba(255,255,255,0.10) 0%,
+    rgba(255,255,255,0.03) 40%,
+    rgba(255,255,255,0.00) 70%
+  );
+  z-index: 0;
+}
+.auth-card, .demo-box, .plan-card { position: relative; }
+.auth-card > *, .demo-box > *, .plan-card > * { position: relative; z-index: 1; }

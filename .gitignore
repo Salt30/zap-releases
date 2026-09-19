@@ -8,3 +8,7 @@ admin/
 artifacts/
 *.exe
 *.zip
+
+# ephemeral session leftovers
+_stash/
+repo/

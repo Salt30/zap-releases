@@ -2,57 +2,27 @@
  * Zap Pro Launcher — Discord-style auto-updating launcher
  *
  * How it works:
- * 1. On launch, checks if ZAP_APP_PATH is set (relaunch mode)
- *    → If yes: immediately loads the real app and exits launcher code
- * 2. Otherwise: shows splash, checks for updates, downloads/decrypts
- * 3. Extracts the asar to a temp directory
- * 4. Relaunches itself with ZAP_APP_PATH pointing to the extracted app
- * 5. The relaunched instance loads the real app with a clean Electron lifecycle
+ * 1. Shows a splash screen
+ * 2. Checks GitHub Releases for the latest app.asar.enc
+ * 3. Downloads + decrypts if needed
+ * 4. Spawns Electron with the decrypted app
+ * 5. Cleans up decrypted files when the app exits
  */
 
-// ── Relaunch mode: load the real app immediately ──
-// This MUST be at the very top, before any app.whenReady() or window creation,
-// so the real app gets a completely clean Electron lifecycle.
-if (process.env.ZAP_APP_PATH) {
-  const _appDir = process.env.ZAP_APP_PATH;
-  delete process.env.ZAP_APP_PATH; // Clean up so the real app doesn't see it
-
-  const _fs = require('fs');
-  const _path = require('path');
-
-  try {
-    const _pkg = JSON.parse(_fs.readFileSync(_path.join(_appDir, 'package.json'), 'utf8'));
-
-    // Set up cleanup on exit
-    const _tempDir = _path.dirname(_appDir);
-    process.on('exit', () => {
-      try { _fs.rmSync(_tempDir, { recursive: true, force: true }); } catch (_) {}
-    });
-
-    // Load the real app — it gets full control of app lifecycle
-    require(_path.join(_appDir, _pkg.main));
-  } catch (e) {
-    const { app, dialog } = require('electron');
-    app.whenReady().then(() => {
-      dialog.showErrorBox('Zap Pro', `Failed to load app: ${e.message}`);
-      app.quit();
-    });
-  }
-
-  // Stop executing launcher code
-  return;
-}
-
-// ── Launcher mode (normal first launch) ──
 const { app, BrowserWindow, screen } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const crypto = require('crypto');
 const https = require('https');
+const http = require('http');
+const { spawn } = require('child_process');
 
 // ── Config ──
+const GITHUB_REPO = 'Salt30/zap-releases';
 const APP_NAME = 'Zap Pro';
-const DOWNLOAD_API = 'https://vydtygcvszscgmjgyszl.supabase.co/functions/v1/download';
+
+// CI-injected read-only token for private repo release access
+const GH_RELEASES_TOKEN = 'YOUR_GH_RELEASES_TOKEN';
 
 // ── Encryption key derivation (must match encrypt_asar.py) ──
 const FRAG_A = Buffer.from([0x7a, 0x61, 0x70, 0x5f, 0x73, 0x65, 0x63, 0x72]);
@@ -80,10 +50,20 @@ function getDecryptedDir()  {
   return path.join(getDataDir(), `_run_${ts}`);
 }
 
-// ── HTTPS helpers ──
+// ── Auth headers for private repo ──
+function getAuthHeaders() {
+  const headers = { 'User-Agent': 'ZapLauncher/1.0' };
+  if (GH_RELEASES_TOKEN && GH_RELEASES_TOKEN !== 'YOUR_GH_RELEASES_TOKEN') {
+    headers['Authorization'] = `token ${GH_RELEASES_TOKEN}`;
+  }
+  return headers;
+}
+
+// ── HTTPS fetch helper ──
 function fetchJSON(url) {
   return new Promise((resolve, reject) => {
-    https.get(url, { headers: { 'User-Agent': 'ZapLauncher/1.0' } }, (res) => {
+    const get = url.startsWith('https') ? https.get : http.get;
+    get(url, { headers: getAuthHeaders() }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         return fetchJSON(res.headers.location).then(resolve).catch(reject);
       }
@@ -100,8 +80,9 @@ function fetchJSON(url) {
 
 function downloadFile(url, dest, onProgress) {
   return new Promise((resolve, reject) => {
-    const get = url.startsWith('https') ? https.get : require('http').get;
-    get(url, { headers: { 'User-Agent': 'ZapLauncher/1.0' } }, (res) => {
+    const get = url.startsWith('https') ? https.get : http.get;
+    const dlHeaders = { ...getAuthHeaders(), 'Accept': 'application/octet-stream' };
+    get(url, { headers: dlHeaders }, (res) => {
       if (res.statusCode >= 300 && res.statusCode < 400 && res.headers.location) {
         return downloadFile(res.headers.location, dest, onProgress).then(resolve).catch(reject);
       }
@@ -111,16 +92,13 @@ function downloadFile(url, dest, onProgress) {
       let received = 0;
       const file = fs.createWriteStream(dest);
 
-      file.on('error', e => reject(e));
-      file.on('finish', () => resolve());
-
       res.on('data', chunk => {
         received += chunk.length;
+        file.write(chunk);
         if (onProgress && total > 0) onProgress(received / total);
       });
-      res.on('error', e => { file.destroy(); reject(e); });
-
-      res.pipe(file);
+      res.on('end', () => { file.end(); resolve(); });
+      res.on('error', e => { file.end(); reject(e); });
     }).on('error', reject);
   });
 }
@@ -135,7 +113,8 @@ function decryptPayload(encryptedBuf) {
   const decipher = crypto.createDecipheriv('aes-256-gcm', key, nonce);
   decipher.setAuthTag(authTag);
 
-  return Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+  return decrypted;
 }
 
 // ── Splash window ──
@@ -177,10 +156,25 @@ function closeSplash() {
 // ── Cleanup ──
 function secureCleanup(dir) {
   try {
+    const asarPath = path.join(dir, 'app.asar');
+    if (fs.existsSync(asarPath)) {
+      // Overwrite with zeros before delete
+      const size = fs.statSync(asarPath).size;
+      const fd = fs.openSync(asarPath, 'w');
+      const zeros = Buffer.alloc(Math.min(size, 1024 * 1024));
+      let remaining = size;
+      while (remaining > 0) {
+        const chunk = Math.min(remaining, zeros.length);
+        fs.writeSync(fd, zeros, 0, chunk);
+        remaining -= chunk;
+      }
+      fs.closeSync(fd);
+    }
     fs.rmSync(dir, { recursive: true, force: true });
   } catch (_) {}
 }
 
+// Clean up any leftover temp dirs from previous crashed runs
 function cleanupOldRuns() {
   try {
     const dataDir = getDataDir();
@@ -198,16 +192,18 @@ async function launch() {
   createSplash();
   updateSplash('Starting...', 0);
 
+  // Clean up old temp dirs
   cleanupOldRuns();
 
   try {
-    // 1. Check for latest release via Supabase proxy
+    // 1. Check for latest release
     updateSplash('Checking for updates...', 0.1);
     let release;
     try {
-      release = await fetchJSON(`${DOWNLOAD_API}?platform=latest`);
+      release = await fetchJSON(`https://api.github.com/repos/${GITHUB_REPO}/releases/latest`);
     } catch (e) {
       console.error('Failed to check updates:', e.message);
+      // Try cached version
       if (fs.existsSync(getEncryptedPath())) {
         updateSplash('Using cached version...', 0.5);
         return await launchFromCache();
@@ -226,7 +222,10 @@ async function launch() {
     if (needsUpdate) {
       updateSplash(`Downloading ${release.tag_name}...`, 0.15);
 
-      await downloadFile(`${DOWNLOAD_API}?platform=payload`, getEncryptedPath(), (pct) => {
+      const asset = release.assets.find(a => a.name === 'app.asar.enc');
+      if (!asset) throw new Error('No encrypted payload found in release.');
+
+      await downloadFile(asset.browser_download_url, getEncryptedPath(), (pct) => {
         updateSplash(`Downloading... ${Math.round(pct * 100)}%`, 0.15 + pct * 0.6);
       });
 
@@ -257,50 +256,60 @@ async function launchFromCache() {
   try {
     decrypted = decryptPayload(encrypted);
   } catch (e) {
+    // Corrupted — delete cache and retry
     fs.unlinkSync(getEncryptedPath());
     try { fs.unlinkSync(getVersionPath()); } catch (_) {}
     throw new Error('Decryption failed. Please restart to re-download.');
   }
 
+  // Write decrypted asar to temp dir
   const tempDir = getDecryptedDir();
   fs.mkdirSync(tempDir, { recursive: true });
+  const asarPath = path.join(tempDir, 'app.asar');
+  fs.writeFileSync(asarPath, decrypted);
 
-  // Write as .dat to avoid Electron's asar filesystem interception
-  const datPath = path.join(tempDir, 'app.dat');
-  fs.writeFileSync(datPath, decrypted);
+  // Set read-only permissions
+  try { fs.chmodSync(asarPath, 0o400); } catch (_) {}
+
+  // Zero decrypted buffer from memory
   decrypted.fill(0);
-
-  updateSplash('Extracting...', 0.90);
-
-  // Extract the asar archive to a regular directory
-  const extractedDir = path.join(tempDir, 'app');
-  const asar = require('@electron/asar');
-  asar.extractAll(datPath, extractedDir);
-
-  // Remove the temp .dat file immediately
-  try { fs.unlinkSync(datPath); } catch (_) {}
 
   updateSplash('Launching...', 0.95);
 
-  // Set the env var BEFORE relaunch so the new process inherits it
-  process.env.ZAP_APP_PATH = extractedDir;
-
-  // Relaunch the Electron binary with ZAP_APP_PATH set.
-  // On relaunch, the code at the top of this file detects the env var
-  // and loads the real app with a completely clean Electron lifecycle —
-  // no splash windows, no stale handlers, no conflicts.
-  app.relaunch({
-    args: process.argv.slice(1),
-    execPath: process.execPath,
+  // 4. Spawn the real app using the same Electron binary
+  const electronPath = process.execPath;
+  const child = spawn(electronPath, [asarPath], {
+    detached: true,
+    stdio: 'ignore',
+    env: { ...process.env, ZAP_TEMP_DIR: tempDir }
   });
 
-  // Quit this launcher instance — the relaunched one takes over
-  app.exit(0);
+  child.unref();
+
+  // Give the app a moment to start, then clean up
+  setTimeout(() => {
+    closeSplash();
+
+    // Monitor the child process — when it exits, clean up
+    child.on('exit', () => {
+      secureCleanup(tempDir);
+    });
+
+    // Also set a backup cleanup on our own exit
+    process.on('exit', () => {
+      secureCleanup(tempDir);
+    });
+
+    // Quit the launcher after a delay to let the real app take over
+    setTimeout(() => {
+      app.quit();
+    }, 2000);
+  }, 1000);
 }
 
 // ── App lifecycle ──
 app.whenReady().then(launch);
 
 app.on('window-all-closed', () => {
-  // Don't quit when splash closes — we quit after relaunch
+  // Don't quit when splash closes — we quit manually after spawn
 });
