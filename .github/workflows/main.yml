@@ -98,6 +98,12 @@ jobs:
       - name: Obfuscate source code
         run: node scripts/obfuscate.js
 
+      - name: Stub Windows shield DLLs (mac build)
+        run: |
+          mkdir -p dist/shield
+          touch dist/shield/zap_shield.dll
+          touch dist/shield/zap_overlay.dll
+
       - name: Compile native helpers (universal binary)
         run: |
           mkdir -p helpers/bin
@@ -211,6 +217,31 @@ jobs:
       - name: Install security build tools
         run: npm install --save-dev javascript-obfuscator
 
+      - name: Setup MSVC
+        uses: ilammy/msvc-dev-cmd@v1
+        with:
+          arch: x64
+
+      - name: Build MinHook (x64)
+        shell: cmd
+        run: |
+          git clone --depth 1 https://github.com/TsudaKageyu/minhook.git %RUNNER_TEMP%\minhook
+          cd %RUNNER_TEMP%\minhook
+          cl /nologo /O2 /MT /c src\hde\hde32.c src\hde\hde64.c src\buffer.c src\hook.c src\trampoline.c /Isrc /Iinclude
+          lib /nologo /OUT:libMinHook.x64.lib hde32.obj hde64.obj buffer.obj hook.obj trampoline.obj
+          mkdir "%GITHUB_WORKSPACE%\kernel\windows\vendor\minhook\include"
+          mkdir "%GITHUB_WORKSPACE%\kernel\windows\vendor\minhook\lib"
+          copy include\MinHook.h "%GITHUB_WORKSPACE%\kernel\windows\vendor\minhook\include\"
+          copy libMinHook.x64.lib "%GITHUB_WORKSPACE%\kernel\windows\vendor\minhook\lib\"
+
+      - name: Build zap_shield.dll + zap_overlay.dll
+        shell: cmd
+        run: |
+          mkdir "%GITHUB_WORKSPACE%\dist\shield"
+          cd kernel\windows\usermode
+          cl /nologo /LD /O2 /W3 /DZAP_SHIELD_EXPORTS zap_shield.c /Fe:"%GITHUB_WORKSPACE%\dist\shield\zap_shield.dll" /link /DEF:zap_shield.def kernel32.lib user32.lib advapi32.lib
+          cd ..\overlay
+          cl /nologo /LD /O2 /EHsc /W3 /DZAP_OVERLAY_EXPORTS zap_overlay.cpp /I"%GITHUB_WORKSPACE%\kernel\windows\vendor\minhook\include" /Fe:"%GITHUB_WORKSPACE%\dist\shield\zap_overlay.dll" /link /DEF:zap_overlay.def "%GITHUB_WORKSPACE%\kernel\windows\vendor\minhook\lib\libMinHook.x64.lib" d3d11.lib dxgi.lib user32.lib kernel32.lib
       - name: Generate Windows icon
         run: |
           pip install Pillow
@@ -277,6 +308,12 @@ jobs:
 
       - name: Install security build tools
         run: npm install --save-dev javascript-obfuscator
+
+      - name: Stub Windows shield DLLs (linux build)
+        run: |
+          mkdir -p dist/shield
+          touch dist/shield/zap_shield.dll
+          touch dist/shield/zap_overlay.dll
 
       - name: Install Linux build tools
         run: |

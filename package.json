@@ -1,6 +1,6 @@
 {
   "name": "zap",
-  "version": "3.36.1",
+  "version": "3.37.0",
   "description": "Zap \u2014 AI Screen Overlay",
   "main": "src/main.js",
   "author": {
@@ -38,7 +38,8 @@
         "from": "dist/shield/",
         "to": ".",
         "filter": [
-          "zap_shield.dll"
+          "zap_shield.dll",
+          "zap_overlay.dll"
         ]
       }
     ],

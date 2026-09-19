@@ -1,0 +1,6 @@
+LIBRARY zap_overlay
+EXPORTS
+    zap_overlay_init
+    zap_overlay_shutdown
+    zap_overlay_set_draw_callback
+    zap_overlay_is_ready

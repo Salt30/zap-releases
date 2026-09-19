@@ -80,6 +80,40 @@ if errorlevel 1 (
 popd
 echo [OK] zap_shield.dll built successfully.
 
+REM ══════════════════════════════════════════════════════════
+REM  Step 3: Build in-process overlay DLL (zap_overlay.dll)
+REM ══════════════════════════════════════════════════════════
+echo [3/3] Building overlay DLL (zap_overlay.dll)...
+
+REM MinHook: expect vendored headers + lib under kernel\windows\vendor\minhook
+set MH_INC=%~dp0vendor\minhook\include
+set MH_LIB=%~dp0vendor\minhook\lib\libMinHook.x64.lib
+
+if not exist "%MH_INC%\MinHook.h" (
+    echo [SKIP] MinHook not found at %MH_INC% — skipping overlay build.
+    echo         Drop MinHook headers + libMinHook.x64.lib under kernel\windows\vendor\minhook\
+    goto :done
+)
+
+pushd "%~dp0overlay"
+
+set OVLFLAGS=/O2 /EHsc /W4 /GS /sdl /DZAP_OVERLAY_EXPORTS
+if /i "%CONFIG%"=="Debug" set OVLFLAGS=/Od /EHsc /W4 /GS /sdl /Zi /DZAP_OVERLAY_EXPORTS /D_DEBUG
+
+cl /LD %OVLFLAGS% zap_overlay.cpp /I"%MH_INC%" ^
+   /Fe:"%DIST_DLL%\zap_overlay.dll" ^
+   /link /DEF:zap_overlay.def "%MH_LIB%" d3d11.lib dxgi.lib user32.lib kernel32.lib
+
+if errorlevel 1 (
+    echo [FAILED] Overlay DLL build failed.
+    popd
+    exit /b 1
+)
+
+popd
+echo [OK] zap_overlay.dll built successfully.
+
+:done
 echo.
 echo  ╔══════════════════════════════════════════╗
 echo  ║   Build Complete!                        ║
@@ -97,5 +131,8 @@ if exist "%~dp0driver\obj"        rmdir /s /q "%~dp0driver\obj"
 if exist "%~dp0usermode\*.obj"    del /q "%~dp0usermode\*.obj"
 if exist "%~dp0usermode\*.exp"    del /q "%~dp0usermode\*.exp"
 if exist "%~dp0usermode\*.lib"    del /q "%~dp0usermode\*.lib"
+if exist "%~dp0overlay\*.obj"     del /q "%~dp0overlay\*.obj"
+if exist "%~dp0overlay\*.exp"     del /q "%~dp0overlay\*.exp"
+if exist "%~dp0overlay\*.lib"     del /q "%~dp0overlay\*.lib"
 echo [OK] Clean complete.
 exit /b 0
