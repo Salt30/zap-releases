@@ -1,42 +1,18 @@
 // Redacted scan: only location, detector and fingerprint are emitted.
 const fs = require('node:fs');
 const path = require('node:path');
-const crypto = require('node:crypto');
 const { execFileSync } = require('node:child_process');
 const asar = require('@electron/asar');
 const root = path.resolve(__dirname, '..');
-const patterns = [
-  ['NVIDIA key', /nvapi-[A-Za-z0-9_-]{40,200}/g],
-  ['Groq key', /gsk_[A-Za-z0-9]{40,}/g],
-  ['Cerebras key', /csk-[A-Za-z0-9_-]{40,}/g],
-  ['Stripe secret', /(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{20,}/g],
-  ['Stripe webhook secret', /whsec_[A-Za-z0-9]{20,}/g],
-  ['AI provider key', /sk-(?:proj-|ant-api\d+-)?[A-Za-z0-9_-]{32,}/g],
-  ['GitHub token', /(?:ghp_[A-Za-z0-9]{36}|github_pat_[A-Za-z0-9_]{50,})/g],
-  ['Vercel Blob token', /vercel_blob_rw_[A-Za-z0-9_-]{30,}/g],
-  ['AWS access key', /AKIA[0-9A-Z]{16}/g],
-  ['Google API key', /AIza[A-Za-z0-9_-]{35}/g],
-  ['Slack token', /xox[baprs]-[A-Za-z0-9-]{20,}/g],
-  ['private key', /-----BEGIN (?:RSA |EC |OPENSSH |ENCRYPTED )?PRIVATE KEY-----/g],
-  ['assigned credential', /(?:AUTH_MASTER_KEY|ENTITLEMENT_PRIVATE_KEY|NVIDIA_API_KEY|STRIPE_SECRET_KEY|CRON_SECRET|SUPPORT_ENCRYPTION_KEY)\s*[=:]\s*["']?([A-Za-z0-9_+/=-]{32,})/g],
-];
+const { findSecrets } = require('./secret-patterns');
 const findings = []; const fingerprints = new Set();
 let scanned = 0;
 function inspect(buffer, location) {
   scanned++;
-  const text = buffer.toString('utf8');
-  for (const [label, pattern] of patterns) {
-    pattern.lastIndex = 0;
-    for (const match of text.matchAll(pattern)) {
-      const token = match[1] || match[0];
-      // Synthetic repeated-character fixtures carry no usable credential.
-      if (label !== 'private key' && new Set(token.replace(/^(?:nvapi-|sk_live_|sk_test_)/, '')).size < 8) continue;
-      const fingerprint = crypto.createHash('sha256').update(token).digest('hex').slice(0, 12);
-      const line = text.slice(0, match.index).split('\n').length;
-      const identity = `${location}:${label}:${fingerprint}`;
-      if (fingerprints.has(identity)) continue;
-      fingerprints.add(identity); findings.push({ location, line, detector: label, fingerprint });
-    }
+  for (const finding of findSecrets(buffer.toString('utf8'), location)) {
+    const identity = `${location}:${finding.line}:${finding.detector}:${finding.fingerprint}`;
+    if (fingerprints.has(identity)) continue;
+    fingerprints.add(identity); findings.push(finding);
   }
 }
 const excluded = new Set(['.git', 'node_modules', '.humanizer', '.vercel']);

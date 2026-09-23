@@ -70,25 +70,25 @@ function refreshHash(refreshSecret) {
 }
 
 function validDeviceId(value) {
-  return /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(
-    String(value || ""),
+  return typeof value === "string" && /^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i.test(
+    value,
   );
 }
 
 function validRefreshToken(value) {
-  return /^sub_[A-Za-z0-9]+\.[A-Za-z0-9_-]{40,}$/.test(String(value || ""));
+  return typeof value === "string" && /^sub_[A-Za-z0-9]+\.[A-Za-z0-9_-]{40,}$/.test(value);
 }
 
 function validCustomerId(value) {
-  return /^cus_[A-Za-z0-9]+$/.test(String(value || ""));
+  return typeof value === "string" && /^cus_[A-Za-z0-9]+$/.test(value);
 }
 
 function validSubscriptionId(value) {
-  return /^sub_[A-Za-z0-9]+$/.test(String(value || ""));
+  return typeof value === "string" && /^sub_[A-Za-z0-9]+$/.test(value);
 }
 
 function validCheckoutSessionId(value) {
-  return /^cs_live_[A-Za-z0-9_]+$/.test(String(value || ""));
+  return typeof value === "string" && /^cs_live_[A-Za-z0-9_]+$/.test(value);
 }
 
 function isPlainObject(value) {
@@ -269,6 +269,7 @@ async function customerById(customerId) {
 }
 
 async function customersByEmail(email) {
+  if (typeof email !== "string") throw new Error("Invalid email");
   const normalized = String(email || "").trim().toLowerCase();
   if (normalized.length < 6 || normalized.length > 254) throw new Error("Invalid email");
   const query = new URLSearchParams({ email: normalized, limit: "100" });

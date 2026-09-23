@@ -47,6 +47,7 @@ function storageConfigured() {
 }
 
 function normalizeEmail(value) {
+  if (typeof value !== "string") throw new Error("invalid_email");
   const email = String(value || "").trim().toLowerCase();
   if (
     email.length < 6 || email.length > 254 ||
@@ -56,7 +57,7 @@ function normalizeEmail(value) {
 }
 
 function validAccountId(value) {
-  return /^acct_[A-Za-z0-9_-]{32}$/u.test(String(value || ""));
+  return typeof value === "string" && /^acct_[A-Za-z0-9_-]{32}$/u.test(value);
 }
 
 function validCheckoutUrl(value) {
@@ -559,7 +560,7 @@ async function updateBillingMetadata(accountId, values) {
   };
   if (!values || typeof values !== "object" || Array.isArray(values)) throw new Error("invalid_billing_metadata");
   for (const [key, value] of Object.entries(values)) {
-    if (!allowed[key] || !allowed[key](value)) throw new Error("invalid_billing_metadata");
+    if (!Object.hasOwn(allowed, key) || !allowed[key](value)) throw new Error("invalid_billing_metadata");
   }
   return mutateAccount(accountId, (account) => Object.assign(account, values));
 }
