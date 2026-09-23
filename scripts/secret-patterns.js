@@ -17,6 +17,7 @@ const patterns = [
 
 // Return locations and fingerprints only; never return the credential itself.
 function findSecrets(text, location) {
+  location = location.replaceAll("\\", "/");
   const findings = [];
   for (const [label, pattern] of patterns) {
     pattern.lastIndex = 0;

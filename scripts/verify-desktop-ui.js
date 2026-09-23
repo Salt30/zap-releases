@@ -49,7 +49,10 @@ const services = {
   'zap:capture': () => ({ image: nativeImage.createFromBitmap(Buffer.alloc(128 * 128 * 4, 255), { width: 128, height: 128 }).toDataURL(), name: 'Test display' }),
   'zap:request': async (_event, request) => {
     zapRequestCount++; lastZapRequest = request;
+    if (request.text === 'error fixture') return { error: 'Zap AI needs a server configuration fix. Please contact Zap support.' };
     if (request.text === 'cancel fixture') return new Promise((resolve) => { cancelZapRequest = resolve; });
+    if (request.text === 'legacy cards fixture') return { text: '1. **Q:** Capital of France?\n**A:** Paris\n2. Q: 2 + 2? → A: 4', cards: [], sources: [], provider: 'Zap AI', model: 'Powered by NVIDIA' };
+    if (request.text === 'formatted fixture') return { text: '# Summary\n**Bold** and *emphasis*\n- One\n- Two\n```js\nconst example = "<img src=x onerror=alert(1)>";\n```\n<script>literal</script>\n[bad](javascript:alert(1))', cards: [], sources: [], provider: 'Zap AI', model: 'Powered by NVIDIA' };
     return { text: request.mode === 'flashcards' ? 'Study cards' : 'Integrated Zap answer <script>literal</script>', cards: request.mode === 'flashcards' ? [{ front: 'Capital of France?', back: 'Paris' }, { front: '2 + 2?', back: '4' }] : [], sources: [], provider: 'Zap AI', model: 'Powered by NVIDIA' };
   },
   'zap:pin': () => ({ success: true }),
@@ -141,16 +144,50 @@ app.whenReady().then(async () => {
   assert.equal(zapRequestCount, 1, 'Capture uploaded an image before submission');
   await evaluate(main, "document.getElementById('zap-crop-width').value=64;document.getElementById('zap-crop-width').dispatchEvent(new Event('change'));document.getElementById('zap-capture-attach').click()");
   assert.equal(await evaluate(main, "document.querySelectorAll('.zap-attachment').length"), 1);
-  await evaluate(main, "document.getElementById('zap-input').value='Describe it';document.getElementById('zap-run').click()");
+  await evaluate(main, "document.getElementById('zap-input').value='';document.getElementById('zap-run').click()");
   await eventually(main, "!document.getElementById('zap-run').disabled");
+  assert.equal(lastZapRequest.text, '', 'Screenshot-only requests must work without a typed prompt');
   assert.equal(lastZapRequest.images.length, 1); assert.match(lastZapRequest.images[0], /^data:image\/jpeg;base64,/);
-  await evaluate(main, "document.querySelector('.zap-attachment button').click();document.querySelector('[data-zap-mode=flashcards]').click();document.getElementById('zap-run').click()");
+  await evaluate(main, "document.querySelector('.zap-attachment button').click();document.getElementById('zap-input').value='Make study cards';document.querySelector('[data-zap-mode=flashcards]').click();document.getElementById('zap-run').click()");
   await eventually(main, "!document.getElementById('zap-flashcards').hidden");
   assert.equal(await evaluate(main, "document.getElementById('zap-card-text').textContent"), 'Capital of France?');
   await evaluate(main, "document.getElementById('zap-card-flip').click()");
   assert.equal(await evaluate(main, "document.getElementById('zap-card-text').textContent"), 'Paris');
   await evaluate(main, "document.getElementById('zap-card-next').click()");
   assert.equal(await evaluate(main, "document.getElementById('zap-card-text').textContent"), '2 + 2?');
+  await evaluate(main, "document.getElementById('zap-card-study').click()");
+  assert.equal(await evaluate(main, "document.getElementById('zap-study-dialog').open"), true);
+  assert.equal(await evaluate(main, "document.getElementById('zap-study-prev').disabled"), true);
+  await evaluate(main, "document.getElementById('zap-study-flip').dispatchEvent(new KeyboardEvent('keydown', {key:' ',bubbles:true,cancelable:true}))");
+  assert.equal(await evaluate(main, "document.getElementById('zap-study-text').textContent"), 'Paris');
+  await evaluate(main, "document.getElementById('zap-study-dialog').dispatchEvent(new KeyboardEvent('keydown', {key:'ArrowRight',bubbles:true,cancelable:true}))");
+  assert.equal(await evaluate(main, "document.getElementById('zap-study-text').textContent"), '2 + 2?');
+  assert.equal(await evaluate(main, "document.getElementById('zap-study-next').disabled"), true);
+  await evaluate(main, "document.querySelector('#zap-study-dots button').click()");
+  assert.equal(await evaluate(main, "document.getElementById('zap-study-text').textContent"), 'Capital of France?');
+  await evaluate(main, "document.getElementById('zap-study-shuffle').click()");
+  assert.equal(await evaluate(main, "document.getElementById('zap-study-progress').textContent"), 'Card 1 of 2');
+  await new Promise(resolve => setTimeout(resolve, 350));
+  fs.writeFileSync(path.join(os.tmpdir(), 'zap-337-study.png'), (await main.webContents.capturePage()).toPNG());
+  await evaluate(main, "document.getElementById('zap-study-close').click();document.getElementById('zap-input').value='legacy cards fixture';document.getElementById('zap-run').click()");
+  await eventually(main, "!document.getElementById('zap-run').disabled");
+  assert.equal(await evaluate(main, "document.getElementById('zap-card-text').textContent"), 'Capital of France?');
+  assert.equal(await evaluate(main, "document.getElementById('zap-languages').children.length"), 35);
+  await evaluate(main, "document.querySelector('[data-zap-mode=code]').click();document.getElementById('zap-input').value='formatted fixture';document.getElementById('zap-run').click()");
+  await eventually(main, "!document.getElementById('zap-run').disabled");
+  assert.equal(await evaluate(main, "document.querySelector('#zap-output h3').textContent"), 'Summary');
+  assert.equal(await evaluate(main, "document.querySelectorAll('#zap-output li').length"), 2);
+  assert.equal(await evaluate(main, "document.querySelector('#zap-output strong').textContent"), 'Bold');
+  assert.equal(await evaluate(main, "document.querySelector('#zap-output pre code').textContent"), 'const example = "<img src=x onerror=alert(1)>";\n');
+  assert.equal(await evaluate(main, "document.querySelectorAll('#zap-output script, #zap-output img, #zap-output a, #zap-output iframe').length"), 0);
+  await evaluate(main, "document.getElementById('zap-result').scrollIntoView({block:'start'})");
+  await new Promise(resolve => setTimeout(resolve, 350));
+  fs.writeFileSync(path.join(os.tmpdir(), 'zap-337-formatted-answer.png'), (await main.webContents.capturePage()).toPNG());
+  await evaluate(main, "document.getElementById('zap-input').value='error fixture';document.getElementById('zap-run').click()");
+  await eventually(main, "!document.getElementById('zap-run').disabled");
+  assert.equal(await evaluate(main, "document.getElementById('zap-status').dataset.error"), 'true');
+  assert.equal(await evaluate(main, "document.getElementById('zap-input').value"), 'error fixture');
+  assert.match(await evaluate(main, "document.getElementById('zap-status').textContent"), /server configuration fix/);
   await evaluate(main, "document.getElementById('zap-input').value='cancel fixture';document.getElementById('zap-run').click()");
   await eventually(main, "!document.getElementById('zap-cancel').hidden");
   await evaluate(main, "document.getElementById('zap-cancel').click()");
@@ -229,7 +266,11 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(main, "document.getElementById('account-sign-out').hidden"), false);
   await eventually(main, "Number(getComputedStyle(document.getElementById('page-billing')).opacity) >= .99 && document.getElementById('page-billing').checkVisibility({checkVisibilityCSS:true})");
   fs.writeFileSync(path.join(os.tmpdir(), 'zap-account-controls.png'), (await main.webContents.capturePage()).toPNG());
-  await evaluate(main, "document.querySelector('[data-page=zap]').click();document.getElementById('zap-input').value='cancel fixture';document.getElementById('zap-run').click()");
+  await evaluate(main, "document.querySelector('[data-page=zap]').click();document.querySelector('[data-zap-mode=flashcards]').click();document.getElementById('zap-input').value='legacy cards fixture';document.getElementById('zap-run').click()");
+  await eventually(main, "!document.getElementById('zap-run').disabled");
+  await evaluate(main, "document.getElementById('zap-card-study').click();document.getElementById('zap-input').value='cancel fixture';document.getElementById('zap-run').click()");
+  assert.equal(await evaluate(main, "document.getElementById('zap-study-dialog').open"), true);
+  assert.notEqual(await evaluate(main, "document.getElementById('zap-study-text').textContent"), '');
   await eventually(main, "document.getElementById('zap-run').disabled");
   await evaluate(main, "document.querySelector('[data-page=billing]').click()");
   await evaluate(main, "document.getElementById('text').value='Private draft';document.getElementById('account-sign-out').click()");
@@ -238,6 +279,8 @@ app.whenReady().then(async () => {
   assert.equal(await evaluate(main, "document.getElementById('zap-input').value"), '');
   assert.equal(await evaluate(main, "document.getElementById('zap-history-count').textContent"), '0');
   assert.equal(await evaluate(main, "document.getElementById('zap-result').hidden"), true);
+  assert.equal(await evaluate(main, "document.getElementById('zap-study-dialog').open"), false);
+  assert.equal(await evaluate(main, "document.getElementById('zap-study-text').textContent"), '');
   await evaluate(main, "document.getElementById('billing-subscribe').click()");
   await eventually(main, "!document.getElementById('billing-subscribe').disabled");
   assert.equal(signInCount, 1);

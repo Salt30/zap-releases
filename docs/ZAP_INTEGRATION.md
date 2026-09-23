@@ -23,8 +23,11 @@ The secret must be configured and the server deployed before the desktop's live
 AI request path is available.
 
 `NVIDIA_TEXT_MODEL` and `NVIDIA_VISION_MODEL` optionally override server models.
-Both default to `meta/llama-3.2-11b-vision-instruct`, verified through live text and
-synthetic-image requests. Four user-selected regions are combined locally into
+Text defaults to `meta/llama-3.3-70b-instruct`; vision defaults to
+`meta/llama-3.2-11b-vision-instruct`. Llama 3.2 image requests place application
+instructions in the user message because that model rejects system messages
+with images. These updated paths are covered by simulated provider tests;
+authenticated live inference still requires deployment verification. Four user-selected regions are combined locally into
 one numbered image, because the hosted vision model takes a single image.
 
 The API uses NVIDIA's documented OpenAI-compatible endpoint:
@@ -74,3 +77,16 @@ The Apple Silicon preview is unsigned and has not replaced the published desktop
 release. Production AI still needs a rotated NVIDIA credential configured on the
 server. Automatic approval review rejected the earlier credential upload; it was
 not retried during the security audit. No provider key belongs in a desktop build.
+
+## September 22 reliability and interface update
+
+The desktop now distinguishes known provider configuration, busy, and request
+failures without exposing raw provider responses. It shows an active request
+state, preserves the prompt for retry, and scrolls completed answers into view.
+The liquid glass interface supports light/dark themes, reduced motion, reduced
+transparency, and high contrast using the existing Electron renderer.
+
+Deploy the backend changes and configure a valid rotated `NVIDIA_API_KEY` in
+the hosting dashboard, then rebuild/distribute the desktop. Verify a text-only
+question and a screenshot-only question using a connected subscribed account.
+No production secrets were read or changed during this update.

@@ -14,7 +14,9 @@ attempts. NVIDIA service availability and limits also apply.
 - Research briefs from supplied material and model knowledge (no live web search)
 - Screen capture with display selection, preview, and visual or keyboard cropping
 - Up to four screenshot attachments, combined locally into one image for NVIDIA
-- Interactive flashcards, a floating pinned answer, and bounded session history
+- Interactive flashcards with an expanded keyboard-driven study view, a floating pinned answer, and bounded session history
+- Formatted answers with readable code blocks and legacy Zap Q/A flashcard support
+- A 35-language translation picker with support for custom language names
 - Form response drafting for review and transfer into Composer
 - Send results to the existing composer with its current typing controls,
   subscription checks, permission checks, and stop shortcut
@@ -24,7 +26,8 @@ attempts. NVIDIA service availability and limits also apply.
 Clicking **Ask Zap**, **Research**, or **Make flashcards** sends the entered text,
 custom instructions, and attached screenshots through Zap's server to NVIDIA.
 Capture alone never uploads anything. Screenshots and the last 20 results stay
-in window memory; closing the window clears them. Clear history removes results,
+in window memory; quitting or signing out clears them. Closing the window keeps
+Zap running in the background. Clear history removes results,
 and screenshots can be removed individually. There is no automatic clipboard or
 screen monitoring. Drip Type composition and typing stay local.
 
@@ -33,6 +36,8 @@ current typing engine. The installed Zap Pro app is not modified. Legacy embedde
 credentials, separate authentication and billing, automatic form clicking,
 process concealment, kernel components, persistence, and self-deletion routines
 are not imported. This integrates its productive workflows into the current app.
+
+See [docs/ZAP_3_37_MERGE.md](docs/ZAP_3_37_MERGE.md) for the latest source integration.
 
 See [docs/ZAP_INTEGRATION.md](docs/ZAP_INTEGRATION.md) for server configuration,
 validation, and release requirements.

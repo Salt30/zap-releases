@@ -83,9 +83,9 @@ function installZap({ store, getCredentials, handleTrusted, onTrusted, windowOpt
       const credentials = await getCredentials();
       return await requestAI(input, settings(), credentials, { signal: controller.signal });
     } catch (error) {
-      if (controller.signal.aborted) return { error: controller.signal.reason === 'timeout' ? 'The AI request timed out. Try again.' : 'Request cancelled.', cancelled: true };
+      if (controller.signal.aborted) return { error: controller.signal.reason === 'timeout' ? 'The AI request timed out. Try again.' : 'Request cancelled.', cancelled: controller.signal.reason !== 'timeout' };
       // Never return raw transport errors, which can contain headers or request data.
-      const safe = /^(Connect your |Zap |Zap’s |An active |Your account |The AI service |The screenshot |Choose |Enter |Use at most |Attach |Invalid |Screenshots |Add text |Custom instructions |Response limit |The API key |This API key |Add credit |Your provider |The provider |The AI provider |The selected model |Provider response |Empty provider)/;
+      const safe = /^(Connect your |Zap |Zap’s |An active |Your account |The AI service |The AI request |The screenshot |Choose |Enter |Use at most |Attach |Invalid |Screenshots |Add text |Custom instructions |Response limit |The API key |This API key |Add credit |Your provider |The provider |The AI provider |The selected model |Provider response |Empty provider)/;
       return { error: safe.test(error.message) ? error.message : 'Could not reach the AI provider. Check your connection and try again.' };
     } finally {
       clearTimeout(timer);

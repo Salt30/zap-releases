@@ -71,6 +71,8 @@ const { findSecrets } = require('./secret-patterns');
   assert.equal(findSecrets("const endpoint = 'https://api.stripe.com'; const key = process.env.NVIDIA_API_KEY;", 'fixture/app.js').length, 0);
   const placeholder = 'long-lived-token-must-not-be-used';
   assert.equal(findSecrets(`VERCEL_TOKEN: '${placeholder}'`, 'scripts/verify-source.js').length, 0);
+  assert.equal(findSecrets(`VERCEL_TOKEN: '${placeholder}'`, 'scripts\\verify-source.js').length, 0);
+  assert.equal(findSecrets(`VERCEL_TOKEN: '${placeholder}'`, 'git:fixture:scripts/verify-source.js').length, 0);
   assert.equal(findSecrets(`VERCEL_TOKEN: '${placeholder}'`, 'production.js').length, 1);
   console.log('Injection boundaries passed: scalar IDs, email validation, encoded Stripe parameters, metadata allowlists, and redacted credential detection.');
 })().catch(error => { console.error(error); process.exitCode = 1; });

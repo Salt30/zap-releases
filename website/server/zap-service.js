@@ -28,7 +28,7 @@ function createHandler({ authenticate = billing.subscriptionForRefresh, reserve 
       return response.status([401, 402, 403].includes(safe.status) ? safe.status : 403).json({ error: 'An active, connected Zap account is required.' });
     }
     const key = env.NVIDIA_API_KEY;
-    if (!key || !/^nvapi-[A-Za-z0-9_-]{20,200}$/.test(key)) return response.status(503).json({ error: 'Zap AI is temporarily unavailable.' });
+    if (!key || !/^nvapi-[A-Za-z0-9_-]{20,200}$/.test(key)) return response.status(503).json({ code: 'provider_configuration', error: 'Zap AI is temporarily unavailable.' });
     try {
       const burst = await rateLimit.consume('ai-account', verified.subscription.id);
       if (!burst.allowed) { response.setHeader('Retry-After', String(burst.retryAfter)); return response.status(429).json({ error: 'Too many AI requests. Please wait and try again.' }); }
@@ -47,9 +47,10 @@ function createHandler({ authenticate = billing.subscriptionForRefresh, reserve 
     try {
       const result = await requestAI(body, settings, () => key, { signal: controller.signal });
       return response.status(200).json({ ...result, model: 'Powered by NVIDIA', provider: 'Zap AI', webSearch: false });
-    } catch {
+    } catch (error) {
       // Upstream error text can contain service details. Never log it or the request.
-      return response.status(controller.signal.aborted ? 504 : 503).json({ error: 'Zap AI could not complete the request. Try again later.' });
+      const code = controller.signal.aborted ? 'timeout' : ['provider_configuration', 'provider_busy', 'provider_request', 'provider_unavailable'].includes(error.code) ? error.code : 'provider_unavailable';
+      return response.status(controller.signal.aborted ? 504 : 503).json({ code, error: 'Zap AI could not complete the request. Try again later.' });
     } finally { clearTimeout(timer); response.removeListener?.('close', disconnect); }
   };
 }

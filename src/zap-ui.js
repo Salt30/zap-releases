@@ -1,3 +1,5 @@
+const { renderAnswer, parseStudyCards, validCards } = require('./zap-content');
+const { initStudy } = require('./zap-study');
 const { acceleratorFromKeyboardEvent, formatAccelerator } = require('./shortcut-utils');
 const HELP = {
   answer: 'Ask a question or attach a screenshot for context.', simple: 'Get a short, direct answer.',
@@ -13,8 +15,10 @@ const HELP = {
 function initZap({ sendToComposer, getComposerText }) {
   const $ = (id) => document.getElementById(id);
   const api = window.dripType;
+  const study = initStudy();
   let mode = 'answer';
   let busy = false;
+  let requestRevision = 0;
   let sessionRevision = 0;
   let attachments = [];
   let result = null;
@@ -53,6 +57,9 @@ function initZap({ sendToComposer, getComposerText }) {
   function setBusy(value) {
     busy = value;
     $('zap-run').disabled = value;
+    $('zap-run').textContent = value ? 'Thinking…' : mode === 'research' ? 'Research' : mode === 'flashcards' ? 'Make flashcards' : 'Ask Zap';
+    $('zap-input-card')?.setAttribute('aria-busy', String(value));
+    $('zap-status').dataset.busy = String(value);
     $('zap-input').disabled = value;
     $('zap-cancel').hidden = !value;
     $('zap-settings-open').disabled = value;
@@ -81,8 +88,9 @@ function initZap({ sendToComposer, getComposerText }) {
   function renderResult(next) {
     result = next;
     $('zap-result').hidden = !next;
-    if (!next) { $('zap-output').textContent = ''; $('zap-sources').replaceChildren(); cards = []; return; }
-    $('zap-output').textContent = next.text;
+    study.clear();
+    if (!next) { $('zap-output').replaceChildren(); $('zap-sources').replaceChildren(); cards = []; $('zap-card-text').textContent = ''; $('zap-card-count').textContent = ''; return; }
+    renderAnswer($('zap-output'), next.text);
     $('zap-result-model').textContent = `${next.provider} · ${next.model}`;
     $('zap-result-title').textContent = next.mode === 'flashcards' ? 'Study cards' : 'Zap’s response';
     $('zap-sources').replaceChildren();
@@ -91,7 +99,9 @@ function initZap({ sendToComposer, getComposerText }) {
       link.addEventListener('click', guard(async () => { const response = await api.openZapSource(url); if (response.error) note(response.error, true); }));
       $('zap-sources').appendChild(link);
     });
-    cards = (next.cards || []).map((card) => ({ ...card })); cardIndex = 0; flipped = false;
+    cards = next.mode === 'flashcards' ? validCards(next.cards) : [];
+    if (!cards.length && next.mode === 'flashcards') cards = parseStudyCards(next.text);
+    cardIndex = 0; flipped = false;
     $('zap-flashcards').hidden = !cards.length;
     $('zap-output').hidden = Boolean(cards.length);
     renderCard();
@@ -133,19 +143,22 @@ function initZap({ sendToComposer, getComposerText }) {
     const text = $('zap-input').value;
     if (!text.trim() && !attachments.length) { note('Add text or capture a screen first.', true); $('zap-input').focus(); return; }
     const selectedMode = mode;
-    setBusy(true); note('Zap is working…');
+    const attempt = ++requestRevision;
+    setBusy(true); note(attachments.length ? 'Reading your capture and preparing an answer…' : 'Preparing your answer…');
+    const slow = setTimeout(() => { if (busy && attempt === requestRevision) note('Still waiting for Zap AI. You can cancel and try again.'); }, 15000);
     try {
       const request = { mode: selectedMode, text, images: await combinedScreenshots() };
-      if (revision !== sessionRevision) return;
+      if (revision !== sessionRevision || attempt !== requestRevision) return;
       const response = await api.requestZap(request);
-      if (revision !== sessionRevision) return;
+      if (revision !== sessionRevision || attempt !== requestRevision) return;
       if (response.error) { note(response.error, !response.cancelled); return; }
       const entry = { ...response, mode: request.mode, input: text.slice(0, 160), time: Date.now() };
       renderResult(entry);
+      $('zap-result').scrollIntoView({ block: 'nearest', behavior: 'auto' });
       history = [entry, ...history].slice(0, 20); renderHistory();
-      note(response.truncated ? 'The response reached your token limit. Increase the limit in AI settings or ask a narrower question.' : request.mode === 'flashcards' && !response.cards?.length ? 'The provider returned text instead of valid flashcards. Try again with a smaller set.' : 'Ready. Review the result, then send it to Drip Type.');
-    } catch { note('Zap could not complete the request. Check your connection and try again.', true); }
-    finally { setBusy(false); }
+      note(response.truncated ? 'The response reached your token limit. Increase the limit in AI settings or ask a narrower question.' : request.mode === 'flashcards' && !cards.length ? 'The provider returned text instead of valid flashcards. Try again with a smaller set.' : 'Ready. Review the result, then send it to Drip Type.');
+    } catch { if (revision === sessionRevision && attempt === requestRevision) note('Zap could not complete the request. Check your connection and try again.', true); }
+    finally { clearTimeout(slow); setBusy(false); }
   }
 
   async function loadSettings() {
@@ -159,13 +172,14 @@ function initZap({ sendToComposer, getComposerText }) {
   document.querySelectorAll('[data-zap-mode]').forEach((button) => button.addEventListener('click', () => selectMode(button.dataset.zapMode)));
   $('zap-run').addEventListener('click', run);
   $('zap-input').addEventListener('keydown', (event) => { if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) { event.preventDefault(); run(); } });
-  $('zap-cancel').addEventListener('click', () => { api.cancelZap(); note('Cancelling request…'); });
+  $('zap-cancel').addEventListener('click', () => { requestRevision++; api.cancelZap(); note('Request cancelled.'); });
   $('zap-from-composer').addEventListener('click', () => { $('zap-input').value = getComposerText(); $('zap-input').focus(); });
   $('zap-compose').addEventListener('click', () => { if (result) sendToComposer(result.text); });
   $('zap-copy').addEventListener('click', guard(async () => { if (result) { const response = await api.writeClipboardText(result.text); note(response.error || 'Copied.', Boolean(response.error)); } }));
   $('zap-pin').addEventListener('click', guard(async () => { if (result) { const response = await api.pinZapAnswer(result.text); note(response.error || 'Answer pinned above other windows.', Boolean(response.error)); } }));
   $('zap-follow-up').addEventListener('click', () => { if (result && !busy) { $('zap-input').value = `${result.text}\n\nFollow-up: `.slice(0, 100000); $('zap-input').focus(); note('Add your follow-up question. It will be sent with the text above.'); } });
   $('zap-clear-history').addEventListener('click', () => { history = []; renderHistory(); renderResult(null); note('Session history cleared.'); });
+  $('zap-card-study').addEventListener('click', () => study.open(cards));
   $('zap-card-flip').addEventListener('click', () => { flipped = !flipped; renderCard(); });
   $('zap-card-prev').addEventListener('click', () => { if (cards.length) { cardIndex = (cardIndex - 1 + cards.length) % cards.length; flipped = false; renderCard(); } });
   $('zap-card-next').addEventListener('click', () => { if (cards.length) { cardIndex = (cardIndex + 1) % cards.length; flipped = false; renderCard(); } });

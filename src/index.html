@@ -417,7 +417,7 @@
       </section>
 
       <section class="page" id="page-zap">
-        <div class="zap-heading"><div><h1>See it. Understand it. Write it.</h1><p class="lead">Zap’s AI tools and Drip Type, in one place.</p></div><button class="button secondary" id="zap-settings-open" type="button">AI settings</button></div>
+        <div class="zap-heading"><div><div class="zap-kicker">YOUR EVERYDAY INTELLIGENCE</div><h1>A little clarity.<br>A lot of possibility.</h1><p class="lead">Ask anything. Capture a moment. Make it make sense.</p></div><button class="button secondary" id="zap-settings-open" type="button">AI settings</button></div>
         <div class="zap-tools" role="group" aria-label="Zap tools">
           <button type="button" class="zap-tool active" data-zap-mode="answer" aria-pressed="true">Answer</button>
           <button type="button" class="zap-tool" data-zap-mode="simple" aria-pressed="false">Quick answer</button>
@@ -432,7 +432,7 @@
           <button type="button" class="zap-tool" data-zap-mode="form" aria-pressed="false">Form assistant</button>
         </div>
         <p id="zap-mode-help" class="zap-hint">Ask a question or attach a screenshot for context.</p>
-        <div class="card zap-input-card">
+        <div class="card zap-input-card" id="zap-input-card">
           <textarea id="zap-input" maxlength="100000" aria-label="Ask Zap" placeholder="Ask a question, paste text, or capture something on your screen…"></textarea>
           <div class="zap-attachments" id="zap-attachments" aria-label="Attached screenshots"></div>
           <div class="zap-input-footer"><div class="row"><button type="button" class="button secondary" id="zap-capture-open">Capture screen</button><button type="button" class="button secondary" id="zap-from-composer">Use Drip Type text</button></div><div class="row"><button type="button" class="button danger" id="zap-cancel" hidden>Cancel</button><button type="button" class="button primary" id="zap-run">Ask Zap</button></div></div>
@@ -441,9 +441,9 @@
         <div class="zap-status" id="zap-status" role="status" aria-live="polite">AI is provided by Zap. Connect your account in Billing to get started.</div>
         <div class="card zap-result" id="zap-result" hidden>
           <div class="zap-result-head"><strong id="zap-result-title">Zap’s response</strong><span id="zap-result-model" class="zap-hint"></span></div>
-          <pre id="zap-output" tabindex="0" aria-label="Zap response"></pre>
+          <div id="zap-output" class="zap-answer" tabindex="0" aria-label="Zap response"></div>
           <div id="zap-sources" class="zap-sources"></div>
-          <div class="zap-flashcards" id="zap-flashcards" hidden><div class="zap-card-count" id="zap-card-count"></div><button type="button" id="zap-card-flip" class="zap-study-card" aria-label="Flip flashcard"><span id="zap-card-side">Question</span><strong id="zap-card-text"></strong><small>Click to flip</small></button><div class="row"><button type="button" class="button secondary" id="zap-card-prev">Previous</button><button type="button" class="button secondary" id="zap-card-next">Next</button><button type="button" class="button secondary" id="zap-card-shuffle">Shuffle</button></div></div>
+          <div class="zap-flashcards" id="zap-flashcards" hidden><div class="zap-card-count" id="zap-card-count"></div><button type="button" id="zap-card-flip" class="zap-study-card" aria-label="Flip flashcard"><span id="zap-card-side">Question</span><strong id="zap-card-text"></strong><small>Click to flip</small></button><div class="row"><button type="button" class="button secondary" id="zap-card-prev">Previous</button><button type="button" class="button secondary" id="zap-card-next">Next</button><button type="button" class="button secondary" id="zap-card-shuffle">Shuffle</button><button type="button" class="button secondary" id="zap-card-study">Expand study</button></div></div>
           <div class="zap-result-actions"><button class="button primary" type="button" id="zap-compose">Send to Drip Type</button><button class="button secondary" type="button" id="zap-copy">Copy</button><button class="button secondary" type="button" id="zap-pin">Pin answer</button><button class="button secondary" type="button" id="zap-follow-up">Use as context</button></div>
         </div>
         <details class="zap-history"><summary>Session history <span id="zap-history-count">0</span></summary><p class="zap-hint">Kept in memory for this window only. Screenshots are never saved in history.</p><div id="zap-history-list"></div><button class="button secondary" id="zap-clear-history" type="button">Clear history</button></details>
@@ -563,11 +563,24 @@
       </section>
     </main>
   </div>
+  <datalist id="zap-languages"><option value="Spanish">Spanish</option><option value="French">French</option><option value="German">German</option>
+          <option value="Italian">Italian</option><option value="Portuguese">Portuguese</option><option value="Japanese">Japanese</option>
+          <option value="Korean">Korean</option><option value="Chinese (Simplified)">Chinese (Simplified)</option>
+          <option value="Chinese (Traditional)">Chinese (Traditional)</option><option value="Arabic">Arabic</option>
+          <option value="Hindi">Hindi</option><option value="Russian">Russian</option><option value="Turkish">Turkish</option>
+          <option value="Dutch">Dutch</option><option value="Polish">Polish</option><option value="Swedish">Swedish</option>
+          <option value="Norwegian">Norwegian</option><option value="Danish">Danish</option><option value="Finnish">Finnish</option>
+          <option value="Thai">Thai</option><option value="Vietnamese">Vietnamese</option><option value="Indonesian">Indonesian</option>
+          <option value="Malay">Malay</option><option value="Filipino">Filipino</option><option value="Czech">Czech</option>
+          <option value="Romanian">Romanian</option><option value="Ukrainian">Ukrainian</option><option value="Greek">Greek</option>
+          <option value="Hebrew">Hebrew</option><option value="Hungarian">Hungarian</option><option value="Bengali">Bengali</option>
+          <option value="Tamil">Tamil</option><option value="Urdu">Urdu</option><option value="Swahili">Swahili</option>
+          <option value="English">English</option></datalist>
   <dialog id="zap-settings-dialog" aria-labelledby="zap-settings-title">
     <div class="zap-dialog-head"><h2 id="zap-settings-title">Zap AI settings</h2><button class="button secondary" id="zap-settings-close" type="button">Done</button></div>
     <p>AI is provided by Zap and powered by NVIDIA. Connect your Zap account in Billing to use it. No API key is needed. Requests are subject to service availability and a daily usage limit.</p>
     <form id="zap-settings-form" class="zap-settings-form">
-      <label>Translate into<input class="field" id="zap-language" required maxlength="80"></label>
+      <label>Translate into<input class="field" id="zap-language" list="zap-languages" required maxlength="80"></label>
       <label>Maximum response tokens<input class="field" id="zap-max-tokens" type="number" min="256" max="4096" step="1" required></label>
       <label>Open Zap shortcut<input class="field" id="zap-shortcut" readonly aria-describedby="zap-shortcut-help" placeholder="Click and press a shortcut"></label>
       <div class="zap-hint" id="zap-shortcut-help">Press a key combination to change it. Backspace disables the shortcut. Default: Option/Alt+3.</div>
@@ -583,6 +596,13 @@
     <fieldset class="zap-crop-controls" id="zap-crop-controls" hidden><legend>Crop region (pixels)</legend><label>Left<input class="field" id="zap-crop-x" type="number" min="0" value="0"></label><label>Top<input class="field" id="zap-crop-y" type="number" min="0" value="0"></label><label>Width<input class="field" id="zap-crop-width" type="number" min="1"></label><label>Height<input class="field" id="zap-crop-height" type="number" min="1"></label></fieldset>
     <p class="zap-hint" id="zap-capture-note" role="status" aria-live="polite">Nothing is uploaded when you capture. Screenshots are sent only when you ask Zap.</p>
     <div class="row"><button class="button secondary" id="zap-crop-reset" type="button" disabled>Use full screenshot</button><button class="button primary" id="zap-capture-attach" type="button" disabled>Attach screenshot</button><button class="button secondary" id="zap-screen-settings" type="button">Screen Recording settings</button></div>
+  </dialog>
+  <dialog id="zap-study-dialog" aria-labelledby="zap-study-title" tabindex="-1">
+    <div class="zap-dialog-head"><div><h2 id="zap-study-title">Zap study</h2><p id="zap-study-progress" role="status" aria-live="polite"></p></div><button type="button" class="button secondary" id="zap-study-close">Close study</button></div>
+    <button type="button" class="zap-study-card" id="zap-study-flip"><span id="zap-study-side">Question</span><strong id="zap-study-text"></strong><small>Click or press Space to flip</small></button>
+    <nav class="zap-study-dots" id="zap-study-dots" aria-label="Study cards"></nav>
+    <div class="row"><button type="button" class="button secondary" id="zap-study-prev">Previous</button><button type="button" class="button secondary" id="zap-study-next">Next</button><button type="button" class="button secondary" id="zap-study-shuffle">Shuffle</button></div>
+    <p class="zap-hint">Arrow keys to navigate · Space to flip · Escape to close</p>
   </dialog>
   <script src="index.js"></script>
 </body>

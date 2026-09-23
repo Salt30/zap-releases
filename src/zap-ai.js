@@ -47,7 +47,15 @@ async function requestAI(input, settings, credentials, { signal, fetchImpl = fet
     body: JSON.stringify({ ...request, settings: preferences, deviceId: credentials.deviceId, refreshToken: credentials.refreshToken })
   });
   if (!response.ok) {
-    await response.body?.cancel().catch(() => {});
+    // Only expose known error codes, never raw server/provider messages.
+    const failure = await readJSON(response).catch(() => ({}));
+    const known = {
+      provider_configuration: 'Zap AI needs a server configuration fix. Please contact Zap support.',
+      provider_request: 'Zap AI could not process this request. Try a shorter prompt or a smaller capture; if it persists, contact Zap support.',
+      provider_busy: 'Zap AI is busy. Wait a moment, then try again.',
+      timeout: 'The AI service timed out. Try a shorter question or a smaller capture.'
+    };
+    if ([503, 504].includes(response.status) && Object.hasOwn(known, failure?.code)) throw new Error(known[failure.code]);
     throw new Error(({401: 'Connect your Zap account in Billing to use AI.', 402: 'An active Zap subscription is required for Zap AI.', 403: 'Your account could not be verified. Reconnect it in Billing.', 413: 'The screenshot is too large. Capture a smaller region.', 429: 'Zap’s AI usage limit was reached. Please try again later.', 503: 'Zap AI is temporarily unavailable. Please try again later.', 504: 'The AI request timed out. Try a shorter question.', 404: 'Zap AI is not available on the server yet.'})[response.status] || 'The AI service could not complete this request.');
   }
   const data = await readJSON(response);

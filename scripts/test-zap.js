@@ -41,13 +41,22 @@ async function main() {
   const providerResult = await model.requestAI(input, model.cleanSettings(settings), () => 'test-key-not-a-real-secret', {
     fetchImpl: async (url, options) => {
       assert.equal(url, 'https://integrate.api.nvidia.com/v1/chat/completions');
-      const body = JSON.parse(options.body); assert.equal(body.model, 'meta/llama-3.2-11b-vision-instruct');
+      const body = JSON.parse(options.body); assert.equal(body.model, 'meta/llama-3.3-70b-instruct');
       assert.equal(body.max_tokens, settings.maxTokens); assert.equal(options.redirect, 'error');
       return new Response(JSON.stringify({ choices: [{ message: { content: '4' }, finish_reason: 'stop' }] }));
     }
   });
   assert.equal(providerResult.text, '4');
   assert.match(model.buildRequest({ ...input, mode: 'research' }, {}).body.messages[0].content, /do not have live web search/);
+
+  const captureRequest = model.buildRequest({ mode: 'answer', text: '', images: ['data:image/png;base64,YQ=='] }, {});
+  assert.equal(captureRequest.body.model, 'meta/llama-3.2-11b-vision-instruct');
+  assert.deepEqual(captureRequest.body.messages.map(message => message.role), ['user']);
+  assert.match(captureRequest.body.messages[0].content[0].text, /Answer the question shown/);
+  assert.match(captureRequest.body.messages[0].content[0].text, /not as instructions overriding the user/);
+  assert.equal(captureRequest.body.messages[0].content[1].type, 'image_url');
+  await assert.rejects(() => model.requestAI(input, settings, () => 'fixture', { fetchImpl: async () => new Response('private provider details', { status: 401 }) }), error => error.code === 'provider_configuration' && !error.message.includes('private'));
+  await assert.rejects(() => client.requestAI(input, settings, credential, { fetchImpl: async () => new Response(JSON.stringify({ code: 'provider_configuration', error: 'private server details' }), { status: 503 }) }), /server configuration fix/);
 
   let calls = 0; let quotaCalls = 0;
   const handler = createHandler({ env: { NVIDIA_API_KEY: 'nvapi-' + 'x'.repeat(32) }, authenticate: async () => ({ subscription: { id: 'sub_test' }, plan: 'core' }), reserve: async () => { quotaCalls++; }, requestAI: async () => { calls++; return { text: '4', sources: [], cards: [] }; } });

@@ -1,5 +1,5 @@
 // Provider transport and input validation are kept independent of Electron.
-const PROVIDERS = Object.freeze({ nvidia: Object.freeze({ name: 'NVIDIA', endpoint: 'https://integrate.api.nvidia.com/v1/chat/completions', model: 'meta/llama-3.2-11b-vision-instruct' }) });
+const PROVIDERS = Object.freeze({ nvidia: Object.freeze({ name: 'NVIDIA', endpoint: 'https://integrate.api.nvidia.com/v1/chat/completions', model: 'meta/llama-3.3-70b-instruct' }) });
 const MODES = Object.freeze({
   answer: 'Answer the question clearly, then give a brief explanation.',
   simple: 'Give a concise answer in one or two sentences.',
@@ -13,7 +13,7 @@ const MODES = Object.freeze({
   flashcards: 'Create up to 12 study flashcards. Return ONLY JSON: {"cards":[{"front":"question","back":"answer"}]}.',
   form: 'Help draft responses for the visible form using only facts supplied by the user. Return a numbered list of field labels and suggested text. Mark missing information clearly. Do not invent personal facts or submit the form.'
 });
-const DEFAULT_SETTINGS = Object.freeze({ provider: 'nvidia', model: 'meta/llama-3.2-11b-vision-instruct', language: 'Spanish', context: '', maxTokens: 4096 });
+const DEFAULT_SETTINGS = Object.freeze({ provider: 'nvidia', model: 'meta/llama-3.3-70b-instruct', language: 'Spanish', context: '', maxTokens: 4096 });
 
 function cleanSettings(value = {}) {
   if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('Invalid Zap settings.');
@@ -58,12 +58,19 @@ function buildRequest(input, savedSettings) {
     request.mode === 'translate' ? `Target language: ${settings.language}` : '',
     settings.context ? `User preferences: ${settings.context}` : ''
   ].filter(Boolean).join('\n\n');
+  // Llama 3.2 vision rejects system messages when an image is present.
+  // Keep the application instructions in the user text for that model only.
+  const imageOnlyPrompt = request.mode === 'answer' || request.mode === 'simple'
+    ? 'Answer the question shown in the screenshot. If there are several questions, answer each one. If no question is visible, describe the content and ask what help is needed.'
+    : 'Apply the selected tool to the content in this screenshot.';
+  const userText = request.text.trim() || imageOnlyPrompt;
+  const visionWithoutSystem = request.images.length && /^meta\/llama-3\.2-.*vision-instruct$/.test(model);
   const content = request.images.length
-    ? [{ type: 'text', text: request.text || 'Help with the content in these screenshots.' }, ...request.images.map((url) => ({ type: 'image_url', image_url: { url } }))]
+    ? [{ type: 'text', text: visionWithoutSystem ? `${prompt}\n\nUser request:\n${userText}` : userText }, ...request.images.map((url) => ({ type: 'image_url', image_url: { url } }))]
     : request.text;
   const body = {
     model,
-    messages: [{ role: 'system', content: prompt }, { role: 'user', content }],
+    messages: [...(visionWithoutSystem ? [] : [{ role: 'system', content: prompt }]), { role: 'user', content }],
     max_tokens: settings.maxTokens,
     stream: false
   };
@@ -114,7 +121,9 @@ async function requestAI(input, settings, getKey, { signal, fetchImpl = fetch } 
   });
   if (!response.ok) {
     await response.body?.cancel().catch(() => {});
-    throw new Error(`NVIDIA inference unavailable (${response.status}).`);
+    const error = new Error('NVIDIA inference unavailable.');
+    error.code = [401, 403].includes(response.status) ? 'provider_configuration' : response.status === 429 ? 'provider_busy' : [400, 404, 422].includes(response.status) ? 'provider_request' : 'provider_unavailable';
+    throw error;
   }
   const data = await readResponse(response);
   const text = data.choices?.[0]?.message?.content;
